@@ -1,0 +1,83 @@
+name: pocket_claw
+description: "Pocket Claw - Mobile AI Agent with OpenClaw Integration"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  fl_chart: ^0.70.2
+  flutter_markdown: ^0.7.6
+  shimmer: ^3.0.0
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # Networking
+  dio: ^5.7.0
+  web_socket_channel: ^3.0.2
+  connectivity_plus: ^6.1.4
+
+  # Local Storage
+  sqflite: ^2.4.2
+  path_provider: ^2.1.5
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.3.5
+
+  # YAML parsing (SKILL.md frontmatter)
+  yaml: ^3.1.3
+
+  # Device APIs
+  camera: ^0.11.1
+  device_calendar: ^4.3.3
+  flutter_local_notifications: ^18.0.1
+  flutter_tts: ^4.2.0
+  share_plus: ^10.1.4
+  local_auth: ^2.3.0
+  geolocator: ^13.0.2
+  file_picker: ^8.1.7
+  permission_handler: ^11.3.1
+  image_picker: ^1.1.2
+
+  # Utilities
+  uuid: ^4.5.1
+  intl: ^0.19.0
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  collection: ^1.19.1
+  path: ^1.9.1
+  mime: ^2.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.14
+  freezed: ^2.5.8
+  json_serializable: ^6.9.4
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/skills/
+    - assets/images/.gitkeep
+
+  fonts:
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
