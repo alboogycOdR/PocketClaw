@@ -158,7 +158,25 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
     isStreaming: true,
   ));
 
+  bool receivedAnyToken = false;
+  final timeout = Future<void>.delayed(const Duration(seconds: 30));
+  bool timedOut = false;
+
+  timeout.then((_) {
+    if (!receivedAnyToken) timedOut = true;
+  });
+
   await for (final response in agent.process(text, imageUrl: imageUrl)) {
+    if (timedOut) {
+      messages.updateLast((m) => m.copyWith(
+            content: '${m.content}\n\n[Inference timed out after 30s. '
+                'Try a shorter question or test on a real device — '
+                'emulators are very slow for on-device AI.]',
+            isStreaming: false,
+          ));
+      break;
+    }
+
     if (response.isDone) {
       messages.updateLast((m) => m.copyWith(isStreaming: false));
       break;
@@ -173,6 +191,7 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
             ),
           ));
     } else if (response.text.isNotEmpty) {
+      receivedAnyToken = true;
       messages.appendToLast(response.text);
     }
   }
