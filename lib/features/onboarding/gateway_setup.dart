@@ -1,6 +1,7 @@
 /// Gateway URL input with QR scan option, test connection, skip for offline-only
 library;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -18,22 +19,68 @@ class _GatewaySetupState extends State<GatewaySetup> {
   final _urlController = TextEditingController();
   bool _testing = false;
   bool? _testSuccess;
+  String? _testError;
 
   Future<void> _testConnection() async {
-    if (_urlController.text.trim().isEmpty) return;
+    final rawUrl = _urlController.text.trim();
+    if (rawUrl.isEmpty) return;
 
     setState(() {
       _testing = true;
       _testSuccess = null;
+      _testError = null;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    // Convert ws:// to http:// for the health check
+    final restUrl = rawUrl
+        .replaceFirst('wss://', 'https://')
+        .replaceFirst('ws://', 'http://');
 
-    if (!mounted) return;
-    setState(() {
-      _testing = false;
-      _testSuccess = true;
-    });
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 5),
+    ));
+
+    try {
+      final response = await dio.get<Map<String, dynamic>>(
+        '$restUrl/api/health',
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _testing = false;
+          _testSuccess = true;
+        });
+      } else {
+        setState(() {
+          _testing = false;
+          _testSuccess = false;
+          _testError = 'Server returned status ${response.statusCode}';
+        });
+      }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testing = false;
+        _testSuccess = false;
+        _testError = switch (e.type) {
+          DioExceptionType.connectionTimeout => 'Connection timed out',
+          DioExceptionType.connectionError => 'Could not reach server',
+          _ => e.message ?? 'Connection failed',
+        };
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testing = false;
+        _testSuccess = false;
+        _testError = 'Connection failed: $e';
+      });
+    } finally {
+      dio.close();
+    }
   }
 
   void _proceed() {
@@ -148,15 +195,17 @@ class _GatewaySetupState extends State<GatewaySetup> {
                             : PocketClawTheme.lobsterRed,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        _testSuccess!
-                            ? 'Connected successfully!'
-                            : 'Connection failed. Check the URL.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _testSuccess!
-                              ? const Color(0xFF4CAF50)
-                              : PocketClawTheme.lobsterRed,
+                      Expanded(
+                        child: Text(
+                          _testSuccess!
+                              ? 'Connected successfully!'
+                              : _testError ?? 'Connection failed. Check the URL.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _testSuccess!
+                                ? const Color(0xFF4CAF50)
+                                : PocketClawTheme.lobsterRed,
+                          ),
                         ),
                       ),
                     ],

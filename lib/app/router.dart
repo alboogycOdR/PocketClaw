@@ -11,6 +11,7 @@ import '../features/mission_control/dashboard_screen.dart';
 import '../features/mission_control/tasks_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
 import '../features/skills/skills_screen.dart';
 
@@ -84,6 +85,10 @@ final GoRouter appRouter = GoRouter(
               path: '/skills',
               builder: (context, state) => const SkillsScreen(),
               routes: [
+                GoRoute(
+                  path: 'clawhub',
+                  builder: (context, state) => const ClawHubBrowser(),
+                ),
                 GoRoute(
                   path: ':name',
                   builder: (context, state) {

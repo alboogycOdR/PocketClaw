@@ -86,4 +86,18 @@ final localToolDefinitions = <Map<String, dynamic>>[
       'language': {'type': 'string', 'required': false, 'default': 'en'},
     },
   },
+  {
+    'name': 'ocr',
+    'description':
+        'Extract text from an image using on-device vision (OCR). '
+        'Use after capturing a photo to read receipts, documents, whiteboards.',
+    'parameters': {
+      'image_path': {'type': 'string', 'required': true},
+      'prompt': {
+        'type': 'string',
+        'required': false,
+        'default': 'Extract all text from this image.',
+      },
+    },
+  },
 ];

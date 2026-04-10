@@ -56,8 +56,22 @@ class CronScreen extends ConsumerWidget {
                 final job = jobs[index];
                 return _CronTile(
                   job: job,
-                  onToggle: (enabled) {
-                    // TODO: call REST endpoint to toggle cron job
+                  onToggle: (enabled) async {
+                    try {
+                      await restClient.toggleCronJob(
+                        job.id,
+                        enabled: enabled,
+                      );
+                      ref.invalidate(mcCronJobsProvider);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to toggle: $e'),
+                          ),
+                        );
+                      }
+                    }
                   },
                 );
               },

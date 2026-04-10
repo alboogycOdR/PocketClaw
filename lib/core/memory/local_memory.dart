@@ -1,24 +1,46 @@
 /// Local memory manager — stores notes as Markdown files with YAML frontmatter,
-/// indexed in sqflite for fast search.
+/// indexed in sqflite for fast search. Supports vector-based semantic search
+/// via flutter_gemma embeddings with cosine similarity ranking.
 library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/database/daos/notes_dao.dart';
 import '../../data/models/memory_note.dart';
+import '../local_agent/llm_engine.dart';
 import '../local_agent/tool_executor.dart';
+
+/// Result pairing a note with its similarity score (1.0 = identical).
+class ScoredNote {
+  final MemoryNote note;
+  final double score;
+
+  const ScoredNote({required this.note, required this.score});
+}
 
 class LocalMemory {
   final NotesDao _notesDao;
+  final LlmEngine? _llmEngine;
   final _uuid = const Uuid();
   Directory? _notesDir;
+  Directory? _embeddingsDir;
 
-  LocalMemory({NotesDao? notesDao}) : _notesDao = notesDao ?? NotesDao();
+  /// In-memory cache of note embeddings keyed by note id.
+  final Map<String, List<double>> _embeddingCache = {};
+
+  /// Whether the embedding cache has been populated from disk.
+  bool _cacheLoaded = false;
+
+  LocalMemory({NotesDao? notesDao, LlmEngine? llmEngine})
+      : _notesDao = notesDao ?? NotesDao(),
+        _llmEngine = llmEngine;
 
   /// Lazily resolve the notes storage directory.
   Future<Directory> get _storageDir async {
@@ -29,6 +51,18 @@ class LocalMemory {
       await _notesDir!.create(recursive: true);
     }
     return _notesDir!;
+  }
+
+  /// Lazily resolve the embeddings storage directory.
+  Future<Directory> get _embeddingDir async {
+    if (_embeddingsDir != null) return _embeddingsDir!;
+    final appDir = await getApplicationDocumentsDirectory();
+    _embeddingsDir =
+        Directory(p.join(appDir.path, 'pocket_claw', 'embeddings'));
+    if (!await _embeddingsDir!.exists()) {
+      await _embeddingsDir!.create(recursive: true);
+    }
+    return _embeddingsDir!;
   }
 
   /// Create a new note, persisting both the Markdown file and the index row.
@@ -55,6 +89,9 @@ class LocalMemory {
 
       // Index in database
       await _notesDao.upsert(_noteToRow(note, filePath));
+
+      // Generate and store embedding (best-effort, non-blocking)
+      _generateAndStoreEmbedding(id, '$title\n$content');
 
       return ToolResult.ok(
         'Note "$title" saved to $folder.',
@@ -92,7 +129,22 @@ class LocalMemory {
   }
 
   /// Search notes for prompt context injection.
+  ///
+  /// Uses a hybrid strategy: attempts vector (semantic) search first, then
+  /// falls back to text-based LIKE search if embeddings are unavailable.
   Future<List<MemoryNote>> search(String query, [int limit = 5]) async {
+    // Try vector search first
+    final vectorResults = await vectorSearch(query, limit: limit);
+    if (vectorResults.isNotEmpty) {
+      return vectorResults.map((s) => s.note).toList();
+    }
+
+    // Fall back to text search
+    return _textSearch(query, limit);
+  }
+
+  /// Pure text-based search (LIKE matching) — the original search path.
+  Future<List<MemoryNote>> _textSearch(String query, int limit) async {
     final rows = await _notesDao.search(query, limit: limit);
     final notes = <MemoryNote>[];
     for (final row in rows) {
@@ -100,6 +152,56 @@ class LocalMemory {
       if (note != null) notes.add(note);
     }
     return notes;
+  }
+
+  /// Semantic vector search using cosine similarity against stored embeddings.
+  ///
+  /// Returns an empty list if the embedding model is unavailable or no
+  /// embeddings have been generated yet. A minimum similarity threshold of
+  /// 0.3 is applied to filter irrelevant matches.
+  Future<List<ScoredNote>> vectorSearch(
+    String query, {
+    int limit = 5,
+    double threshold = 0.3,
+  }) async {
+    if (_llmEngine == null) return [];
+
+    try {
+      // Generate query embedding
+      final queryEmbedding = await _llmEngine.generateEmbedding(query);
+
+      // Check for zero-vector (embedding model not available)
+      if (_isZeroVector(queryEmbedding)) return [];
+
+      // Ensure cache is populated
+      await _loadEmbeddingCache();
+
+      if (_embeddingCache.isEmpty) return [];
+
+      // Score every cached note
+      final scored = <ScoredNote>[];
+      for (final entry in _embeddingCache.entries) {
+        final similarity = _cosineSimilarity(queryEmbedding, entry.value);
+        if (similarity >= threshold) {
+          final row = await _notesDao.getById(entry.key);
+          if (row != null) {
+            final note = await _loadNoteFromRow(row);
+            if (note != null) {
+              scored.add(ScoredNote(note: note, score: similarity));
+            }
+          }
+        }
+      }
+
+      // Sort by descending similarity
+      scored.sort((a, b) => b.score.compareTo(a.score));
+
+      if (scored.length > limit) return scored.sublist(0, limit);
+      return scored;
+    } catch (e) {
+      debugPrint('LocalMemory: vector search failed: $e');
+      return [];
+    }
   }
 
   /// Return every note, ordered by last modified.
@@ -113,7 +215,7 @@ class LocalMemory {
     return notes;
   }
 
-  /// Delete a note by id — removes both the file and the index entry.
+  /// Delete a note by id — removes the file, embedding, and the index entry.
   Future<void> deleteNote(String id) async {
     final row = await _notesDao.getById(id);
     if (row != null) {
@@ -123,6 +225,7 @@ class LocalMemory {
         await file.delete();
       }
       await _notesDao.delete(id);
+      await _deleteEmbedding(id);
     }
   }
 
@@ -219,5 +322,98 @@ class LocalMemory {
     final oneLine = content.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (oneLine.length <= maxLen) return oneLine;
     return '${oneLine.substring(0, maxLen)}...';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Embedding helpers
+  // ---------------------------------------------------------------------------
+
+  /// Fire-and-forget: generate an embedding and persist it to disk + cache.
+  void _generateAndStoreEmbedding(String noteId, String text) {
+    if (_llmEngine == null) return;
+
+    // Run async without awaiting — note creation should not block on embedding.
+    Future<void>(() async {
+      try {
+        final embedding = await _llmEngine.generateEmbedding(text);
+        if (_isZeroVector(embedding)) return; // model not available
+
+        await _saveEmbedding(noteId, embedding);
+        _embeddingCache[noteId] = embedding;
+      } catch (e) {
+        debugPrint('LocalMemory: embedding generation failed for $noteId: $e');
+      }
+    });
+  }
+
+  /// Persist an embedding vector as a JSON file.
+  Future<void> _saveEmbedding(String noteId, List<double> embedding) async {
+    final dir = await _embeddingDir;
+    final file = File(p.join(dir.path, '$noteId.json'));
+    await file.writeAsString(jsonEncode(embedding));
+  }
+
+  /// Populate [_embeddingCache] from disk (once).
+  Future<void> _loadEmbeddingCache() async {
+    if (_cacheLoaded) return;
+    _cacheLoaded = true;
+
+    try {
+      final dir = await _embeddingDir;
+      if (!await dir.exists()) return;
+
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.endsWith('.json')) {
+          final noteId =
+              p.basenameWithoutExtension(entity.path);
+          try {
+            final raw = await entity.readAsString();
+            final decoded = jsonDecode(raw);
+            if (decoded is List) {
+              _embeddingCache[noteId] = decoded.cast<double>();
+            }
+          } catch (_) {
+            // Skip malformed files
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('LocalMemory: failed to load embedding cache: $e');
+    }
+  }
+
+  /// Delete the embedding file for a note.
+  Future<void> _deleteEmbedding(String noteId) async {
+    _embeddingCache.remove(noteId);
+    final dir = await _embeddingDir;
+    final file = File(p.join(dir.path, '$noteId.json'));
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  /// Cosine similarity between two vectors. Returns a value in [-1, 1].
+  static double _cosineSimilarity(List<double> a, List<double> b) {
+    if (a.length != b.length || a.isEmpty) return 0.0;
+
+    var dotProduct = 0.0;
+    var normA = 0.0;
+    var normB = 0.0;
+
+    for (var i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    final denominator = math.sqrt(normA) * math.sqrt(normB);
+    if (denominator == 0.0) return 0.0;
+
+    return dotProduct / denominator;
+  }
+
+  /// Check if a vector is all zeroes (indicates embedding model failure).
+  static bool _isZeroVector(List<double> v) {
+    return v.every((x) => x == 0.0);
   }
 }

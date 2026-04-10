@@ -53,6 +53,19 @@ class ServerMemory {
     }
   }
 
+  /// Write or overwrite a file on the server memory store.
+  Future<void> writeFile({
+    required String path,
+    required String content,
+  }) async {
+    await _client.writeMemoryFile(path: path, content: content);
+  }
+
+  /// Delete a file from the server memory store.
+  Future<void> deleteFile(String path) async {
+    await _client.deleteMemoryFile(path);
+  }
+
   /// Convert a MemoryFile + fetched content into a MemoryNote.
   MemoryNote _fileToNote(MemoryFile file, String content) {
     final title = file.name.replaceAll(RegExp(r'\.\w+$'), '');

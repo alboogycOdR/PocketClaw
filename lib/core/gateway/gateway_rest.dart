@@ -77,6 +77,13 @@ class GatewayRestClient {
         .toList();
   }
 
+  Future<void> toggleCronJob(String jobId, {required bool enabled}) async {
+    await _dio.patch<void>(
+      '/api/cron/$jobId',
+      data: {'enabled': enabled},
+    );
+  }
+
   // -- Cost Tracking --
 
   Future<UsageStats> getUsageStats({String? period}) async {
@@ -105,6 +112,23 @@ class GatewayRestClient {
       queryParameters: {'path': path},
     );
     return res.data!['content'] as String;
+  }
+
+  Future<void> writeMemoryFile({
+    required String path,
+    required String content,
+  }) async {
+    await _dio.put<void>(
+      '/api/memory/content',
+      data: {'path': path, 'content': content},
+    );
+  }
+
+  Future<void> deleteMemoryFile(String path) async {
+    await _dio.delete<void>(
+      '/api/memory/content',
+      queryParameters: {'path': path},
+    );
   }
 
   // -- Skills --

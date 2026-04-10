@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/gateway/gateway_client.dart';
 import '../../core/gateway/gateway_rest.dart';
+import '../../core/gateway/offline_queue.dart';
 import '../../core/local_agent/llm_engine.dart';
 import '../../core/local_agent/local_agent.dart';
 import '../../core/local_agent/model_selector.dart';
@@ -66,6 +67,20 @@ final gatewayClientProvider = Provider<GatewayClient?>((ref) {
   if (url.isEmpty || token.isEmpty) return null;
 
   final client = GatewayClient(gatewayUrl: url, authToken: token);
+
+  // Replay offline queue when connected
+  final queue = ref.read(offlineQueueProvider);
+  if (queue.hasPending) {
+    client.connectionState.addListener(() async {
+      if (client.connectionState.value == GatewayState.connected) {
+        final sent = await queue.replay(client);
+        if (sent > 0) {
+          debugPrint('Replayed $sent queued message(s)');
+        }
+      }
+    });
+  }
+
   ref.onDispose(() => client.dispose());
   return client;
 });
@@ -89,15 +104,25 @@ final gatewayRestClientProvider = Provider<GatewayRestClient?>((ref) {
   return client;
 });
 
+// ── Offline Queue ──
+
+final offlineQueueProvider = Provider<OfflineQueue>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return OfflineQueue(prefs: prefs);
+});
+
 // ── Device Services ──
 
 final calendarServiceProvider = Provider<CalendarService>(
   (_) => CalendarService(),
 );
 
-final cameraServiceProvider = Provider<CameraService>(
-  (_) => CameraService(),
-);
+final cameraServiceProvider = Provider<CameraService>((ref) {
+  final camera = CameraService();
+  final engine = ref.watch(llmEngineProvider);
+  camera.setLlmEngine(engine);
+  return camera;
+});
 
 final notificationServiceProvider = Provider<NotificationService>(
   (_) => NotificationService(),
@@ -130,7 +155,8 @@ final skillsLoadedProvider = FutureProvider<void>((ref) async {
 // ── Local Memory ──
 
 final localMemoryProvider = Provider<LocalMemory>((ref) {
-  return LocalMemory();
+  final llm = ref.watch(llmEngineProvider);
+  return LocalMemory(llmEngine: llm);
 });
 
 // ── Server Memory ──
@@ -174,6 +200,31 @@ final llmEngineProvider = Provider<LlmEngine>((ref) {
 final modelSelectorProvider = Provider<ModelSelector>(
   (_) => ModelSelector(),
 );
+
+/// Loads the selected model into the LLM engine on startup.
+/// Returns true if a model was successfully loaded.
+final modelInitProvider = FutureProvider<bool>((ref) async {
+  if (kIsWeb) return false;
+
+  final engine = ref.watch(llmEngineProvider);
+  final selector = ref.watch(modelSelectorProvider);
+  final prefs = ref.watch(sharedPrefsProvider);
+
+  final selectedId = prefs.getString('selected_model');
+  if (selectedId == null || selectedId.isEmpty) return false;
+
+  try {
+    // Look up the config for the selected model ID
+    final config = selector.getConfigById(selectedId) ??
+        await selector.selectModel();
+
+    await engine.loadModel(config);
+    return true;
+  } catch (e) {
+    debugPrint('Model init failed: $e');
+    return false;
+  }
+});
 
 // ── Session ──
 

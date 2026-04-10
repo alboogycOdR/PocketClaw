@@ -50,6 +50,15 @@ dependencies:
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
 
+  # Local LLM
+  flutter_gemma: ^0.13.2
+
+  # Math
+  math_expressions: ^2.6.0
+
+  # Device Info
+  device_info_plus: ^11.3.3
+
   # Utilities
   uuid: ^4.5.1
   intl: ^0.19.0

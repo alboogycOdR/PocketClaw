@@ -79,8 +79,9 @@ class _SkillsList extends ConsumerWidget {
         title: const Text('Skills'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, size: 22),
-            onPressed: () {},
+            icon: const Icon(Icons.store_outlined, size: 22),
+            tooltip: 'Browse ClawHub',
+            onPressed: () => context.push('/skills/clawhub'),
           ),
         ],
       ),

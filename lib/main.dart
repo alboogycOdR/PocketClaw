@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'core/local_agent/llm_engine.dart';
 import 'data/database/app_database.dart';
 import 'data/providers/core_providers.dart';
 
@@ -37,6 +38,16 @@ void main() async {
 
   // Initialize shared preferences
   final prefs = await SharedPreferences.getInstance();
+
+  // Initialize flutter_gemma platform with optional HuggingFace token
+  if (!kIsWeb) {
+    try {
+      final hfToken = prefs.getString('huggingface_token');
+      await LlmEngine.initPlatform(huggingFaceToken: hfToken);
+    } catch (e) {
+      debugPrint('FlutterGemma init failed: $e');
+    }
+  }
 
   runApp(
     ProviderScope(

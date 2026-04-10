@@ -16,9 +16,67 @@ import 'security_settings.dart';
 /// Map model IDs to user-friendly display names.
 const _modelDisplayNames = <String, String>{
   'gemma-4-e2b': 'Gemma 4 E2B',
-  'qwen3-0.6b': 'Qwen3 0.6B',
-  'smollm-135m': 'SmolLM 135M',
+  'gemma-3-1b': 'Gemma 3 1B',
+  'gemma-3-270m': 'Gemma 3 270M',
 };
+
+void _showHfTokenDialog(BuildContext context, WidgetRef ref) {
+  final prefs = ref.read(sharedPrefsProvider);
+  final controller = TextEditingController(
+    text: prefs.getString('huggingface_token') ?? '',
+  );
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('HuggingFace Token'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Gemma models require a HuggingFace account. '
+            'Get your token from huggingface.co/settings/tokens',
+            style: TextStyle(fontSize: 13, color: Colors.white54),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Token',
+              hintText: 'hf_...',
+              border: OutlineInputBorder(),
+            ),
+            obscureText: true,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final token = controller.text.trim();
+            await prefs.setString('huggingface_token', token);
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(token.isEmpty
+                      ? 'Token cleared. Restart app to apply.'
+                      : 'Token saved. Restart app to apply.'),
+                ),
+              );
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  ).then((_) => controller.dispose());
+}
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -141,6 +199,30 @@ class SettingsScreen extends ConsumerWidget {
                   },
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // HuggingFace Token
+          _SectionTitle(title: 'HuggingFace Token'),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              leading: const Icon(Icons.key_outlined),
+              title: const Text('API Token'),
+              subtitle: Text(
+                ref.watch(sharedPrefsProvider).getString('huggingface_token')?.isNotEmpty == true
+                    ? 'Token configured (hf_...)'
+                    : 'Required to download Gemma models',
+                style: const TextStyle(fontSize: 12, color: Colors.white54),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: Colors.white38,
+              ),
+              onTap: () => _showHfTokenDialog(context, ref),
             ),
           ),
 

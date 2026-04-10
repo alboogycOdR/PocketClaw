@@ -1,6 +1,8 @@
 /// Executes function calls from the LLM by mapping to device APIs
 library;
 
+import 'package:math_expressions/math_expressions.dart';
+
 import '../device/calendar_service.dart';
 import '../device/camera_service.dart';
 import '../device/file_service.dart';
@@ -106,6 +108,14 @@ class ToolExecutor {
             language: call.args['language'] as String? ?? 'en',
           );
 
+        case 'ocr':
+        case 'analyse_image':
+          return _camera.processImageWithVision(
+            imagePath: call.args['image_path'] as String,
+            prompt: call.args['prompt'] as String? ??
+                'Extract all text from this image.',
+          );
+
         default:
           return ToolResult.error('Unknown tool: ${call.name}');
       }
@@ -115,15 +125,33 @@ class ToolExecutor {
   }
 
   ToolResult _calculateExpression(String expression) {
-    // Simple math evaluation
-    // For safety, only allow basic arithmetic
     try {
-      final sanitized = expression.replaceAll(RegExp(r'[^0-9+\-*/().% ]'), '');
+      // Sanitise: only allow digits, operators, parens, decimal points, spaces
+      final sanitized = expression.replaceAll(RegExp(r'[^0-9+\-*/().%^ ]'), '');
       if (sanitized.isEmpty) {
         return ToolResult.error('Invalid expression');
       }
-      // TODO: Use a proper math expression parser
-      return ToolResult.ok('Calculated: $expression (parser pending)');
+
+      // Handle percentage: convert e.g. "50%" to "(50/100)"
+      final withPercent = sanitized.replaceAllMapped(
+        RegExp(r'(\d+(?:\.\d+)?)%'),
+        (m) => '(${m.group(1)}/100)',
+      );
+
+      final parser = Parser();
+      final exp = parser.parse(withPercent);
+      final contextModel = ContextModel();
+      final result = exp.evaluate(EvaluationType.REAL, contextModel) as double;
+
+      // Format: strip trailing .0 for whole numbers
+      final formatted = result == result.roundToDouble()
+          ? result.toInt().toString()
+          : result.toStringAsFixed(6).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+
+      return ToolResult.ok(
+        '$expression = $formatted',
+        data: {'expression': expression, 'result': result},
+      );
     } catch (e) {
       return ToolResult.error('Calculation failed: $e');
     }

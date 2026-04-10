@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/gateway/offline_queue.dart';
 import '../../core/router/smart_router.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
@@ -38,6 +39,17 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
       content: last.content + text,
     );
     state = updated;
+  }
+
+  void removeById(String id) {
+    state = state.where((m) => m.id != id).toList();
+  }
+
+  void updateById(String id, ChatMessage Function(ChatMessage) updater) {
+    state = [
+      for (final m in state)
+        if (m.id == id) updater(m) else m,
+    ];
   }
 
   void clear() => state = [];
@@ -171,14 +183,34 @@ Future<void> _processServer(Ref ref, String text) async {
   final messages = ref.read(messagesProvider.notifier);
 
   if (client == null) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'Server not configured. Go to Settings to connect your OpenClaw gateway, or prefix with /local to use the on-device model.',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    // Queue the message for later if gateway is configured but offline
+    final offlineQueue = ref.read(offlineQueueProvider);
+    final gatewayUrl = ref.read(gatewayUrlProvider);
+
+    if (gatewayUrl.isNotEmpty) {
+      await offlineQueue.enqueue(QueuedMessage(
+        text: text,
+        queuedAt: DateTime.now(),
+      ));
+      messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'Server is offline. Message queued — it will be sent automatically when the connection is restored. '
+            '(${offlineQueue.pendingCount} message(s) pending)',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+    } else {
+      messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'Server not configured. Go to Settings to connect your OpenClaw gateway, or prefix with /local to use the on-device model.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+    }
     return;
   }
 
@@ -224,26 +256,91 @@ Future<void> _processServer(Ref ref, String text) async {
 }
 
 Future<void> _processBridge(Ref ref, String text, {String? imageUrl}) async {
+  final agent = ref.read(localAgentProvider);
+  final client = ref.read(gatewayClientProvider);
   final messages = ref.read(messagesProvider.notifier);
 
-  // Phase 1: Local processing (OCR etc.)
+  // Phase 1: Local preprocessing
   messages.add(ChatMessage(
     id: _uuid.v4(),
     role: MessageRole.assistant,
-    content: 'Processing on device...',
+    content: '',
     source: MessageSource.local,
     timestamp: DateTime.now(),
     isStreaming: true,
   ));
 
-  // TODO: Implement bridge flow — local capture → server process → local display
-  // For now, fall back to server
-  messages.updateLast((m) => m.copyWith(
-        content: 'Bridge processing — routing to server for analysis...',
-        isStreaming: false,
-      ));
+  String localSummary = '';
 
-  await _processServer(ref, text);
+  if (agent.isModelLoaded) {
+    // Run local LLM to summarise / extract key info from the query
+    await for (final response in agent.process(
+      'Briefly summarise this request for a more powerful server model. '
+      'Extract key details, entities, and intent:\n\n$text',
+      imageUrl: imageUrl,
+    )) {
+      if (response.isDone) break;
+      if (response.text.isNotEmpty) {
+        localSummary += response.text;
+        messages.appendToLast(response.text);
+      }
+    }
+  } else {
+    localSummary = text;
+  }
+
+  // Phase 2: Send enriched context to server
+  if (client == null) {
+    messages.updateLast((m) => m.copyWith(
+          content: '${m.content}\n\n[No server connection — showing local result only]',
+          isStreaming: false,
+        ));
+    return;
+  }
+
+  messages.updateLast((m) => m.copyWith(isStreaming: false));
+
+  // Add server response placeholder
+  messages.add(ChatMessage(
+    id: _uuid.v4(),
+    role: MessageRole.assistant,
+    content: '',
+    source: MessageSource.server,
+    timestamp: DateTime.now(),
+    isStreaming: true,
+  ));
+
+  // Send enriched prompt to server
+  final enrichedPrompt = localSummary.isNotEmpty
+      ? 'User query: $text\n\nLocal analysis: $localSummary'
+      : text;
+  await client.sendMessage(enrichedPrompt);
+
+  // Stream server response
+  final completer = Completer<void>();
+  late StreamSubscription<ServerResponse> sub;
+
+  sub = client.responses.listen((response) {
+    messages.appendToLast(response.chunk);
+    if (response.done) {
+      messages.updateLast((m) => m.copyWith(isStreaming: false));
+      sub.cancel();
+      if (!completer.isCompleted) completer.complete();
+    }
+  });
+
+  await completer.future.timeout(
+    const Duration(seconds: 60),
+    onTimeout: () {
+      sub.cancel();
+      messages.updateLast(
+        (m) => m.copyWith(
+          content: '${m.content}\n\n[Response timed out]',
+          isStreaming: false,
+        ),
+      );
+    },
+  );
 }
 
 void _processDevice(Ref ref, String text) {

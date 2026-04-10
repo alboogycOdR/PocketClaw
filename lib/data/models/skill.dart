@@ -68,6 +68,7 @@ class Skill {
 
 class SkillInfo {
   final String name;
+  final String slug;
   final String description;
   final String? emoji;
   final String runtime;
@@ -75,6 +76,7 @@ class SkillInfo {
 
   const SkillInfo({
     required this.name,
+    required this.slug,
     required this.description,
     this.emoji,
     required this.runtime,
@@ -83,6 +85,7 @@ class SkillInfo {
 
   factory SkillInfo.fromJson(Map<String, dynamic> json) => SkillInfo(
         name: json['name'] as String,
+        slug: json['slug'] as String? ?? json['name'] as String,
         description: json['description'] as String? ?? '',
         emoji: json['emoji'] as String?,
         runtime: json['runtime'] as String? ?? 'server',

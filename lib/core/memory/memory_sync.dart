@@ -2,6 +2,8 @@
 /// Conflict resolution: latest-modified timestamp wins.
 library;
 
+import 'package:flutter/foundation.dart';
+
 import '../../data/database/daos/settings_dao.dart';
 import '../../data/models/memory_note.dart';
 import 'local_memory.dart';
@@ -38,7 +40,7 @@ class MemorySync {
         serverMap[_normalizeKey(sn.title, sn.folder)] = sn;
       }
 
-      // Push local → server (conceptual — actual upload would need a write endpoint)
+      // Push local → server
       for (final ln in localNotes) {
         if (!ln.syncEnabled) continue;
 
@@ -46,28 +48,36 @@ class MemorySync {
         final serverVersion = serverMap.remove(key);
 
         if (serverVersion == null) {
-          // Only exists locally — would upload
+          // Only exists locally — upload to server
+          await _uploadNote(ln);
           uploaded++;
         } else if (ln.modified.isAfter(serverVersion.modified)) {
-          // Local is newer — would overwrite server
+          // Local is newer — overwrite server
+          await _uploadNote(ln);
           uploaded++;
           conflicts++;
         } else if (serverVersion.modified.isAfter(ln.modified)) {
-          // Server is newer — pull down
+          // Server is newer — pull down and update local
+          await _downloadNote(serverVersion);
           downloaded++;
           conflicts++;
         }
         // Equal timestamps — no action needed
       }
 
-      // Remaining server notes that don't exist locally
-      for (final _ in serverMap.values) {
+      // Remaining server notes that don't exist locally — download them
+      for (final serverNote in serverMap.values) {
+        await _downloadNote(serverNote);
         downloaded++;
       }
 
       await _settings.set(
         _lastSyncKey,
         DateTime.now().toIso8601String(),
+      );
+
+      debugPrint(
+        'MemorySync: uploaded=$uploaded, downloaded=$downloaded, conflicts=$conflicts',
       );
 
       return SyncResult(
@@ -77,6 +87,7 @@ class MemorySync {
         success: true,
       );
     } catch (e) {
+      debugPrint('MemorySync: sync failed: $e');
       return SyncResult(
         uploaded: uploaded,
         downloaded: downloaded,
@@ -114,8 +125,10 @@ class MemorySync {
       int downloaded = 0;
 
       if (match == null || note.modified.isAfter(match.modified)) {
+        await _uploadNote(note);
         uploaded = 1;
       } else if (match.modified.isAfter(note.modified)) {
+        await _downloadNote(match);
         downloaded = 1;
       }
 
@@ -140,6 +153,32 @@ class MemorySync {
     final raw = await _settings.get(_lastSyncKey);
     if (raw == null) return null;
     return DateTime.tryParse(raw);
+  }
+
+  /// Upload a local note to the server memory store.
+  Future<void> _uploadNote(MemoryNote note) async {
+    final serverPath = '/${note.folder}/${_sanitizeFilename(note.title)}.md';
+    await _server.writeFile(
+      path: serverPath,
+      content: note.toMarkdown(),
+    );
+  }
+
+  /// Download a server note and save it locally.
+  Future<void> _downloadNote(MemoryNote serverNote) async {
+    await _local.createNote(
+      title: serverNote.title,
+      content: serverNote.content,
+      folder: serverNote.folder,
+    );
+  }
+
+  /// Sanitize a title into a safe filename.
+  String _sanitizeFilename(String title) {
+    return title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'_+$'), '');
   }
 
   /// Produce a deterministic lookup key from title + folder.
