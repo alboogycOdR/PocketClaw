@@ -200,11 +200,16 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
           const SizedBox(height: 16),
 
           ..._availableModels.map((model) {
-            final isActive = model.id == selectedId;
+            final isSelected = model.id == selectedId;
+            final engine = ref.watch(llmEngineProvider);
+            final isLoaded = engine.isLoaded &&
+                engine.config?.id == model.id;
+            final isActive = isSelected && isLoaded;
             final isDownloading = model.id == _downloadingId;
             return _ModelCard(
               model: model,
               isActive: isActive,
+              isSelectedButNotLoaded: isSelected && !isLoaded && !isDownloading,
               isDownloading: isDownloading,
               downloadProgress: isDownloading ? _downloadProgress : 0,
               onDownload: (isActive || isDownloading)
@@ -222,6 +227,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
 class _ModelCard extends StatelessWidget {
   final _ModelInfo model;
   final bool isActive;
+  final bool isSelectedButNotLoaded;
   final bool isDownloading;
   final int downloadProgress;
   final VoidCallback? onDownload;
@@ -230,6 +236,7 @@ class _ModelCard extends StatelessWidget {
   const _ModelCard({
     required this.model,
     required this.isActive,
+    this.isSelectedButNotLoaded = false,
     this.isDownloading = false,
     this.downloadProgress = 0,
     this.onDownload,
@@ -250,13 +257,17 @@ class _ModelCard extends StatelessWidget {
                 Icon(
                   isActive
                       ? Icons.check_circle
-                      : isDownloading
-                          ? Icons.downloading
-                          : Icons.download_outlined,
+                      : isSelectedButNotLoaded
+                          ? Icons.warning_amber_rounded
+                          : isDownloading
+                              ? Icons.downloading
+                              : Icons.download_outlined,
                   size: 20,
                   color: isActive
                       ? const Color(0xFF4CAF50)
-                      : PocketClawTheme.electricTeal,
+                      : isSelectedButNotLoaded
+                          ? const Color(0xFFFFB74D)
+                          : PocketClawTheme.electricTeal,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -272,7 +283,7 @@ class _ModelCard extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          if (isActive) ...[
+                          if (isActive || isSelectedButNotLoaded) ...[
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -280,16 +291,19 @@ class _ModelCard extends StatelessWidget {
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    const Color(0xFF4CAF50).withAlpha(25),
+                                color: isActive
+                                    ? const Color(0xFF4CAF50).withAlpha(25)
+                                    : const Color(0xFFFFB74D).withAlpha(25),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'ACTIVE',
+                                isActive ? 'ACTIVE' : 'NOT DOWNLOADED',
                                 style: GoogleFonts.jetBrainsMono(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF4CAF50),
+                                  color: isActive
+                                      ? const Color(0xFF4CAF50)
+                                      : const Color(0xFFFFB74D),
                                 ),
                               ),
                             ),

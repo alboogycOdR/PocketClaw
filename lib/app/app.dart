@@ -21,6 +21,9 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Trigger model loading on startup (fire-and-forget)
+    ref.watch(modelInitProvider);
+
     final prefs = ref.watch(sharedPrefsProvider);
     final biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;
     final showLock = biometricEnabled && !_unlocked;
