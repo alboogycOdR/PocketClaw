@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/packs/starter_pack_service.dart';
 import '../../data/providers/core_providers.dart';
 
 class CommercialWizardScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,7 @@ class _CommercialWizardScreenState
     extends ConsumerState<CommercialWizardScreen> {
   final _page = PageController();
   int _index = 0;
+  String? _selectedPackId;
 
   late final TextEditingController _gatewayUrl;
   late final TextEditingController _gatewayToken;
@@ -67,6 +69,15 @@ class _CommercialWizardScreenState
     ref.read(paperclipRestUrlProvider.notifier).state = _paperclipRest.text.trim();
     ref.read(paperclipWsUrlProvider.notifier).state = _paperclipWs.text.trim();
 
+    // Activate selected pack if any
+    if (_selectedPackId != null) {
+      final pack = kStarterPacks.firstWhere((p) => p.id == _selectedPackId);
+      final service = StarterPackService(prefs: prefs);
+      await service.activate(pack);
+      final skills = ref.read(skillRegistryProvider);
+      await skills.loadAll();
+    }
+
     if (mounted) context.go('/');
   }
 
@@ -76,7 +87,7 @@ class _CommercialWizardScreenState
       appBar: AppBar(title: const Text('Set up your AI Company')),
       body: Column(
         children: [
-          LinearProgressIndicator(value: (_index + 1) / 4),
+          LinearProgressIndicator(value: (_index + 1) / 5),
           Expanded(
             child: PageView(
               controller: _page,
@@ -85,6 +96,7 @@ class _CommercialWizardScreenState
                 _pageWelcome(),
                 _pageGateway(),
                 _pagePaperclip(),
+                _pagePackSelection(),
                 _pageDone(),
               ],
             ),
@@ -107,7 +119,7 @@ class _CommercialWizardScreenState
                 const Spacer(),
                 FilledButton(
                   onPressed: () async {
-                    if (_index < 3) {
+                    if (_index < 4) {
                       await _page.nextPage(
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
@@ -211,6 +223,74 @@ class _CommercialWizardScreenState
             border: OutlineInputBorder(),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _pagePackSelection() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Text(
+          'Choose a Starter Pack',
+          style: GoogleFonts.jetBrainsMono(fontSize: 18),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Select a pre-built AI team template. You can change this later.',
+          style: TextStyle(color: Colors.white54, fontSize: 13),
+        ),
+        const SizedBox(height: 16),
+        ...kStarterPacks.map((pack) {
+          final selected = _selectedPackId == pack.id;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _selectedPackId = pack.id),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFFE53935)
+                        : const Color(0xFF3A3A50).withAlpha(80),
+                    width: selected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(pack.icon, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            pack.displayName,
+                            style: GoogleFonts.jetBrainsMono(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${pack.agents.length} agents \u00b7 ${pack.governanceMode}',
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.white38),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (selected)
+                      const Icon(Icons.check_circle,
+                          color: Color(0xFFE53935), size: 22),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
       ],
     );
   }

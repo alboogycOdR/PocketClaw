@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/company/company_screen.dart';
 import '../features/memory/memory_screen.dart';
+import '../features/packs/pack_picker_screen.dart';
 import '../features/mission_control/agents_screen.dart';
 import '../features/mission_control/cost_screen.dart';
 import '../features/mission_control/dashboard_screen.dart';
@@ -27,6 +28,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const WelcomeScreen(),
+    ),
+
+    // Pack picker (outside shell — used from Company Overview + onboarding)
+    GoRoute(
+      path: '/packs',
+      builder: (context, state) => PackPickerScreen(
+        onComplete: () => Navigator.of(context).pop(),
+      ),
     ),
 
     // Main app shell with bottom navigation
