@@ -6,77 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/llm/model_registry.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'gateway_config.dart';
 import 'model_config.dart';
 import 'security_settings.dart';
-
-/// Map model IDs to user-friendly display names.
-const _modelDisplayNames = <String, String>{
-  'gemma-4-e2b': 'Gemma 4 E2B',
-  'gemma-3-1b': 'Gemma 3 1B',
-  'gemma-3-270m': 'Gemma 3 270M',
-};
-
-void _showHfTokenDialog(BuildContext context, WidgetRef ref) {
-  final prefs = ref.read(sharedPrefsProvider);
-  final controller = TextEditingController(
-    text: prefs.getString('huggingface_token') ?? '',
-  );
-
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('HuggingFace Token'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Gemma models require a HuggingFace account. '
-            'Get your token from huggingface.co/settings/tokens',
-            style: TextStyle(fontSize: 13, color: Colors.white54),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              labelText: 'Token',
-              hintText: 'hf_...',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final token = controller.text.trim();
-            await prefs.setString('huggingface_token', token);
-            if (ctx.mounted) Navigator.pop(ctx);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(token.isEmpty
-                      ? 'Token cleared. Restart app to apply.'
-                      : 'Token saved. Restart app to apply.'),
-                ),
-              );
-            }
-          },
-          child: const Text('Save'),
-        ),
-      ],
-    ),
-  ).then((_) => controller.dispose());
-}
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -85,9 +21,16 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final gatewayState = ref.watch(gatewayStateProvider);
     final gatewayUrl = ref.watch(gatewayUrlProvider);
-    final selectedModel = ref.watch(selectedModelIdProvider);
-    final modelLabel =
-        _modelDisplayNames[selectedModel] ?? selectedModel;
+    final selectedId = ref.watch(selectedModelIdProvider);
+    final hasToken = ref.watch(hasHFTokenProvider);
+    final tokenAvailable = hasToken.whenOrNull(data: (v) => v) ?? false;
+
+    // Look up model display name from the registry
+    final selectedModel = kAvailableModels.cast<dynamic>().firstWhere(
+          (m) => m.id == selectedId,
+          orElse: () => null,
+        );
+    final modelLabel = selectedModel?.displayName ?? selectedId;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -182,9 +125,9 @@ class SettingsScreen extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.download_outlined),
                   title: const Text('Manage Models'),
-                  subtitle: const Text(
-                    'Select or download models',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  subtitle: Text(
+                    '${kAvailableModels.length} models available',
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                   trailing: const Icon(
                     Icons.chevron_right,
@@ -210,19 +153,31 @@ class SettingsScreen extends ConsumerWidget {
           Card(
             margin: EdgeInsets.zero,
             child: ListTile(
-              leading: const Icon(Icons.key_outlined),
+              leading: Icon(
+                Icons.key_outlined,
+                color: tokenAvailable
+                    ? const Color(0xFF4CAF50)
+                    : const Color(0xFFFFB74D),
+              ),
               title: const Text('API Token'),
               subtitle: Text(
-                ref.watch(sharedPrefsProvider).getString('huggingface_token')?.isNotEmpty == true
-                    ? 'Token configured (hf_...)'
-                    : 'Required to download Gemma models',
+                tokenAvailable
+                    ? 'Token configured (secure storage)'
+                    : 'Required for gated model downloads',
                 style: const TextStyle(fontSize: 12, color: Colors.white54),
               ),
               trailing: const Icon(
                 Icons.chevron_right,
                 color: Colors.white38,
               ),
-              onTap: () => _showHfTokenDialog(context, ref),
+              onTap: () {
+                // Open the token dialog from model_config.dart
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ModelConfig(),
+                  ),
+                );
+              },
             ),
           ),
 
@@ -266,7 +221,7 @@ class SettingsScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   Text(
-                    '🦀',
+                    '\u{1F980}',
                     style: const TextStyle(fontSize: 40),
                   ),
                   const SizedBox(height: 8),

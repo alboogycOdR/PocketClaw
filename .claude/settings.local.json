@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv temp_clone/* .)",
+      "Bash(mv temp_clone/.* .)",
+      "Bash(rmdir temp_clone)",
+      "Bash(flutter --version)",
+      "Bash(flutter pub:*)",
+      "Bash(dart run:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter doctor:*)",
+      "Bash(flutter build:*)",
+      "Bash(powershell -Command \"Get-PSDrive C | Format-Table Used,Free -AutoSize\")",
+      "Bash(python3:*)",
+      "Bash(find /c/Users/Nuburo/Desktop/AI_PocketClaw -type f -name \"*.dart\" -exec grep -l \"http\\\\|dio\\\\|fetch\\\\|download.*model\\\\|model.*download\" {} \\\\;)",
+      "Bash(tasklist)",
+      "Bash(flutter clean:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(wmic OS get TotalVisibleMemorySize /value)",
+      "Bash(systeminfo)",
+      "Bash(gh run:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(where gh:*)",
+      "Bash(xargs grep:*)",
+      "Bash(git checkout:*)",
+      "Bash(flutter devices:*)"
+    ]
+  }
+}

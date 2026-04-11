@@ -57,6 +57,7 @@ class ModelSelector {
   }
 
   /// Look up a specific model config by ID.
+  /// Supports both original Gemma models and new multi-model IDs.
   LocalModelConfig? getConfigById(String id) {
     const configs = <String, LocalModelConfig>{
       'gemma-4-e2b': LocalModelConfig(
@@ -85,6 +86,56 @@ class ModelSelector {
         capabilities: {ModelCap.text},
         maxTokens: 256,
         ramRequiredMb: 200,
+      ),
+      // GGUF models — use text capability, moderate token limits
+      'llama-3.2-3b': LocalModelConfig(
+        id: 'llama-3.2-3b',
+        displayName: 'Llama 3.2 3B',
+        capabilities: {ModelCap.text},
+        maxTokens: 512,
+        ramRequiredMb: 4000,
+      ),
+      'llama-3.2-1b': LocalModelConfig(
+        id: 'llama-3.2-1b',
+        displayName: 'Llama 3.2 1B',
+        capabilities: {ModelCap.text},
+        maxTokens: 512,
+        ramRequiredMb: 2000,
+      ),
+      'phi-3.5-mini': LocalModelConfig(
+        id: 'phi-3.5-mini',
+        displayName: 'Phi-3.5 Mini',
+        capabilities: {ModelCap.text, ModelCap.functionCalling},
+        maxTokens: 512,
+        ramRequiredMb: 4000,
+      ),
+      'phi-3-mini': LocalModelConfig(
+        id: 'phi-3-mini',
+        displayName: 'Phi-3 Mini 3.8B',
+        capabilities: {ModelCap.text, ModelCap.functionCalling},
+        maxTokens: 512,
+        ramRequiredMb: 4000,
+      ),
+      'qwen-2.5-1.5b': LocalModelConfig(
+        id: 'qwen-2.5-1.5b',
+        displayName: 'Qwen 2.5 1.5B',
+        capabilities: {ModelCap.text},
+        maxTokens: 512,
+        ramRequiredMb: 2000,
+      ),
+      'qwen-2.5-0.5b': LocalModelConfig(
+        id: 'qwen-2.5-0.5b',
+        displayName: 'Qwen 2.5 0.5B',
+        capabilities: {ModelCap.text},
+        maxTokens: 256,
+        ramRequiredMb: 1000,
+      ),
+      'smollm2-1.7b': LocalModelConfig(
+        id: 'smollm2-1.7b',
+        displayName: 'SmolLM2 1.7B',
+        capabilities: {ModelCap.text},
+        maxTokens: 512,
+        ramRequiredMb: 2000,
       ),
     };
     return configs[id];

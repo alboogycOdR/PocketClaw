@@ -9,6 +9,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/gateway/gateway_client.dart';
 import '../../core/gateway/gateway_rest.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/llm/engines/abstract_llm_engine.dart';
+import '../../core/llm/engines/llm_engine_factory.dart';
+import '../../core/llm/model_registry.dart';
+import '../../core/llm/models/local_model_config.dart' as llm;
+import '../../core/llm/models/model_download_state.dart';
+import '../../core/llm/services/api_key_service.dart';
+import '../../core/llm/services/hf_token_service.dart';
+import '../../core/llm/services/license_service.dart';
+import '../../core/llm/services/model_download_manager.dart';
 import '../../core/local_agent/llm_engine.dart';
 import '../../core/local_agent/local_agent.dart';
 import '../../core/local_agent/model_selector.dart';
@@ -269,4 +278,64 @@ final smartRouterProvider = Provider<SmartRouter>((ref) {
     connectivity: ref.watch(connectivityProvider),
     skills: ref.watch(skillRegistryProvider),
   );
+});
+
+// ── Multi-Model LLM Services ──
+
+final hfTokenServiceProvider = Provider<HFTokenService>((_) {
+  return HFTokenService();
+});
+
+final licenseServiceProvider = Provider<LicenseService>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return LicenseService(prefs: prefs);
+});
+
+final modelDownloadManagerProvider = Provider<ModelDownloadManager>((ref) {
+  final manager = ModelDownloadManager(
+    tokenService: ref.watch(hfTokenServiceProvider),
+    licenseService: ref.watch(licenseServiceProvider),
+  );
+  ref.onDispose(() => manager.dispose());
+  return manager;
+});
+
+final availableModelsProvider = Provider<List<llm.LocalModelConfig>>((_) {
+  return kAvailableModels;
+});
+
+final selectedModelConfigProvider = Provider<llm.LocalModelConfig>((ref) {
+  final selectedId = ref.watch(selectedModelIdProvider);
+  return kAvailableModels.firstWhere(
+    (m) => m.id == selectedId,
+    orElse: () => kAvailableModels.firstWhere((m) => m.id == 'gemma-3-270m'),
+  );
+});
+
+final abstractLlmEngineProvider = FutureProvider<AbstractLLMEngine>((ref) async {
+  final model = ref.watch(selectedModelConfigProvider);
+  final token = await ref.watch(hfTokenServiceProvider).getToken();
+  final engine = LLMEngineFactory.forModel(model);
+  await engine.initialize(huggingFaceToken: token);
+  ref.onDispose(() => engine.dispose());
+  return engine;
+});
+
+final modelDownloadStateProvider =
+    StreamProvider.family<ModelDownloadState, String>((ref, modelId) {
+  final manager = ref.watch(modelDownloadManagerProvider);
+  return manager.watchDownload(modelId);
+});
+
+final hasHFTokenProvider = FutureProvider<bool>((ref) async {
+  return ref.watch(hfTokenServiceProvider).hasToken();
+});
+
+final apiKeyServiceProvider = Provider<ApiKeyService>((_) {
+  return ApiKeyService();
+});
+
+final hasCloudKeyProvider =
+    FutureProvider.family<bool, CloudProvider>((ref, provider) async {
+  return ref.watch(apiKeyServiceProvider).hasKey(provider);
 });

@@ -52,6 +52,8 @@ dependencies:
 
   # Local LLM
   flutter_gemma: ^0.13.2
+  fllama: ^0.0.1
+  http: ^1.2.0
 
   # Math
   math_expressions: ^2.6.0
