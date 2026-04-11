@@ -94,6 +94,9 @@ class SessionManager {
       ..addAll(messages);
   }
 
+  /// List all saved sessions, most recent first.
+  Future<List<SessionInfo>> listSessions() => _history.listSessions();
+
   ChatMessage _rowToMessage(Map<String, dynamic> row) => ChatMessage(
         id: row['id'] as String,
         role: MessageRole.values.firstWhere(

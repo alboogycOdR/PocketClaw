@@ -17,6 +17,7 @@ class ChatMessage {
   final FunctionCallInfo? functionCall;
   final DraftAction? draftAction;
   final String? imageUrl;
+  final List<String> memoryCitations;
 
   const ChatMessage({
     required this.id,
@@ -28,6 +29,7 @@ class ChatMessage {
     this.functionCall,
     this.draftAction,
     this.imageUrl,
+    this.memoryCitations = const [],
   });
 
   ChatMessage copyWith({
@@ -35,6 +37,7 @@ class ChatMessage {
     bool? isStreaming,
     FunctionCallInfo? functionCall,
     DraftAction? draftAction,
+    List<String>? memoryCitations,
   }) =>
       ChatMessage(
         id: id,
@@ -46,6 +49,7 @@ class ChatMessage {
         functionCall: functionCall ?? this.functionCall,
         draftAction: draftAction ?? this.draftAction,
         imageUrl: imageUrl,
+        memoryCitations: memoryCitations ?? this.memoryCitations,
       );
 
   Map<String, dynamic> toJson() => {

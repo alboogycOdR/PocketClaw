@@ -107,6 +107,20 @@ class LlmEngine {
     }
   }
 
+  /// Collects streamed text into a single string (summarisation, brief updates).
+  Future<String> generateCompleteText(String prompt) async {
+    if (!_isLoaded || _model == null) {
+      return '';
+    }
+    final buffer = StringBuffer();
+    await for (final chunk in generateStream(prompt)) {
+      if (chunk.isText && chunk.text != null) {
+        buffer.write(chunk.text);
+      }
+    }
+    return buffer.toString().trim();
+  }
+
   Stream<LlmChunk> continueWithResult(String toolResult) async* {
     if (!_isLoaded || _model == null) {
       yield LlmChunk.text(toolResult);

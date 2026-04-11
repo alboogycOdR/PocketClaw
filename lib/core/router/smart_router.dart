@@ -8,6 +8,57 @@ import '../skills/skill_registry.dart';
 
 enum RouteTarget { local, server, bridge, device, missionControl }
 
+/// Consolidated context passed to the router for each routing decision.
+class SmartRouterContext {
+  final String? activeProjectId;
+  final bool isNearBudgetLimit;
+  final int tokenBudgetThreshold;
+  final RouteTarget? overridePath;
+  final int? estimatedTokens;
+  final bool isLocalModelAvailable;
+
+  const SmartRouterContext({
+    this.activeProjectId,
+    this.isNearBudgetLimit = false,
+    this.tokenBudgetThreshold = 4000,
+    this.overridePath,
+    this.estimatedTokens,
+    this.isLocalModelAvailable = false,
+  });
+}
+
+/// Result of a routing decision — includes target and human-readable reason.
+class RoutingDecision {
+  final RouteTarget target;
+  final String reason;
+
+  const RoutingDecision({
+    required this.target,
+    required this.reason,
+  });
+
+  @override
+  String toString() => 'RoutingDecision($target, reason: $reason)';
+}
+
+/// Privacy-sensitive keywords that should bias routing toward local processing.
+const _privacyKeywords = [
+  'password',
+  'secret',
+  'private',
+  'confidential',
+  'ssn',
+  'social security',
+  'bank account',
+  'credit card',
+  'medical',
+  'diagnosis',
+  'salary',
+  'personal',
+  'nda',
+  'classified',
+];
+
 class SmartRouter {
   final Connectivity _connectivity;
   final SkillRegistry _skills;
@@ -18,40 +69,142 @@ class SmartRouter {
   })  : _connectivity = connectivity,
         _skills = skills;
 
-  Future<RouteTarget> route(String input, {bool hasImage = false}) async {
+  /// Route with full context — returns a [RoutingDecision] with target and reason.
+  ///
+  /// The [context] parameter is optional for backward compatibility.
+  Future<RoutingDecision> routeWithContext(
+    String input, {
+    bool hasImage = false,
+    SmartRouterContext context = const SmartRouterContext(),
+  }) async {
+    // 0. Explicit override from context
+    if (context.overridePath != null) {
+      return RoutingDecision(
+        target: context.overridePath!,
+        reason: 'User override via context',
+      );
+    }
+
     // 1. User override prefixes
-    if (input.startsWith('/local ')) return RouteTarget.local;
-    if (input.startsWith('/server ')) return RouteTarget.server;
-    if (input.startsWith('/mc ')) return RouteTarget.missionControl;
+    if (input.startsWith('/local ')) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'User override — /local prefix',
+      );
+    }
+    if (input.startsWith('/server ')) {
+      return const RoutingDecision(
+        target: RouteTarget.server,
+        reason: 'User override — /server prefix',
+      );
+    }
+    if (input.startsWith('/mc ')) {
+      return const RoutingDecision(
+        target: RouteTarget.missionControl,
+        reason: 'User override — /mc prefix',
+      );
+    }
 
     // 2. Device-only patterns (no LLM needed)
-    if (_isDeviceOnly(input)) return RouteTarget.device;
+    if (_isDeviceOnly(input)) {
+      return const RoutingDecision(
+        target: RouteTarget.device,
+        reason: 'Device-only command detected',
+      );
+    }
 
     // 3. Mission Control queries
-    if (_isMissionControlQuery(input)) return RouteTarget.missionControl;
+    if (_isMissionControlQuery(input)) {
+      return const RoutingDecision(
+        target: RouteTarget.missionControl,
+        reason: 'Mission Control query detected',
+      );
+    }
 
-    // 4. Check connectivity
+    // 4. Privacy keyword detection — prefer local to keep sensitive data on-device
+    if (context.isLocalModelAvailable && _containsPrivacyKeyword(input)) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'Privacy keywords detected — routing locally',
+      );
+    }
+
+    // 5. Token budget check — large context goes to server
+    if (context.estimatedTokens != null &&
+        context.estimatedTokens! > context.tokenBudgetThreshold) {
+      return const RoutingDecision(
+        target: RouteTarget.server,
+        reason:
+            'Token budget exceeded — server path for large context',
+      );
+    }
+
+    // 6. Check connectivity
     final isOnline = await _isServerReachable();
 
-    // 5. If offline, everything goes local
-    if (!isOnline) return RouteTarget.local;
+    // 7. If offline, everything goes local
+    if (!isOnline) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'Offline — routing locally',
+      );
+    }
 
-    // 6. Check if a skill claims this input
+    // 8. Check if a skill claims this input
     final matchedSkill = _skills.matchSkill(input);
     if (matchedSkill != null) {
-      return _skillRuntime(matchedSkill);
+      return RoutingDecision(
+        target: _skillRuntime(matchedSkill),
+        reason: 'Skill matched: ${matchedSkill.name}',
+      );
     }
 
-    // 7. Bridge pattern: device input + complex processing
+    // 9. Bridge pattern: device input + complex processing
     if (hasImage && _isComplexProcessing(input)) {
-      return RouteTarget.bridge;
+      return const RoutingDecision(
+        target: RouteTarget.bridge,
+        reason: 'Bridge — image with complex processing',
+      );
     }
 
-    // 8. Complexity classification
-    if (_isSimpleTask(input)) return RouteTarget.local;
+    // 10. Budget near limit — soft preference for local on simple tasks
+    if (context.isNearBudgetLimit &&
+        context.isLocalModelAvailable &&
+        _isSimpleTask(input)) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'Budget near limit — preferring local path',
+      );
+    }
 
-    // 9. Default: route to server for best quality
-    return RouteTarget.server;
+    // 11. Complexity classification
+    if (_isSimpleTask(input)) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'Simple task — local inference',
+      );
+    }
+
+    // 12. Budget near limit — even for non-simple tasks, prefer local if available
+    //     (soft: complex/agentic work still goes to server)
+    if (context.isNearBudgetLimit && context.isLocalModelAvailable) {
+      return const RoutingDecision(
+        target: RouteTarget.local,
+        reason: 'Budget near limit — preferring local path',
+      );
+    }
+
+    // 13. Default: route to server for best quality
+    return const RoutingDecision(
+      target: RouteTarget.server,
+      reason: 'Default — server for best quality',
+    );
+  }
+
+  /// Backward-compatible route method — returns just the [RouteTarget].
+  Future<RouteTarget> route(String input, {bool hasImage = false}) async {
+    final decision = await routeWithContext(input, hasImage: hasImage);
+    return decision.target;
   }
 
   /// Strip command prefix from user input
@@ -62,6 +215,12 @@ class SmartRouter {
       }
     }
     return input;
+  }
+
+  /// Returns true if the input contains any privacy-sensitive keywords.
+  bool _containsPrivacyKeyword(String input) {
+    final lower = input.toLowerCase();
+    return _privacyKeywords.any((kw) => lower.contains(kw));
   }
 
   bool _isSimpleTask(String input) {

@@ -9,8 +9,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/gateway/offline_queue.dart';
 import '../../core/router/smart_router.dart';
+import '../../core/session/session_history.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
+import '../../shared/widgets/execution_path_chip.dart';
 import 'core_providers.dart';
 
 const _uuid = Uuid();
@@ -96,12 +98,37 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
     );
     messages.add(userMsg);
 
-    // Route the message
-    final target = await router.route(
-      text,
-      hasImage: imageUrl != null,
-    );
+    // Check for user execution path override
+    final override = ref.read(executionPathOverrideProvider);
+    RoutingDecision decision;
+    if (override != null) {
+      final overrideTarget = switch (override) {
+        ExecutionPath.local => RouteTarget.local,
+        ExecutionPath.server => RouteTarget.server,
+        ExecutionPath.bridge => RouteTarget.bridge,
+      };
+      decision = RoutingDecision(
+        target: overrideTarget,
+        reason: 'User override: ${override.name}',
+      );
+    } else {
+      decision = await router.routeWithContext(
+        text,
+        hasImage: imageUrl != null,
+      );
+    }
+    final target = decision.target;
     final cleanText = router.stripPrefix(text);
+
+    // Update execution path indicator
+    final executionPath = switch (target) {
+      RouteTarget.local => ExecutionPath.local,
+      RouteTarget.server => ExecutionPath.server,
+      RouteTarget.bridge => ExecutionPath.bridge,
+      RouteTarget.device => ExecutionPath.local,
+      RouteTarget.missionControl => ExecutionPath.local,
+    };
+    ref.read(executionPathProvider.notifier).state = executionPath;
 
     try {
       switch (target) {
@@ -384,3 +411,27 @@ void _processMissionControl(Ref ref, String text) {
     timestamp: DateTime.now(),
   ));
 }
+
+// ── Session Management ──
+
+/// Provider for the active session key.
+final currentSessionKeyProvider = StateProvider<String>((ref) {
+  final session = ref.watch(sessionManagerProvider);
+  return session.currentSessionKey;
+});
+
+/// Lists all saved sessions, most recent first.
+final sessionListProvider = FutureProvider<List<SessionInfo>>((ref) async {
+  final session = ref.watch(sessionManagerProvider);
+  return session.listSessions();
+});
+
+/// Invalidation trigger — bump this to refresh the session list.
+final sessionListRefreshProvider = StateProvider<int>((_) => 0);
+
+/// Session list that auto-refreshes when the trigger changes.
+final sessionListAutoProvider = FutureProvider<List<SessionInfo>>((ref) async {
+  ref.watch(sessionListRefreshProvider);
+  final history = SessionHistory();
+  return history.listSessions();
+});

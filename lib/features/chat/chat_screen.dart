@@ -15,6 +15,7 @@ import '../../core/local_agent/llm_engine.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../shared/extensions.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'chat_bubble.dart';
 import 'draft_confirm_card.dart';
@@ -328,28 +329,87 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ));
   }
 
+  void _openSessionDrawer() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: PocketClawTheme.surfaceContainer,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _SessionDrawer(
+        onSessionSelected: (key) async {
+          Navigator.pop(ctx);
+          final session = ref.read(sessionManagerProvider);
+          await session.loadSession(key);
+          final history = await session.recentHistory(100);
+          ref.read(messagesProvider.notifier).clear();
+          for (final msg in history) {
+            ref.read(messagesProvider.notifier).add(msg);
+          }
+          ref.read(currentSessionKeyProvider.notifier).state = key;
+        },
+        onNewSession: () async {
+          Navigator.pop(ctx);
+          final session = ref.read(sessionManagerProvider);
+          await session.startNewSession();
+          ref.read(messagesProvider.notifier).clear();
+          ref.read(currentSessionKeyProvider.notifier).state =
+              session.currentSessionKey;
+          ref.invalidate(sessionListAutoProvider);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final gatewayState = ref.watch(connectionStateProvider);
     final messages = ref.watch(messagesProvider);
     final isProcessing = ref.watch(isProcessingProvider);
 
+    // 3A: Model indicator
+    final engine = ref.watch(llmEngineProvider);
+    final modelConfig = engine.config;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            Text(
-              'Pocket Claw',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Pocket Claw',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  modelConfig != null
+                      ? modelConfig.displayName
+                      : 'No model',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    color: modelConfig != null
+                        ? Colors.white38
+                        : Colors.white24,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(width: 10),
             ConnectionIndicator(state: gatewayState),
           ],
         ),
         actions: [
+          // Session management button
+          IconButton(
+            icon: const Icon(Icons.forum_outlined, size: 20),
+            tooltip: 'Sessions',
+            onPressed: _openSessionDrawer,
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert, size: 20),
             onPressed: () {},
@@ -569,6 +629,146 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             color: PocketClawTheme.lobsterRed,
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Session Drawer (3C) ──
+
+class _SessionDrawer extends ConsumerWidget {
+  final void Function(String key) onSessionSelected;
+  final VoidCallback onNewSession;
+
+  const _SessionDrawer({
+    required this.onSessionSelected,
+    required this.onNewSession,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.watch(sessionListAutoProvider);
+    final currentKey = ref.watch(currentSessionKeyProvider);
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Text(
+                  'Sessions',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onNewSession,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('New'),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // Session list
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.45,
+            ),
+            child: sessionsAsync.when(
+              data: (sessions) {
+                if (sessions.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      'No saved sessions yet.',
+                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: sessions.length,
+                  itemBuilder: (context, index) {
+                    final s = sessions[index];
+                    final isCurrent = s.key == currentKey;
+                    return ListTile(
+                      dense: true,
+                      selected: isCurrent,
+                      selectedTileColor:
+                          PocketClawTheme.lobsterRed.withAlpha(20),
+                      leading: Icon(
+                        isCurrent
+                            ? Icons.chat_bubble
+                            : Icons.chat_bubble_outline,
+                        size: 18,
+                        color: isCurrent
+                            ? PocketClawTheme.lobsterRed
+                            : Colors.white38,
+                      ),
+                      title: Text(
+                        s.startedAt.shortDate,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          fontWeight:
+                              isCurrent ? FontWeight.w600 : FontWeight.w400,
+                          color: isCurrent ? Colors.white : Colors.white70,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${s.messageCount} messages  ·  ${s.startedAt.timeAgo}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white38,
+                        ),
+                      ),
+                      onTap: isCurrent ? null : () => onSessionSelected(s.key),
+                    );
+                  },
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'Failed to load sessions: $e',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ),
+            ),
           ),
         ],
       ),

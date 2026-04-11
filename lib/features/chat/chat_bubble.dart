@@ -2,8 +2,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../data/models/chat_message.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/source_badge.dart';
@@ -63,18 +65,32 @@ class ChatBubble extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Streaming cursor effect
+                  // Message content
                   if (message.isStreaming)
                     _StreamingText(text: message.content)
-                  else
+                  else if (_isUser)
                     Text(
                       message.content,
-                      style: TextStyle(
-                        color: _isUser ? Colors.white : Colors.white,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 14,
                         height: 1.4,
                       ),
+                    )
+                  else
+                    _AssistantMarkdown(content: message.content),
+
+                  // Memory citations
+                  if (message.memoryCitations.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: message.memoryCitations
+                          .map((citation) => _CitationChip(text: citation))
+                          .toList(),
                     ),
+                  ],
 
                   const SizedBox(height: 6),
 
@@ -107,6 +123,144 @@ class ChatBubble extends StatelessWidget {
     );
   }
 }
+
+// ── Markdown rendering for assistant messages ──
+
+class _AssistantMarkdown extends StatelessWidget {
+  final String content;
+
+  const _AssistantMarkdown({required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    return MarkdownBody(
+      data: content,
+      selectable: true,
+      shrinkWrap: true,
+      styleSheet: MarkdownStyleSheet(
+        // Body text
+        p: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          height: 1.4,
+        ),
+        // Headers
+        h1: GoogleFonts.jetBrainsMono(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+        h2: GoogleFonts.jetBrainsMono(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+        h3: GoogleFonts.jetBrainsMono(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        h4: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+        // Inline code
+        code: GoogleFonts.jetBrainsMono(
+          fontSize: 12,
+          color: PocketClawTheme.electricTeal,
+          backgroundColor: PocketClawTheme.surfaceContainer,
+        ),
+        // Code block
+        codeblockDecoration: BoxDecoration(
+          color: PocketClawTheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        codeblockPadding: const EdgeInsets.all(12),
+        codeblockAlign: WrapAlignment.start,
+        // Links
+        a: const TextStyle(
+          color: PocketClawTheme.electricTeal,
+          decoration: TextDecoration.underline,
+        ),
+        // Lists
+        listBullet: const TextStyle(color: Colors.white70, fontSize: 14),
+        // Block quote
+        blockquoteDecoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: PocketClawTheme.electricTeal.withAlpha(120),
+              width: 3,
+            ),
+          ),
+        ),
+        blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+        // Emphasis
+        em: const TextStyle(
+          color: Colors.white,
+          fontStyle: FontStyle.italic,
+        ),
+        strong: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+        ),
+        // Table
+        tableHead: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        tableBody: const TextStyle(color: Colors.white70),
+        tableBorder: TableBorder.all(
+          color: const Color(0xFF3A3A50),
+          width: 0.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Memory citation chip ──
+
+class _CitationChip extends StatelessWidget {
+  final String text;
+
+  const _CitationChip({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: PocketClawTheme.electricTeal.withAlpha(38),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.menu_book_rounded,
+            size: 10,
+            color: PocketClawTheme.electricTeal,
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              text,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 10,
+                color: PocketClawTheme.electricTeal,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Streaming text with cursor ──
 
 class _StreamingText extends StatefulWidget {
   final String text;

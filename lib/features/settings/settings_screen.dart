@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
@@ -12,6 +13,8 @@ import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'gateway_config.dart';
 import 'model_config.dart';
+import 'paperclip_company_settings.dart';
+import 'router_memory_settings.dart';
 import 'security_settings.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -147,6 +150,61 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 24),
 
+          // Paperclip & routing
+          _SectionTitle(title: 'AI Company & routing'),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(
+                    Icons.business_center,
+                    color: PocketClawTheme.electricTeal,
+                  ),
+                  title: const Text('Paperclip Company'),
+                  subtitle: const Text(
+                    'REST + WebSocket, mission, budgets',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PaperclipCompanySettings(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.alt_route),
+                  title: const Text('Smart Router & Memory'),
+                  subtitle: const Text(
+                    'Token budget, active project',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const RouterMemorySettings(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // HuggingFace Token
           _SectionTitle(title: 'HuggingFace Token'),
           const SizedBox(height: 8),
@@ -178,6 +236,60 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 );
               },
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Vertical modes (preview)
+          _SectionTitle(title: 'Modes'),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.school_outlined),
+                  title: const Text('Academy Mode'),
+                  subtitle: const Text(
+                    'Curriculum tutoring shell',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () => context.push('/academy'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.self_improvement_outlined),
+                  title: const Text('Life Architect'),
+                  subtitle: const Text(
+                    'GROW + safety preview',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () => context.push('/life-architect'),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.rocket_launch_outlined),
+                  title: const Text('Commercial onboarding'),
+                  subtitle: const Text(
+                    'Gateway + Paperclip wizard',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () => context.push('/onboarding/commercial'),
+                ),
+              ],
             ),
           ),
 

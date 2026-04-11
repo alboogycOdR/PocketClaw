@@ -16,6 +16,11 @@ class SkillRegistry {
     'calculator.md',
     'forex-calc.md',
     'reminder.md',
+    'solo-founder.md',
+    'enterprise-it.md',
+    'academy-tutor.md',
+    'life-architect.md',
+    'forex-starter.md',
   ];
 
   /// All registered skills keyed by name. Later sources overwrite earlier ones.

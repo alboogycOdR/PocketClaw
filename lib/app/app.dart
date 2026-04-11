@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/gateway/paperclip_realtime_service.dart';
 import '../data/providers/core_providers.dart';
 import 'biometric_lock_screen.dart';
 import 'router.dart';
@@ -23,6 +24,9 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
   Widget build(BuildContext context) {
     // Trigger model loading on startup (fire-and-forget)
     ref.watch(modelInitProvider);
+
+    // Keep Paperclip WebSocket alive while the app is running
+    ref.watch(paperclipRealtimeProvider);
 
     final prefs = ref.watch(sharedPrefsProvider);
     final biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;

@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const _dbName = 'pocket_claw.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   Database? _database;
 
@@ -95,10 +95,102 @@ class AppDatabase {
         value TEXT NOT NULL
       )
     ''');
+
+    // v2 tables — project memory system
+    await _createV2Tables(db);
+  }
+
+  Future<void> _createV2Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        phase TEXT NOT NULL DEFAULT 'planning',
+        budget_used INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_brief_update INTEGER
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_tickets (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_project_tickets_project
+        ON project_tickets (project_id, created_at DESC)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_agents (
+        project_id TEXT NOT NULL,
+        agent_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'idle',
+        PRIMARY KEY (project_id, agent_name)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS paperclip_companies (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        mission TEXT,
+        budget_limit INTEGER,
+        governance_mode TEXT,
+        last_sync INTEGER
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS paperclip_events (
+        id TEXT PRIMARY KEY,
+        company_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_paperclip_events_company
+        ON paperclip_events (company_id, created_at DESC)
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sync_queue (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        payload TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS model_downloads (
+        model_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'pending',
+        progress REAL NOT NULL DEFAULT 0,
+        local_path TEXT,
+        downloaded_at INTEGER,
+        error_message TEXT
+      )
+    ''');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future migrations go here
+    if (oldVersion < 2) {
+      await _createV2Tables(db);
+    }
   }
 
   Future<void> close() async {

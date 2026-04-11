@@ -24,8 +24,12 @@ import '../../core/local_agent/model_selector.dart';
 import '../../core/local_agent/tool_executor.dart';
 import '../../core/memory/local_memory.dart';
 import '../../core/memory/memory_manager.dart';
+import '../../core/memory/memory_router.dart';
+import '../../core/memory/memory_service.dart';
 import '../../core/memory/memory_sync.dart';
 import '../../core/memory/server_memory.dart';
+import '../database/app_database.dart';
+import '../repositories/project_memory_repository.dart';
 import '../../core/router/smart_router.dart';
 import '../../core/session/session_manager.dart';
 import '../../core/skills/skill_registry.dart';
@@ -53,6 +57,38 @@ final gatewayUrlProvider = StateProvider<String>((ref) {
 final gatewayTokenProvider = StateProvider<String>((ref) {
   final prefs = ref.watch(sharedPrefsProvider);
   return prefs.getString('gateway_token') ?? '';
+});
+
+/// Active project for Memory Router context (spec §5.4). Persisted via [setActiveProjectId].
+final activeProjectIdProvider = StateProvider<String?>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('active_project_id');
+});
+
+/// When true, Chat runs the GROW coaching loop instead of normal routing (spec Sprint 12).
+final growChatModeProvider = StateProvider<bool>((_) => false);
+
+/// Token estimate threshold above which routing prefers SERVER (spec §5.1).
+final tokenBudgetThresholdProvider = StateProvider<int>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getInt('token_budget_threshold') ?? 4000;
+});
+
+/// Paperclip REST base URL, e.g. `http://100.x.x.x:3100`.
+final paperclipRestUrlProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('paperclip_rest_url') ?? '';
+});
+
+/// Paperclip WebSocket URL for real-time events.
+final paperclipWsUrlProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('paperclip_ws_url') ?? '';
+});
+
+final paperclipTokenProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('paperclip_token') ?? '';
 });
 
 final selectedModelIdProvider = StateProvider<String>((ref) {
@@ -268,6 +304,26 @@ final localAgentProvider = Provider<LocalAgent>((ref) {
     memory: ref.watch(localMemoryProvider),
     skills: ref.watch(skillRegistryProvider),
     sessionManager: ref.watch(sessionManagerProvider),
+  );
+});
+
+// ── Project Memory ──
+
+final projectMemoryRepositoryProvider =
+    Provider<ProjectMemoryRepository>((ref) {
+  return ProjectMemoryRepositoryImpl(db: AppDatabase());
+});
+
+final memoryRouterProvider = Provider<MemoryRouter>((ref) {
+  return MemoryRouter(
+    repository: ref.watch(projectMemoryRepositoryProvider),
+  );
+});
+
+final memoryServiceProvider = Provider<MemoryService>((ref) {
+  return MemoryService(
+    repository: ref.watch(projectMemoryRepositoryProvider),
+    llm: ref.watch(llmEngineProvider),
   );
 });
 

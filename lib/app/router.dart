@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/company/company_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/mission_control/agents_screen.dart';
 import '../features/mission_control/cost_screen.dart';
@@ -101,6 +102,16 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
+        // Company tab
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/company',
+              builder: (context, state) => const CompanyScreen(),
+            ),
+          ],
+        ),
+
         // Settings tab
         StatefulShellBranch(
           routes: [
@@ -152,6 +163,11 @@ class _AppShell extends StatelessWidget {
             icon: Icon(Icons.extension_outlined),
             selectedIcon: Icon(Icons.extension),
             label: 'Skills',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.business_outlined),
+            selectedIcon: Icon(Icons.business),
+            label: 'Company',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
