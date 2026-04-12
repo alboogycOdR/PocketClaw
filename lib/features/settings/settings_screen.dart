@@ -106,31 +106,11 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   title: const Text('Current Model'),
                   subtitle: Text(
-                    modelLabel,
+                    '$modelLabel  \u00b7  ${kAvailableModels.length} available',
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 12,
                       color: PocketClawTheme.electricTeal,
                     ),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ModelConfig(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.download_outlined),
-                  title: const Text('Manage Models'),
-                  subtitle: Text(
-                    '${kAvailableModels.length} models available',
-                    style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                   trailing: const Icon(
                     Icons.chevron_right,
