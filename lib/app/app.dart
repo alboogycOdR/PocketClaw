@@ -1,11 +1,12 @@
-/// Pocket Claw root application widget
+/// Pocket Claw root application widget.
+/// Absolutely minimal at launch — no providers watched that touch native
+/// libraries, database, or network. All heavy work is deferred.
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/gateway/paperclip_realtime_service.dart';
 import '../data/providers/core_providers.dart';
 import 'biometric_lock_screen.dart';
 import 'router.dart';
@@ -23,27 +24,14 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Trigger model loading on startup (fire-and-forget, never throws)
-    try {
-      ref.watch(modelInitProvider);
-    } catch (e) {
-      debugPrint('modelInitProvider watch failed: $e');
-    }
-
-    // Keep Paperclip WebSocket alive while the app is running — only if
-    // configured. Failure here must never prevent app launch.
-    try {
-      ref.watch(paperclipRealtimeProvider);
-    } catch (e) {
-      debugPrint('paperclipRealtimeProvider watch failed: $e');
-    }
-
+    // Only read the biometric setting — no heavy provider watches here.
+    // Model init, Paperclip realtime, and DB init are all lazy now.
     bool biometricEnabled = false;
     try {
       final prefs = ref.watch(sharedPrefsProvider);
       biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;
     } catch (e) {
-      debugPrint('SharedPreferences unavailable, biometric disabled: $e');
+      debugPrint('SharedPreferences unavailable: $e');
     }
     final showLock = biometricEnabled && !_unlocked;
 
