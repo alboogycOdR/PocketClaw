@@ -73,9 +73,13 @@ final modeAvailabilityProvider =
 ModeAvailability _localAvailable(Ref ref) {
   try {
     final model = ref.watch(selectedModelConfigProvider);
-    if (model.format != ModelFormat.task) {
+    // Local mode runs any on-device model. GGUF (via fllama) is the
+    // current runtime; .task (flutter_gemma) was removed in the Gemma
+    // cleanup. Anything that is NOT cloud is treated as local.
+    if (model.isCloud) {
       return ModeAvailability.unavailable(
-        'No local model selected. Pick a Gemma model in Settings \u2192 Models.',
+        'Current selection is a cloud model. Pick a local GGUF model in '
+        'Settings \u2192 Models to use Local mode.',
       );
     }
     // We can't synchronously verify the model file is downloaded from here
