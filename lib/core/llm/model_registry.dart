@@ -21,7 +21,7 @@ const List<LocalModelConfig> kAvailableModels = [
         'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it-web.task',
     capabilities: ['vision', 'audio', 'function_calling'],
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/google/gemma-4-E2B-it',
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
     isBeta: true,
   ),
 
@@ -39,7 +39,7 @@ const List<LocalModelConfig> kAvailableModels = [
         'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task',
     capabilities: ['vision', 'audio', 'function_calling'],
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/google/gemma-4-E4B-it',
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
     isBeta: true,
   ),
 
@@ -55,7 +55,7 @@ const List<LocalModelConfig> kAvailableModels = [
     downloadUrl:
         'https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task',
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/google/gemma-3-1b-it-litert-preview',
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
     capabilities: ['text'],
   ),
 
@@ -71,7 +71,7 @@ const List<LocalModelConfig> kAvailableModels = [
     downloadUrl:
         'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma3-270m-it-q8.task',
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/google/gemma-3-270m-it-litert-preview',
+    licenseUrl: 'https://ai.google.dev/gemma/terms',
     capabilities: ['text'],
   ),
 
@@ -89,7 +89,7 @@ const List<LocalModelConfig> kAvailableModels = [
     hfFilename: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
     capabilities: ['text', 'reasoning'],
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct',
+    licenseUrl: 'https://www.llama.com/llama3_2/license/',
   ),
 
   LocalModelConfig(
@@ -104,7 +104,7 @@ const List<LocalModelConfig> kAvailableModels = [
     hfFilename: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
     capabilities: ['text'],
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct',
+    licenseUrl: 'https://www.llama.com/llama3_2/license/',
   ),
 
   // -- MICROSOFT (fllama / .gguf) ---------------------------------------------

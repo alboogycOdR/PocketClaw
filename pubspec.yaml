@@ -73,6 +73,7 @@ dependencies:
   collection: ^1.19.1
   path: ^1.9.1
   mime: ^2.0.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

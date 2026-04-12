@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../app/theme.dart';
 import '../../core/llm/model_registry.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
@@ -11,6 +13,7 @@ import '../../core/llm/models/model_download_state.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/llm/models/model_provider.dart';
 import '../../core/llm/services/api_key_service.dart';
+import '../../core/llm/services/license_service.dart';
 import '../../data/providers/core_providers.dart';
 
 class ModelConfig extends ConsumerStatefulWidget {
@@ -24,6 +27,19 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
   String? _downloadingId;
 
   Future<void> _startDownload(llm.LocalModelConfig model) async {
+    // License gate: if the model requires a license and the user has not
+    // yet accepted it in-app, show the acceptance dialog first. This
+    // avoids the "license not accepted" error from ModelDownloadManager.
+    if (model.requiresLicense) {
+      final licenseService = ref.read(licenseServiceProvider);
+      final alreadyAccepted = licenseService.isAccepted(model.id);
+      if (!alreadyAccepted) {
+        final accepted =
+            await _showLicenseAcceptDialog(context, model, licenseService);
+        if (accepted != true) return; // user cancelled
+      }
+    }
+
     setState(() => _downloadingId = model.id);
 
     final manager = ref.read(modelDownloadManagerProvider);
@@ -1034,4 +1050,113 @@ void _showModelIdOverrideDialog(
       ],
     ),
   ).then((_) => controller.dispose());
+}
+
+// -- License acceptance dialog ------------------------------------------------
+
+Future<bool?> _showLicenseAcceptDialog(
+  BuildContext context,
+  llm.LocalModelConfig model,
+  LicenseService licenseService,
+) {
+  final licenseName = switch (model.provider) {
+    ModelProvider.google => 'Gemma Terms of Use',
+    ModelProvider.meta => 'Llama Community License',
+    _ => '${model.provider.displayName} License',
+  };
+
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: Text('Accept ${licenseName}?'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${model.displayName} is governed by the ${licenseName}.',
+              style: const TextStyle(fontSize: 13, color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A40),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'By accepting, you confirm that:',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '\u2022 You have read the terms\n'
+                    '\u2022 You will use the model in accordance with them\n'
+                    '\u2022 You accept any usage restrictions the model carries',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 10,
+                      color: Colors.white54,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (model.licenseUrl != null)
+              InkWell(
+                onTap: () async {
+                  final uri = Uri.parse(model.licenseUrl!);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_new,
+                        size: 14, color: PocketClawTheme.electricTeal),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Read full terms: ${model.licenseUrl}',
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 10,
+                          color: PocketClawTheme.electricTeal,
+                          decoration: TextDecoration.underline,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel',
+              style: TextStyle(color: Colors.white54)),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            await licenseService.markAccepted(model.id);
+            if (ctx.mounted) Navigator.of(ctx).pop(true);
+          },
+          child: const Text('I accept'),
+        ),
+      ],
+    ),
+  );
 }
