@@ -23,10 +23,9 @@
 -dontwarn org.json.**
 
 # ═══════════════════════════════════════════════════════════════════════════
-# MediaPipe / flutter_gemma
+# flutter_gemma + MediaPipe removed from the app. Keep rules retired.
+# protobuf keep retained in case a future plugin adds one.
 # ═══════════════════════════════════════════════════════════════════════════
--keep class com.google.mediapipe.** { *; }
--dontwarn com.google.mediapipe.**
 -keep class com.google.protobuf.** { *; }
 -dontwarn com.google.protobuf.**
 

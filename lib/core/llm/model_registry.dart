@@ -6,73 +6,51 @@ import 'models/model_format.dart';
 import 'models/model_provider.dart';
 
 const List<LocalModelConfig> kAvailableModels = [
-  // -- GOOGLE (flutter_gemma / .task) -----------------------------------------
+  // -- GOOGLE (Gemma GGUF via fllama) -----------------------------------------
 
   LocalModelConfig(
-    id: 'gemma-4-e2b',
-    displayName: 'Gemma 4 E2B',
-    description: 'Best quality \u2014 vision, audio, function calling',
-    sizeGB: 1.5,
-    ramMB: 6000,
-    format: ModelFormat.task,
+    id: 'gemma-2-2b',
+    displayName: 'Gemma 2 2B',
+    description: 'Google\u2019s balanced default \u2014 best Gemma for mobile',
+    sizeGB: 1.6,
+    ramMB: 4000,
+    format: ModelFormat.gguf,
     provider: ModelProvider.google,
-    hfRepo: 'litert-community/gemma-4-E2B-it-litert-lm',
-    downloadUrl:
-        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it-web.task',
-    capabilities: ['vision', 'audio', 'function_calling'],
+    hfRepo: 'bartowski/gemma-2-2b-it-GGUF',
+    hfFilename: 'gemma-2-2b-it-Q4_K_M.gguf',
+    capabilities: ['text', 'reasoning'],
     requiresLicense: true,
     licenseUrl: 'https://ai.google.dev/gemma/terms',
-    isBeta: true,
-  ),
-
-  LocalModelConfig(
-    id: 'gemma-4-e4b',
-    displayName: 'Gemma 4 E4B',
-    description:
-        'Larger Gemma 4 \u2014 stronger reasoning (needs more RAM)',
-    sizeGB: 2.7,
-    ramMB: 8000,
-    format: ModelFormat.task,
-    provider: ModelProvider.google,
-    hfRepo: 'litert-community/gemma-4-E4B-it-litert-lm',
-    downloadUrl:
-        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task',
-    capabilities: ['vision', 'audio', 'function_calling'],
-    requiresLicense: true,
-    licenseUrl: 'https://ai.google.dev/gemma/terms',
-    isBeta: true,
   ),
 
   LocalModelConfig(
     id: 'gemma-3-1b',
     displayName: 'Gemma 3 1B',
-    description: 'Balanced speed and quality, Google',
-    sizeGB: 0.6,
-    ramMB: 4000,
-    format: ModelFormat.task,
+    description: 'Small, fast Gemma 3 \u2014 good for lightweight chat',
+    sizeGB: 0.7,
+    ramMB: 2000,
+    format: ModelFormat.gguf,
     provider: ModelProvider.google,
-    hfRepo: 'google/gemma-3-1b-it-litert-preview',
-    downloadUrl:
-        'https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/gemma3-1b-it-int4.task',
+    hfRepo: 'bartowski/google_gemma-3-1b-it-GGUF',
+    hfFilename: 'google_gemma-3-1b-it-Q4_K_M.gguf',
+    capabilities: ['text'],
     requiresLicense: true,
     licenseUrl: 'https://ai.google.dev/gemma/terms',
-    capabilities: ['text'],
   ),
 
   LocalModelConfig(
-    id: 'gemma-3-270m',
-    displayName: 'Gemma 3 270M',
-    description: 'Ultra-compact \u2014 fast and lightweight',
-    sizeGB: 0.3,
-    ramMB: 2000,
-    format: ModelFormat.task,
+    id: 'gemma-3-4b',
+    displayName: 'Gemma 3 4B',
+    description: 'Gemma 3 mid-tier \u2014 stronger reasoning',
+    sizeGB: 2.5,
+    ramMB: 6000,
+    format: ModelFormat.gguf,
     provider: ModelProvider.google,
-    hfRepo: 'google/gemma-3-270m-it-litert-preview',
-    downloadUrl:
-        'https://huggingface.co/litert-community/gemma-3-270m-it/resolve/main/gemma3-270m-it-q8.task',
+    hfRepo: 'bartowski/google_gemma-3-4b-it-GGUF',
+    hfFilename: 'google_gemma-3-4b-it-Q4_K_M.gguf',
+    capabilities: ['text', 'reasoning'],
     requiresLicense: true,
     licenseUrl: 'https://ai.google.dev/gemma/terms',
-    capabilities: ['text'],
   ),
 
   // -- META (fllama / .gguf) --------------------------------------------------

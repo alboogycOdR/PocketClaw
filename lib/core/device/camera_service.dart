@@ -1,10 +1,7 @@
 /// Wraps camera / image_picker for photo capture + on-device vision/OCR
 library;
 
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../local_agent/llm_engine.dart';
@@ -102,55 +99,17 @@ class CameraService {
     }
 
     final config = _llmEngine!.config;
-    if (config == null || !config.capabilities.contains(ModelCap.vision)) {
-      return ToolResult.error(
-        'Current model (${config?.displayName ?? "none"}) does not support vision. '
-        'Switch to Gemma 4 E2B for OCR/image analysis.',
-      );
-    }
-
-    try {
-      final file = File(imagePath);
-      if (!await file.exists()) {
-        return ToolResult.error('Image file not found: $imagePath');
-      }
-
-      final imageBytes = await file.readAsBytes();
-      final model = await FlutterGemma.getActiveModel(
-        supportImage: true,
-        maxTokens: 1024,
-      );
-
-      final chat = await model.createChat();
-      await chat.addQuery(Message.withImage(
-        text: prompt,
-        imageBytes: imageBytes,
-        isUser: true,
-      ));
-
-      final buffer = StringBuffer();
-      await for (final response in chat.generateChatResponseAsync()) {
-        if (response is TextResponse) {
-          buffer.write(response.token);
-        }
-      }
-
-      final result = buffer.toString().trim();
-      if (result.isEmpty) {
-        return ToolResult.ok('No text could be extracted from the image.');
-      }
-
-      return ToolResult.ok(
-        result,
-        data: {
-          'imagePath': imagePath,
-          'extractedText': result,
-          'method': 'on-device-vision',
-        },
-      );
-    } catch (e) {
-      debugPrint('CameraService: vision processing failed: $e');
-      return ToolResult.error('Vision processing failed: $e');
-    }
+    // On-device vision via flutter_gemma was removed in the .task
+    // cleanup. Vision requests should now go to a cloud model (Claude,
+    // GPT-4o, Gemini all support vision) via Chat's Cloud mode.
+    debugPrint(
+        'CameraService: on-device vision unavailable. '
+        'Image path: $imagePath  Prompt: $prompt  Model: '
+        '${config?.displayName ?? "none"}');
+    return ToolResult.error(
+      'On-device vision is currently unavailable. '
+      'Send the image through a cloud model (Claude, GPT-4o, or Gemini) '
+      'from the Cloud tab in chat.',
+    );
   }
 }

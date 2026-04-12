@@ -50,9 +50,9 @@ dependencies:
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
 
-  # Local LLM
-  flutter_gemma: ^0.13.2
-  # fllama re-enabled — debugging native crash with USB/adb
+  # Local LLM — GGUF via fllama only. flutter_gemma removed (see
+  # commit log) — was >80MB of native libs, fragile .task format,
+  # and GGUF covers the same use cases with a wider model catalogue.
   fllama: ^0.0.1
   http: ^1.2.0
 

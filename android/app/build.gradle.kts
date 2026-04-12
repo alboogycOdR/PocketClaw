@@ -41,22 +41,14 @@ android {
     // Explicit excludes here strip armeabi-v7a (~19 MB) and x86_64
     // (~52 MB) that your phone will never execute.
     //
-    // Also strip unused flutter_gemma/MediaPipe native libs for
-    // features we do not use (image generation, Gecko embeddings,
-    // vector store). Saves another ~48 MB.
-    //
-    // If any engine feature breaks at runtime, remove the offending
-    // line and rebuild.
+    // flutter_gemma-specific excludes (MediaPipe/LiteRT/Gecko libs) were
+    // dropped along with the flutter_gemma dependency itself.
     packaging {
         jniLibs {
             excludes += listOf(
                 "lib/armeabi-v7a/**",
                 "lib/x86/**",
                 "lib/x86_64/**",
-                "**/libimagegenerator_gpu.so",
-                "**/libmediapipe_tasks_vision_image_generator_jni.so",
-                "**/libgecko_embedding_model_jni.so",
-                "**/libsqlite_vector_store_jni.so",
             )
         }
     }

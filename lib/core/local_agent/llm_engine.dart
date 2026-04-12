@@ -1,14 +1,12 @@
-/// Local LLM engine wrapper
+/// Legacy LlmEngine stub — the real inference path now goes through
+/// AbstractLLMEngine (GGUF via fllama, or Cloud APIs).
 ///
-/// Wraps flutter_gemma for on-device inference with streaming support.
-/// Model files are managed by flutter_gemma's internal model manager.
+/// flutter_gemma was removed in the .task cleanup. This stub stays so
+/// that LocalAgent / CameraService continue to compile; they route
+/// through AbstractLLMEngine at call sites or short-circuit.
 library;
 
 import 'dart:async';
-import 'dart:convert';
-
-import 'package:flutter/foundation.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
 
 enum ModelCap { text, vision, audio, functionCalling, thinking }
 
@@ -33,158 +31,42 @@ class LocalModelConfig {
 class LlmEngine {
   LocalModelConfig? _config;
   bool _isLoaded = false;
-  InferenceModel? _model;
 
   bool get isLoaded => _isLoaded;
   LocalModelConfig? get config => _config;
 
-  /// One-time initialisation — call early in app startup.
-  /// Guarded: a failure here (missing native library, device incompat)
-  /// is logged and swallowed so the app still launches with cloud models.
-  static Future<void> initPlatform({String? huggingFaceToken}) async {
-    try {
-      await FlutterGemma.initialize(
-        huggingFaceToken: huggingFaceToken,
-      );
-    } catch (e) {
-      debugPrint('LlmEngine.initPlatform: FlutterGemma init failed — $e');
-      // Allow the app to continue without local inference
-    }
-  }
+  /// Deprecated no-op. Previously initialised flutter_gemma.
+  static Future<void> initPlatform({String? huggingFaceToken}) async {}
 
-  /// Load the active model that was previously installed via
-  /// FlutterGemma.installModel().
+  /// Deprecated. Real loading happens inside LlamaCppEngine now.
   Future<void> loadModel(LocalModelConfig config) async {
     _config = config;
-
-    try {
-      _model = await FlutterGemma.getActiveModel(
-        maxTokens: config.maxTokens,
-        supportImage: config.capabilities.contains(ModelCap.vision),
-        supportAudio: config.capabilities.contains(ModelCap.audio),
-      );
-
-      _isLoaded = true;
-      debugPrint('LlmEngine: loaded ${config.displayName}');
-    } catch (e) {
-      debugPrint('LlmEngine: failed to load model: $e');
-      _isLoaded = false;
-      rethrow;
-    }
+    _isLoaded = false; // stub never ready
   }
 
   Stream<LlmChunk> generateStream(String prompt) async* {
-    if (!_isLoaded || _model == null) {
-      yield LlmChunk.text(
-          'Local model not loaded. Please download a model in Settings.');
-      return;
-    }
-
-    try {
-      final chat = await _model!.createChat();
-      await chat.addQuery(Message(text: prompt, isUser: true));
-
-      final buffer = StringBuffer();
-
-      await for (final response in chat.generateChatResponseAsync()) {
-        if (response is TextResponse) {
-          final token = response.token;
-          if (token.isEmpty) continue;
-          buffer.write(token);
-
-          // Check if the accumulated text contains a function call
-          final accumulated = buffer.toString();
-          final callMatch = _parseFunctionCall(accumulated);
-
-          if (callMatch != null) {
-            yield LlmChunk.functionCall(callMatch);
-            buffer.clear();
-          } else {
-            yield LlmChunk.text(token);
-          }
-        } else if (response is FunctionCallResponse) {
-          yield LlmChunk.functionCall(FunctionCallData(
-            name: response.name,
-            args: response.args,
-          ));
-        }
-      }
-    } catch (e) {
-      yield LlmChunk.text('Inference error: $e');
-    }
-  }
-
-  /// Collects streamed text into a single string (summarisation, brief updates).
-  Future<String> generateCompleteText(String prompt) async {
-    if (!_isLoaded || _model == null) {
-      return '';
-    }
-    final buffer = StringBuffer();
-    await for (final chunk in generateStream(prompt)) {
-      if (chunk.isText && chunk.text != null) {
-        buffer.write(chunk.text);
-      }
-    }
-    return buffer.toString().trim();
+    yield LlmChunk.text(
+        'Legacy engine path. Use AbstractLLMEngine instead.');
   }
 
   Stream<LlmChunk> continueWithResult(String toolResult) async* {
-    if (!_isLoaded || _model == null) {
-      yield LlmChunk.text(toolResult);
-      return;
-    }
-
-    try {
-      final prompt =
-          '<tool_result>$toolResult</tool_result>\n'
-          'Based on the tool result above, provide a natural language response to the user.';
-
-      await for (final chunk in generateStream(prompt)) {
-        yield chunk;
-      }
-    } catch (e) {
-      yield LlmChunk.text(toolResult);
-    }
+    yield LlmChunk.text(toolResult);
   }
 
-  Future<List<double>> generateEmbedding(String text) async {
-    try {
-      final embeddingModel =
-          await FlutterGemmaPlugin.instance.createEmbeddingModel();
-      final embedding = await embeddingModel.generateEmbedding(text);
-      return embedding;
-    } catch (e) {
-      debugPrint('LlmEngine: embedding failed: $e');
-      return List.filled(384, 0.0);
-    }
-  }
+  /// Collects streamed output into one string. Legacy API kept for
+  /// MemoryService compatibility — returns empty in this stub.
+  Future<String> generateCompleteText(String prompt) async => '';
+
+  Future<List<double>> generateEmbedding(String text) async =>
+      List.filled(384, 0.0);
 
   void unload() {
     _isLoaded = false;
     _config = null;
-    _model = null;
   }
 
   void dispose() {
     unload();
-  }
-
-  /// Attempts to parse a function call from accumulated LLM output.
-  /// Format: <tool_call>{"name":"tool_name","args":{...}}</tool_call>
-  FunctionCallData? _parseFunctionCall(String text) {
-    final regex = RegExp(r'<tool_call>(.*?)</tool_call>', dotAll: true);
-    final match = regex.firstMatch(text);
-    if (match == null) return null;
-
-    try {
-      final json = jsonDecode(match.group(1)!) as Map<String, dynamic>;
-      return FunctionCallData(
-        name: json['name'] as String,
-        args: (json['args'] as Map<String, dynamic>?) ?? {},
-      );
-    } catch (_) {
-      return null;
-    }
   }
 }
 

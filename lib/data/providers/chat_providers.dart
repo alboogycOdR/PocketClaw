@@ -153,47 +153,51 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
 });
 
 Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
-  final agent = ref.read(localAgentProvider);
   final messages = ref.read(messagesProvider.notifier);
+  final model = ref.read(selectedModelConfigProvider);
 
-  // Ensure the local engine has actually loaded the selected model.
-  // We removed the startup-time modelInitProvider watch to keep launch
-  // instant, so the engine can be in a 'never loaded' state even after
-  // the user downloaded a model. Load on demand here.
-  final engine = ref.read(llmEngineProvider);
-  if (!engine.isLoaded) {
-    try {
-      final prefs = ref.read(sharedPrefsProvider);
-      final selectedId = prefs.getString('selected_model');
-      if (selectedId == null || selectedId.isEmpty) {
-        messages.add(ChatMessage(
-          id: _uuid.v4(),
-          role: MessageRole.assistant,
-          content:
-              'No local model selected. Settings \u2192 Models \u2192 pick one.',
-          source: MessageSource.local,
-          timestamp: DateTime.now(),
-        ));
-        return;
-      }
-      final selector = ref.read(modelSelectorProvider);
-      final config =
-          selector.getConfigById(selectedId) ?? await selector.selectModel();
-      await engine.loadModel(config);
-    } catch (e) {
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content: 'Failed to load local model: $e\n\n'
-            'Try re-downloading in Settings \u2192 Models.',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
-      return;
-    }
+  if (model.format == ModelFormat.cloud) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content:
+          'Local mode needs a local model. Switch to Cloud mode, or pick '
+          'a local model in Settings \u2192 Models.',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
   }
 
-  // Add streaming placeholder
+  // Resolve the engine via abstractLlmEngineProvider — awaiting the
+  // future so engine.initialize() has completed before we stream.
+  AbstractLLMEngine engine;
+  try {
+    engine = await ref.read(abstractLlmEngineProvider.future);
+  } catch (e) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content: 'Failed to initialise local engine: $e',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  if (!engine.isReady) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content: 'Model \u201c${model.displayName}\u201d is not downloaded yet. '
+          'Download it in Settings \u2192 Models.',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  // Streaming placeholder
   final msgId = _uuid.v4();
   messages.add(ChatMessage(
     id: msgId,
@@ -204,42 +208,18 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
     isStreaming: true,
   ));
 
-  bool receivedAnyToken = false;
-  final timeout = Future<void>.delayed(const Duration(seconds: 30));
-  bool timedOut = false;
-
-  timeout.then((_) {
-    if (!receivedAnyToken) timedOut = true;
-  });
-
-  await for (final response in agent.process(text, imageUrl: imageUrl)) {
-    if (timedOut) {
-      messages.updateLast((m) => m.copyWith(
-            content: '${m.content}\n\n[Inference timed out after 30s. '
-                'Try a shorter question or test on a real device — '
-                'emulators are very slow for on-device AI.]',
-            isStreaming: false,
-          ));
-      break;
+  try {
+    await for (final token in engine.generateStream(text, maxTokens: 1024)) {
+      messages.appendToLast(token);
     }
-
-    if (response.isDone) {
-      messages.updateLast((m) => m.copyWith(isStreaming: false));
-      break;
-    }
-
-    if (response.functionCall != null) {
-      messages.updateLast((m) => m.copyWith(
-            functionCall: FunctionCallInfo(
-              name: response.functionCall!.name,
-              args: response.functionCall!.args,
-              isExecuting: true,
-            ),
-          ));
-    } else if (response.text.isNotEmpty) {
-      receivedAnyToken = true;
-      messages.appendToLast(response.text);
-    }
+    messages.updateLast((m) => m.copyWith(isStreaming: false));
+  } catch (e) {
+    messages.updateLast((m) => m.copyWith(
+          content: m.content.isEmpty
+              ? 'Local inference error: $e'
+              : '${m.content}\n\n[Error: $e]',
+          isStreaming: false,
+        ));
   }
 }
 
