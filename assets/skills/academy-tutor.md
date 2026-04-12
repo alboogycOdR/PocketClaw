@@ -11,7 +11,7 @@ triggers:
   - "exam"
   - "revision"
   - "syllabus"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Personal AI Academy

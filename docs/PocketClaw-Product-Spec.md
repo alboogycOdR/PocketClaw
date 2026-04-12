@@ -3,7 +3,7 @@
 ## The AI Agent That Lives in Your Pocket
 
 **Version:** 1.0.0
-**Developer:** CARMEN PTY LTD
+**Developer:** Nuburo.DIGITAL (PTY) LTD
 **Platform:** Android, iOS, Web (Flutter)
 **Status:** Feature-Complete, Production-Ready
 
@@ -359,5 +359,5 @@ On-device inference means the user's data never leaves their phone unless they e
 
 ---
 
-*Pocket Claw v1.0.0 — CARMEN PTY LTD — April 2026*
+*Pocket Claw v1.0.0 — Nuburo.DIGITAL (PTY) LTD — April 2026*
 *"Your personal AI agent, always in your pocket."*

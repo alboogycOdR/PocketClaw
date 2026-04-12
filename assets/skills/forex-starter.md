@@ -17,7 +17,7 @@ triggers:
 tools:
   - read_file
   - write_file
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Forex Power User Pack

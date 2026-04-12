@@ -11,7 +11,7 @@ triggers:
   - "habit"
   - "routine"
   - "blueprint"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Life Architect Mode

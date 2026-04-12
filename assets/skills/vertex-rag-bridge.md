@@ -8,7 +8,7 @@ triggers:
   - "find in textbook"
   - "what does the textbook say"
   - "textbook reference"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Vertex RAG Bridge

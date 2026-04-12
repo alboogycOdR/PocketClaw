@@ -2,9 +2,9 @@
 ## Mobile AI Agent with OpenClaw Integration
 
 **Version:** 1.0.0  
-**Author:** Alister Witbooy / CARMEN PTY LTD  
+**Author:** Alister Witbooy / Nuburo.DIGITAL (PTY) LTD  
 **Date:** 2026-04-09  
-**License:** Proprietary (CARMEN PTY LTD)  
+**License:** Proprietary (Nuburo.DIGITAL (PTY) LTD)  
 **Status:** Architecture & Design Complete
 
 ---
@@ -1890,5 +1890,5 @@ Is internet required for this skill?
 
 ---
 
-*Pocket Claw v1.0.0 — CARMEN PTY LTD — April 2026*  
+*Pocket Claw v1.0.0 — Nuburo.DIGITAL (PTY) LTD — April 2026*  
 *"Your phone is the body. Your server is the brain. Together, they're unstoppable."*

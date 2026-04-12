@@ -6,7 +6,7 @@ class AppConstants {
 
   static const String appName = 'Pocket Claw';
   static const String appVersion = '1.0.0';
-  static const String orgName = 'CARMEN PTY LTD';
+  static const String orgName = 'Nuburo.DIGITAL (PTY) LTD';
 
   // Default Gateway
   static const int defaultGatewayPort = 18789;

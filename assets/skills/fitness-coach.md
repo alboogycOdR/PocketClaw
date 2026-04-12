@@ -10,7 +10,7 @@ triggers:
   - "exercise"
   - "training"
   - "stretching"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Fitness & Movement Coach

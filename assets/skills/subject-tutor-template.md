@@ -7,7 +7,7 @@ triggers:
   - "help with {subject}"
   - "explain {topic}"
   - "solve {problem}"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # {Subject} Tutor

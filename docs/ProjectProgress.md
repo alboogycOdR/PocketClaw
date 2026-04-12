@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0  
 **Last Updated:** 2026-04-09  
-**Author:** Alister Witbooy / CARMEN PTY LTD  
+**Author:** Alister Witbooy / Nuburo.DIGITAL (PTY) LTD  
 **Repo:** https://github.com/alboogycOdR/PocketClaw
 
 ---
@@ -170,4 +170,4 @@ Required to build APKs and run on a real phone. Flutter is installed (v3.41.6) a
 
 ---
 
-*Pocket Claw v1.0.0 — CARMEN PTY LTD — April 2026*
+*Pocket Claw v1.0.0 — Nuburo.DIGITAL (PTY) LTD — April 2026*

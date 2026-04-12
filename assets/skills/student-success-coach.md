@@ -11,7 +11,7 @@ triggers:
   - "career advice"
   - "feeling stressed"
   - "exam countdown"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Student Success Coach

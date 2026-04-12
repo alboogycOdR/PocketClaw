@@ -9,7 +9,7 @@ triggers:
   - "how is my life going"
   - "life blueprint"
   - "overall progress"
-author: CARMEN PTY LTD
+author: Nuburo.DIGITAL (PTY) LTD
 ---
 
 # Master Life Architect

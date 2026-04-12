@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-10
 **Status:** Under Consideration
-**Author:** Alister Witbooy / CARMEN PTY LTD
+**Author:** Alister Witbooy / Nuburo.DIGITAL (PTY) LTD
 
 ---
 
@@ -38,7 +38,7 @@ This is acceptable for a developer/power user but creates unacceptable friction 
 
 ### Option 1: Self-Hosted Models (Recommended for Production)
 
-Upload the `.task` model files to infrastructure under CARMEN's control. Change the download URLs in the app to point there.
+Upload the `.task` model files to infrastructure under Nuburo.DIGITAL's control. Change the download URLs in the app to point there.
 
 **Hosting options:**
 - Google Cloud Storage bucket (pay per GB transferred)
@@ -53,7 +53,7 @@ Upload the `.task` model files to infrastructure under CARMEN's control. Change 
 - Full control over availability and versioning
 
 **Cons:**
-- CARMEN bears hosting/bandwidth costs (~0.3–1.5 GB per user per model)
+- Nuburo.DIGITAL bears hosting/bandwidth costs (~0.3–1.5 GB per user per model)
 - Must comply with Google's Gemma license terms for redistribution
 - Must update model files manually when new versions release
 
@@ -118,4 +118,4 @@ For **consumer/enterprise distribution** (future phase): **self-host the models*
 
 ---
 
-*CARMEN PTY LTD — April 2026*
+*Nuburo.DIGITAL (PTY) LTD — April 2026*
