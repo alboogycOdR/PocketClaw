@@ -39,10 +39,17 @@ class LlmEngine {
   LocalModelConfig? get config => _config;
 
   /// One-time initialisation — call early in app startup.
+  /// Guarded: a failure here (missing native library, device incompat)
+  /// is logged and swallowed so the app still launches with cloud models.
   static Future<void> initPlatform({String? huggingFaceToken}) async {
-    await FlutterGemma.initialize(
-      huggingFaceToken: huggingFaceToken,
-    );
+    try {
+      await FlutterGemma.initialize(
+        huggingFaceToken: huggingFaceToken,
+      );
+    } catch (e) {
+      debugPrint('LlmEngine.initPlatform: FlutterGemma init failed — $e');
+      // Allow the app to continue without local inference
+    }
   }
 
   /// Load the active model that was previously installed via

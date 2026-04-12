@@ -130,18 +130,37 @@ class PaperclipRealtimeService {
 
 /// Provider that creates and auto-starts the Paperclip realtime service.
 /// Watch this provider from the app root to keep the connection alive.
+/// Never throws during construction — failures are logged and degraded.
 final paperclipRealtimeProvider = Provider<PaperclipRealtimeService>((ref) {
   final service = PaperclipRealtimeService(ref);
 
-  // Auto-connect when the URL and token become available
-  final wsUrl = ref.watch(paperclipWsUrlProvider);
-  final token = ref.watch(paperclipTokenProvider);
+  // Auto-connect when the URL and token become available — but only if
+  // both are configured. No network activity on first launch.
+  try {
+    final wsUrl = ref.watch(paperclipWsUrlProvider);
+    final token = ref.watch(paperclipTokenProvider);
 
-  if (wsUrl.isNotEmpty && token.isNotEmpty) {
-    // Schedule connect after the provider is fully initialised
-    Future.microtask(() => service.connect());
+    if (wsUrl.isNotEmpty && token.isNotEmpty) {
+      // Schedule connect after the provider is fully initialised.
+      // Errors in connect() are handled internally — they won't propagate.
+      Future.microtask(() async {
+        try {
+          await service.connect();
+        } catch (e) {
+          debugPrint('Paperclip: auto-connect failed — $e');
+        }
+      });
+    }
+  } catch (e) {
+    debugPrint('Paperclip: provider setup failed — $e');
   }
 
-  ref.onDispose(() => service.dispose());
+  ref.onDispose(() {
+    try {
+      service.dispose();
+    } catch (_) {
+      // Dispose errors are not recoverable; swallow
+    }
+  });
   return service;
 });

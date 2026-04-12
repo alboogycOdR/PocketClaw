@@ -24,12 +24,20 @@ class AppDatabase {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, _dbName);
 
-    return openDatabase(
-      path,
-      version: _dbVersion,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+    try {
+      return await openDatabase(
+        path,
+        version: _dbVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+      );
+    } catch (e) {
+      // Migration or open failed — log and re-throw so caller can fall back
+      // to a fresh DB or in-memory mode. Does NOT delete data automatically.
+      // ignore: avoid_print
+      print('AppDatabase: open failed: $e');
+      rethrow;
+    }
   }
 
   Future<void> initialize() async {
@@ -188,8 +196,16 @@ class AppDatabase {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Run each version step in isolation so a failure in one doesn't
+    // abort the whole migration.
     if (oldVersion < 2) {
-      await _createV2Tables(db);
+      try {
+        await _createV2Tables(db);
+      } catch (e) {
+        // ignore: avoid_print
+        print('AppDatabase: v2 migration failed (non-fatal): $e');
+        // v2 tables use IF NOT EXISTS — safe to continue.
+      }
     }
   }
 

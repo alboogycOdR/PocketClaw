@@ -1,6 +1,7 @@
 /// Pocket Claw root application widget
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,14 +23,28 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Trigger model loading on startup (fire-and-forget)
-    ref.watch(modelInitProvider);
+    // Trigger model loading on startup (fire-and-forget, never throws)
+    try {
+      ref.watch(modelInitProvider);
+    } catch (e) {
+      debugPrint('modelInitProvider watch failed: $e');
+    }
 
-    // Keep Paperclip WebSocket alive while the app is running
-    ref.watch(paperclipRealtimeProvider);
+    // Keep Paperclip WebSocket alive while the app is running — only if
+    // configured. Failure here must never prevent app launch.
+    try {
+      ref.watch(paperclipRealtimeProvider);
+    } catch (e) {
+      debugPrint('paperclipRealtimeProvider watch failed: $e');
+    }
 
-    final prefs = ref.watch(sharedPrefsProvider);
-    final biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;
+    bool biometricEnabled = false;
+    try {
+      final prefs = ref.watch(sharedPrefsProvider);
+      biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;
+    } catch (e) {
+      debugPrint('SharedPreferences unavailable, biometric disabled: $e');
+    }
     final showLock = biometricEnabled && !_unlocked;
 
     return MaterialApp.router(
