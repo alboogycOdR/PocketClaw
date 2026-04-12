@@ -144,12 +144,57 @@ class LlamaCppEngine implements AbstractLLMEngine {
     final url = 'https://huggingface.co/${model.hfRepo}'
         '/resolve/main/${model.hfFilename}';
 
+    // Up to 3 attempts. Each attempt resumes from the byte count already
+    // written to disk (HTTP Range request). HF CDN pre-signed URLs often
+    // drop connections on large mobile transfers — resuming is the fix.
+    const maxAttempts = 3;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await _downloadAttempt(
+          url: url,
+          destPath: destPath,
+          huggingFaceToken: huggingFaceToken,
+          onProgress: onProgress,
+        );
+        return; // success
+      } on _FatalDownloadException {
+        rethrow; // 401 / 404 — no point retrying
+      } catch (e) {
+        if (attempt == maxAttempts) {
+          throw Exception(
+            'Download failed after $maxAttempts attempts: ${_cleanError(e)}',
+          );
+        }
+        // Transient error — wait briefly and retry from byte offset
+        await Future<void>.delayed(Duration(seconds: attempt * 2));
+      }
+    }
+  }
+
+  /// One download attempt. Supports resume via HTTP Range header.
+  /// Throws _FatalDownloadException on 401/404 (don't retry), or any
+  /// other Exception on transient failures (will be retried).
+  Future<void> _downloadAttempt({
+    required String url,
+    required String destPath,
+    required String? huggingFaceToken,
+    required void Function(double progress)? onProgress,
+  }) async {
     final client = HttpClient();
     try {
-      final request = await client.getUrl(Uri.parse(url));
+      // Check for partial file — resume from here if present
+      final file = File(destPath);
+      var resumeFrom = 0;
+      if (file.existsSync()) {
+        resumeFrom = file.lengthSync();
+      }
 
+      final request = await client.getUrl(Uri.parse(url));
       if (huggingFaceToken != null) {
         request.headers.set('Authorization', 'Bearer $huggingFaceToken');
+      }
+      if (resumeFrom > 0) {
+        request.headers.set('Range', 'bytes=$resumeFrom-');
       }
       request.followRedirects = true;
       request.maxRedirects = 5;
@@ -157,41 +202,91 @@ class LlamaCppEngine implements AbstractLLMEngine {
       final response = await request.close();
 
       if (response.statusCode == 401) {
-        response.drain<void>();
-        throw Exception(
-          'Authentication required. Provide a HuggingFace token in Settings.',
+        await response.drain<void>();
+        throw _FatalDownloadException(
+          'Authentication required. Check your HuggingFace token in Settings.',
         );
       }
-      if (response.statusCode != 200) {
-        response.drain<void>();
-        throw Exception('Download failed: HTTP ${response.statusCode}');
+      if (response.statusCode == 404) {
+        await response.drain<void>();
+        throw _FatalDownloadException(
+          'Model file not found at $url. The repo or filename may be wrong.',
+        );
       }
 
-      await _downloadToFile(response, destPath, onProgress);
+      // 206 Partial Content = resume succeeded. 200 = full download
+      // (server ignored our Range header or we were starting fresh).
+      if (response.statusCode == 206) {
+        await _streamToFile(
+          response: response,
+          destPath: destPath,
+          alreadyReceived: resumeFrom,
+          onProgress: onProgress,
+          append: true,
+        );
+      } else if (response.statusCode == 200) {
+        // Server didn't honour Range — start over
+        await _streamToFile(
+          response: response,
+          destPath: destPath,
+          alreadyReceived: 0,
+          onProgress: onProgress,
+          append: false,
+        );
+      } else {
+        await response.drain<void>();
+        throw Exception('Unexpected HTTP ${response.statusCode}');
+      }
     } finally {
       client.close();
     }
   }
 
-  Future<void> _downloadToFile(
-    HttpClientResponse response,
-    String destPath,
-    void Function(double progress)? onProgress,
-  ) async {
-    final totalBytes = response.contentLength;
-    var receivedBytes = 0;
-    final sink = File(destPath).openWrite();
+  Future<void> _streamToFile({
+    required HttpClientResponse response,
+    required String destPath,
+    required int alreadyReceived,
+    required void Function(double progress)? onProgress,
+    required bool append,
+  }) async {
+    // Content-Length is the remaining bytes (for 206); add what's on disk
+    // to get the real total for progress calculation.
+    final remainingBytes = response.contentLength;
+    final totalBytes =
+        remainingBytes > 0 ? alreadyReceived + remainingBytes : 0;
+    var receivedBytes = alreadyReceived;
 
-    await for (final chunk in response) {
-      sink.add(chunk);
-      receivedBytes += chunk.length;
-      if (totalBytes > 0) {
-        onProgress?.call(receivedBytes / totalBytes);
+    final sink = File(destPath).openWrite(
+      mode: append ? FileMode.append : FileMode.write,
+    );
+
+    try {
+      await for (final chunk in response) {
+        sink.add(chunk);
+        receivedBytes += chunk.length;
+        if (totalBytes > 0) {
+          onProgress?.call(receivedBytes / totalBytes);
+        }
       }
+      await sink.flush();
+    } finally {
+      await sink.close();
     }
+  }
 
-    await sink.flush();
-    await sink.close();
+  /// Strip noisy URL dumps from network exception messages.
+  String _cleanError(Object e) {
+    final msg = e.toString();
+    if (msg.contains('Connection closed while receiving data')) {
+      return 'Network interrupted \u2014 connection closed mid-download. '
+          'Tap Retry to resume from where it left off.';
+    }
+    if (msg.contains('SocketException') || msg.contains('HttpException')) {
+      // Truncate at the first ", uri =" so we don't dump the huge URL
+      final i = msg.indexOf(', uri =');
+      if (i > 0) return msg.substring(0, i);
+    }
+    return msg;
   }
 
   @override
@@ -233,4 +328,13 @@ class LlamaCppEngine implements AbstractLLMEngine {
   Future<void> dispose() async {
     await unloadModel();
   }
+}
+
+/// Thrown when a download failure is definitively NOT retryable
+/// (e.g. HTTP 401, 404). Retry loop re-throws these immediately.
+class _FatalDownloadException implements Exception {
+  final String message;
+  _FatalDownloadException(this.message);
+  @override
+  String toString() => message;
 }
