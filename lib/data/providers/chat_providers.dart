@@ -7,12 +7,15 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/chat/chat_mode.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/llm/models/model_format.dart';
 import '../../core/router/smart_router.dart';
 import '../../core/session/session_history.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../shared/widgets/execution_path_chip.dart';
+import 'chat_mode_providers.dart';
 import 'core_providers.dart';
 
 const _uuid = Uuid();
@@ -98,54 +101,32 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
     );
     messages.add(userMsg);
 
-    // Check for user execution path override
-    final override = ref.read(executionPathOverrideProvider);
-    RoutingDecision decision;
-    if (override != null) {
-      final overrideTarget = switch (override) {
-        ExecutionPath.local => RouteTarget.local,
-        ExecutionPath.server => RouteTarget.server,
-        ExecutionPath.bridge => RouteTarget.bridge,
-      };
-      decision = RoutingDecision(
-        target: overrideTarget,
-        reason: 'User override: ${override.name}',
-      );
-    } else {
-      decision = await router.routeWithContext(
-        text,
-        hasImage: imageUrl != null,
-      );
-    }
-    final target = decision.target;
+    // Dispatch by explicit user-chosen chat mode (not Smart Router).
+    final mode = ref.read(chatModeProvider);
     final cleanText = router.stripPrefix(text);
 
-    // Update execution path indicator
-    final executionPath = switch (target) {
-      RouteTarget.local => ExecutionPath.local,
-      RouteTarget.server => ExecutionPath.server,
-      RouteTarget.bridge => ExecutionPath.bridge,
-      RouteTarget.device => ExecutionPath.local,
-      RouteTarget.missionControl => ExecutionPath.local,
+    // Update execution path indicator for the chat chip
+    final executionPath = switch (mode) {
+      ChatMode.local    => ExecutionPath.local,
+      ChatMode.cloud    => ExecutionPath.server,
+      ChatMode.openclaw => ExecutionPath.server,
     };
     ref.read(executionPathProvider.notifier).state = executionPath;
 
     try {
-      switch (target) {
-        case RouteTarget.local:
+      switch (mode) {
+        case ChatMode.local:
           await _processLocal(ref, cleanText, imageUrl: imageUrl);
           break;
-        case RouteTarget.server:
-          await _processServer(ref, cleanText);
+        case ChatMode.cloud:
+          await _processCloud(ref, cleanText);
           break;
-        case RouteTarget.bridge:
-          await _processBridge(ref, cleanText, imageUrl: imageUrl);
-          break;
-        case RouteTarget.device:
-          _processDevice(ref, cleanText);
-          break;
-        case RouteTarget.missionControl:
-          _processMissionControl(ref, cleanText);
+        case ChatMode.openclaw:
+          if (imageUrl != null) {
+            await _processBridge(ref, cleanText, imageUrl: imageUrl);
+          } else {
+            await _processServer(ref, cleanText);
+          }
           break;
       }
     } catch (e) {
@@ -221,6 +202,65 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
       receivedAnyToken = true;
       messages.appendToLast(response.text);
     }
+  }
+}
+
+Future<void> _processCloud(Ref ref, String text) async {
+  final messages = ref.read(messagesProvider.notifier);
+  final model = ref.read(selectedModelConfigProvider);
+
+  if (model.format != ModelFormat.cloud) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content:
+          'Cloud mode requires a cloud model (Claude, GPT, or Gemini). '
+          'Pick one in Settings \u2192 Models.',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  // Resolve the cloud engine — initialises and uses the stored API key
+  final engineAsync = ref.read(abstractLlmEngineProvider);
+  final engine = engineAsync.whenOrNull(data: (e) => e);
+  if (engine == null || !engine.isReady) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content:
+          'Cloud engine not ready. Check your API key for '
+          '${model.displayName} in Settings \u2192 Models.',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  // Streaming placeholder
+  final msgId = _uuid.v4();
+  messages.add(ChatMessage(
+    id: msgId,
+    role: MessageRole.assistant,
+    content: '',
+    source: MessageSource.server,
+    timestamp: DateTime.now(),
+    isStreaming: true,
+  ));
+
+  try {
+    await for (final token in engine.generateStream(text, maxTokens: 1024)) {
+      messages.appendToLast(token);
+    }
+    messages.updateLast((m) => m.copyWith(isStreaming: false));
+  } catch (e) {
+    messages.updateLast((m) => m.copyWith(
+          content: m.content.isEmpty
+              ? 'Cloud API error: $e'
+              : '${m.content}\n\n[Error: $e]',
+          isStreaming: false,
+        ));
   }
 }
 

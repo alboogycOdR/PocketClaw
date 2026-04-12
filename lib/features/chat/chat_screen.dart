@@ -18,6 +18,7 @@ import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'chat_bubble.dart';
+import 'chat_mode_selector.dart';
 import 'draft_confirm_card.dart';
 import 'function_call_indicator.dart';
 import 'photo_preview.dart';
@@ -418,6 +419,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          // Chat mode selector (Local / Cloud / OpenClaw)
+          const ChatModeSelector(),
+
           // Message list
           Expanded(
             child: messages.isEmpty
