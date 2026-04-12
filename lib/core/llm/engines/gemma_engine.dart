@@ -16,11 +16,37 @@ class GemmaEngine implements AbstractLLMEngine {
   String? _loadedModelId;
   InferenceModel? _model;
 
+  /// Whether FlutterGemma.initialize() has been called at least once.
+  /// We initialise lazily on first use (download or load) rather than at
+  /// app startup, so the app launches even if no Gemma model is ever used.
+  static bool _platformInitialised = false;
+
   GemmaEngine({required LocalModelConfig config}) : _config = config;
+
+  /// Idempotent: initialises the flutter_gemma platform once. Safe to call
+  /// on every Gemma operation.
+  static Future<void> _ensurePlatformInitialised(String? hfToken) async {
+    if (_platformInitialised) return;
+    try {
+      await FlutterGemma.initialize(huggingFaceToken: hfToken);
+      _platformInitialised = true;
+    } catch (e) {
+      debugPrint('GemmaEngine: FlutterGemma.initialize failed: $e');
+      // Leave _platformInitialised=false so the next call can retry
+      rethrow;
+    }
+  }
 
   @override
   Future<void> initialize({String? huggingFaceToken}) async {
-    // flutter_gemma global init is done in main.dart — just load the model
+    // Ensure platform is ready before any flutter_gemma call
+    try {
+      await _ensurePlatformInitialised(huggingFaceToken);
+    } catch (_) {
+      _isReady = false;
+      return;
+    }
+
     try {
       _model = await FlutterGemma.getActiveModel(
         maxTokens: 1024,
@@ -86,6 +112,7 @@ class GemmaEngine implements AbstractLLMEngine {
   Future<bool> isModelDownloaded(String modelId) async {
     // flutter_gemma manages its own model storage — check via the active model
     try {
+      await _ensurePlatformInitialised(null);
       await FlutterGemma.getActiveModel(maxTokens: 256);
       return true;
     } catch (_) {
@@ -99,6 +126,11 @@ class GemmaEngine implements AbstractLLMEngine {
     void Function(double progress)? onProgress,
     String? huggingFaceToken,
   }) async {
+    // Lazy platform init — critical. flutter_gemma's plugin throws
+    // "FlutterGemma not initialized!" if installModel is called before
+    // FlutterGemma.initialize() has run.
+    await _ensurePlatformInitialised(huggingFaceToken);
+
     // flutter_gemma handles .task download internally via installModel
     final modelType = ModelType.gemmaIt;
     final fileType = ModelFileType.task;
