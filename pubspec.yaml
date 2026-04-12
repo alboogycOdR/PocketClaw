@@ -52,7 +52,8 @@ dependencies:
 
   # Local LLM
   flutter_gemma: ^0.13.2
-  # fllama: disabled in v2.1 — crash-on-launch regression on some devices
+  # fllama re-enabled — debugging native crash with USB/adb
+  fllama: ^0.0.1
   http: ^1.2.0
 
   # Math

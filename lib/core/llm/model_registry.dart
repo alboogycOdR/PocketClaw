@@ -16,12 +16,30 @@ const List<LocalModelConfig> kAvailableModels = [
     ramMB: 6000,
     format: ModelFormat.task,
     provider: ModelProvider.google,
-    hfRepo: 'google/gemma-4-e2b-it-litert-preview',
+    hfRepo: 'litert-community/gemma-4-E2B-it-litert-lm',
     downloadUrl:
-        'https://huggingface.co/google/gemma-3n-E2B-it-litert-preview/resolve/main/gemma-3n-E2B-it-int4.task',
+        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it-web.task',
     capabilities: ['vision', 'audio', 'function_calling'],
     requiresLicense: true,
-    licenseUrl: 'https://huggingface.co/google/gemma-4-e2b-it-litert-preview',
+    licenseUrl: 'https://huggingface.co/google/gemma-4-E2B-it',
+    isBeta: true,
+  ),
+
+  LocalModelConfig(
+    id: 'gemma-4-e4b',
+    displayName: 'Gemma 4 E4B',
+    description:
+        'Larger Gemma 4 \u2014 stronger reasoning (needs more RAM)',
+    sizeGB: 2.7,
+    ramMB: 8000,
+    format: ModelFormat.task,
+    provider: ModelProvider.google,
+    hfRepo: 'litert-community/gemma-4-E4B-it-litert-lm',
+    downloadUrl:
+        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.task',
+    capabilities: ['vision', 'audio', 'function_calling'],
+    requiresLicense: true,
+    licenseUrl: 'https://huggingface.co/google/gemma-4-E4B-it',
     isBeta: true,
   ),
 
