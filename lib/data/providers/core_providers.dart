@@ -362,11 +362,41 @@ final availableModelsProvider = Provider<List<llm.LocalModelConfig>>((_) {
 
 final selectedModelConfigProvider = Provider<llm.LocalModelConfig>((ref) {
   final selectedId = ref.watch(selectedModelIdProvider);
-  return kAvailableModels.firstWhere(
+  final prefs = ref.watch(sharedPrefsProvider);
+  final base = kAvailableModels.firstWhere(
     (m) => m.id == selectedId,
     orElse: () => kAvailableModels.firstWhere((m) => m.id == 'gemma-3-270m'),
   );
+
+  // User override: if the user has set a custom cloud model ID for this
+  // slot (e.g. to use 'gemini-2.5-pro-latest' or a newly-released
+  // variant), apply it here without needing a rebuild.
+  final override = prefs.getString(_customModelIdKey(base.id));
+  if (override != null && override.isNotEmpty && base.isCloud) {
+    return base.copyWith(cloudModelId: override);
+  }
+  return base;
 });
+
+/// Pref key for per-model custom ID override.
+String _customModelIdKey(String modelId) => 'custom_model_id_$modelId';
+
+/// Get/set custom model ID override. Used by the Models screen.
+String? getCustomModelId(SharedPreferences prefs, String modelId) {
+  return prefs.getString(_customModelIdKey(modelId));
+}
+
+Future<void> setCustomModelId(
+  SharedPreferences prefs,
+  String modelId,
+  String? customId,
+) async {
+  if (customId == null || customId.trim().isEmpty) {
+    await prefs.remove(_customModelIdKey(modelId));
+  } else {
+    await prefs.setString(_customModelIdKey(modelId), customId.trim());
+  }
+}
 
 final abstractLlmEngineProvider = FutureProvider<AbstractLLMEngine>((ref) async {
   final model = ref.watch(selectedModelConfigProvider);

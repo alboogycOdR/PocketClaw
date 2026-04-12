@@ -117,6 +117,10 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
                     false)
                 : false;
 
+            final prefs = ref.watch(sharedPrefsProvider);
+            final customId = getCustomModelId(prefs, model.id);
+            final effectiveId = customId ?? model.cloudModelId ?? '';
+
             return _MultiModelCard(
               model: model,
               isSelected: isSelected,
@@ -125,6 +129,9 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
               downloadProgress: 0,
               errorMessage: null,
               hasToken: true,
+              effectiveModelId: effectiveId,
+              onEditModelId: () =>
+                  _showModelIdOverrideDialog(context, ref, model),
               onDownload: () {
                 if (cloudProvider != null) {
                   _showCloudApiKeyDialog(context, ref, cloudProvider, model);
@@ -249,6 +256,8 @@ class _MultiModelCard extends StatelessWidget {
   final VoidCallback onDownload;
   final VoidCallback onSelect;
   final VoidCallback onTokenTap;
+  final VoidCallback? onEditModelId;
+  final String? effectiveModelId;
 
   const _MultiModelCard({
     required this.model,
@@ -261,6 +270,8 @@ class _MultiModelCard extends StatelessWidget {
     required this.onDownload,
     required this.onSelect,
     required this.onTokenTap,
+    this.onEditModelId,
+    this.effectiveModelId,
   });
 
   @override
@@ -293,6 +304,29 @@ class _MultiModelCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Edit model ID icon (cloud models only)
+                      // Shown just before the name badges
+                      if (onEditModelId != null &&
+                          effectiveModelId != null &&
+                          effectiveModelId != model.cloudModelId)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_note,
+                                  size: 12,
+                                  color: PocketClawTheme.electricTeal),
+                              const SizedBox(width: 4),
+                              Text(
+                                'custom: $effectiveModelId',
+                                style: GoogleFonts.jetBrainsMono(
+                                  fontSize: 9,
+                                  color: PocketClawTheme.electricTeal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       // Name + status badges
                       Row(
                         children: [
@@ -369,8 +403,20 @@ class _MultiModelCard extends StatelessWidget {
                   ),
                 ),
 
+                // Edit model ID (cloud models only)
+                if (onEditModelId != null)
+                  IconButton(
+                    onPressed: onEditModelId,
+                    icon: Icon(Icons.tune,
+                        size: 18, color: Colors.white38),
+                    tooltip: 'Custom model ID',
+                    padding: const EdgeInsets.all(4),
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                  ),
+
                 // Action button
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 _buildActionButton(context),
               ],
             ),
@@ -886,6 +932,106 @@ void _showCloudApiKeyDialog(
           ),
         ],
       ),
+    ),
+  ).then((_) => controller.dispose());
+}
+
+// -- Custom Model ID override dialog ------------------------------------------
+
+void _showModelIdOverrideDialog(
+  BuildContext context,
+  WidgetRef ref,
+  llm.LocalModelConfig model,
+) {
+  final prefs = ref.read(sharedPrefsProvider);
+  final currentCustom = getCustomModelId(prefs, model.id);
+  final controller = TextEditingController(text: currentCustom ?? '');
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Custom Model ID'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Override the model ID sent to ${model.provider.displayName}. '
+            'Useful when a new model variant releases and you don\u2019t want '
+            'to wait for an app update.',
+            style: const TextStyle(fontSize: 13, color: Colors.white54),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A40),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 14, color: Colors.white54),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Default: ${model.cloudModelId ?? "(none)"}',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      color: Colors.white54,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: 'Custom model ID',
+              hintText: model.cloudModelId ?? 'model-name',
+              border: const OutlineInputBorder(),
+            ),
+            style: GoogleFonts.jetBrainsMono(fontSize: 13),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () async {
+            await setCustomModelId(prefs, model.id, null);
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (context.mounted) {
+              ref.invalidate(selectedModelConfigProvider);
+              ref.invalidate(abstractLlmEngineProvider);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Reverted to default ID')),
+              );
+            }
+          },
+          child: const Text('Use default',
+              style: TextStyle(color: Colors.white38)),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final id = controller.text.trim();
+            if (id.isEmpty) {
+              if (ctx.mounted) Navigator.pop(ctx);
+              return;
+            }
+            await setCustomModelId(prefs, model.id, id);
+            if (ctx.mounted) Navigator.pop(ctx);
+            if (context.mounted) {
+              ref.invalidate(selectedModelConfigProvider);
+              ref.invalidate(abstractLlmEngineProvider);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Custom ID saved: $id')),
+              );
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
     ),
   ).then((_) => controller.dispose());
 }

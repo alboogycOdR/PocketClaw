@@ -47,4 +47,30 @@ class LocalModelConfig {
 
   bool get isCloud => format == ModelFormat.cloud;
   bool get isLocal => format != ModelFormat.cloud;
+
+  /// Returns a copy of this config with the given overrides.
+  LocalModelConfig copyWith({
+    String? cloudModelId,
+    String? cloudApiEndpoint,
+  }) {
+    return LocalModelConfig(
+      id: id,
+      displayName: displayName,
+      description: description,
+      sizeGB: sizeGB,
+      ramMB: ramMB,
+      format: format,
+      provider: provider,
+      hfRepo: hfRepo,
+      hfFilename: hfFilename,
+      downloadUrl: downloadUrl,
+      requiresLicense: requiresLicense,
+      licenseUrl: licenseUrl,
+      capabilities: capabilities,
+      isBeta: isBeta,
+      cloudApiEndpoint: cloudApiEndpoint ?? this.cloudApiEndpoint,
+      cloudModelId: cloudModelId ?? this.cloudModelId,
+      cloudApiKeyPrefix: cloudApiKeyPrefix,
+    );
+  }
 }
