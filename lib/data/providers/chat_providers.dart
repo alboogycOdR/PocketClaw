@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/chat/chat_mode.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/router/smart_router.dart';
 import '../../core/session/session_history.dart';
@@ -222,10 +223,25 @@ Future<void> _processCloud(Ref ref, String text) async {
     return;
   }
 
-  // Resolve the cloud engine — initialises and uses the stored API key
-  final engineAsync = ref.read(abstractLlmEngineProvider);
-  final engine = engineAsync.whenOrNull(data: (e) => e);
-  if (engine == null || !engine.isReady) {
+  // Resolve the cloud engine — initialises and uses the stored API key.
+  // Await the future in case the engine is still initialising (e.g. after
+  // the user just saved a key, the provider was invalidated and is
+  // rebuilding).
+  AbstractLLMEngine engine;
+  try {
+    engine = await ref.read(abstractLlmEngineProvider.future);
+  } catch (e) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content: 'Failed to initialise cloud engine: $e',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  if (!engine.isReady) {
     messages.add(ChatMessage(
       id: _uuid.v4(),
       role: MessageRole.assistant,

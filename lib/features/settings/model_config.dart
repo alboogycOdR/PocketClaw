@@ -831,6 +831,8 @@ void _showCloudApiKeyDialog(
               if (ctx.mounted) Navigator.pop(ctx);
               if (context.mounted) {
                 ref.invalidate(hasCloudKeyProvider(cloudProvider));
+                // Force the cloud engine to rebuild without the key.
+                ref.invalidate(abstractLlmEngineProvider);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('$providerName key cleared')),
                 );
@@ -866,6 +868,8 @@ void _showCloudApiKeyDialog(
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
                   ref.invalidate(hasCloudKeyProvider(cloudProvider));
+                  // Force the cloud engine to rebuild with the new key.
+                  ref.invalidate(abstractLlmEngineProvider);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('$providerName key saved')),
                   );
