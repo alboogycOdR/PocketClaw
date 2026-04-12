@@ -77,7 +77,13 @@ class CloudLLMEngine implements AbstractLLMEngine {
           maxTokens: maxTokens,
           temperature: temperature,
         ),
-      ModelProvider.openAI => _streamOpenAI(
+      // OpenAI + xAI (Grok) + Moonshot (Kimi) all speak the OpenAI
+      // Chat Completions protocol. They differ only in endpoint +
+      // model ID, both of which come from LocalModelConfig.
+      ModelProvider.openAI ||
+      ModelProvider.xai ||
+      ModelProvider.moonshot =>
+        _streamOpenAI(
           prompt,
           systemPrompt: systemPrompt,
           maxTokens: maxTokens,

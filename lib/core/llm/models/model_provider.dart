@@ -14,6 +14,8 @@ enum ModelProvider {
   anthropic,
   openAI,
   googleAI,
+  xai,
+  moonshot,
 }
 
 extension ModelProviderLabel on ModelProvider {
@@ -28,6 +30,8 @@ extension ModelProviderLabel on ModelProvider {
     ModelProvider.anthropic   => 'Anthropic',
     ModelProvider.openAI      => 'OpenAI',
     ModelProvider.googleAI    => 'Google AI',
+    ModelProvider.xai         => 'xAI',
+    ModelProvider.moonshot    => 'Moonshot',
   };
 
   Color get badgeColor => switch (this) {
@@ -41,5 +45,7 @@ extension ModelProviderLabel on ModelProvider {
     ModelProvider.anthropic   => const Color(0xFFD4A574),
     ModelProvider.openAI      => const Color(0xFF10A37F),
     ModelProvider.googleAI    => const Color(0xFF4285F4),
+    ModelProvider.xai         => const Color(0xFFFFFFFF),
+    ModelProvider.moonshot    => const Color(0xFF2D5FF7),
   };
 }

@@ -231,6 +231,18 @@ const List<LocalModelConfig> kAvailableModels = [
   ),
 
   LocalModelConfig(
+    id: 'gemini-2.5-flash',
+    displayName: 'Gemini 2.5 Flash',
+    description: 'Google\u2019s mid-tier \u2014 faster, cheaper than Pro',
+    sizeGB: 0,
+    ramMB: 0,
+    format: ModelFormat.cloud,
+    provider: ModelProvider.googleAI,
+    cloudModelId: 'gemini-2.5-flash',
+    capabilities: ['text', 'reasoning', 'code', 'vision'],
+  ),
+
+  LocalModelConfig(
     id: 'gemini-2.5-pro',
     displayName: 'Gemini 2.5 Pro',
     description: 'Google\u2019s most capable model \u2014 deep reasoning',
@@ -238,8 +250,39 @@ const List<LocalModelConfig> kAvailableModels = [
     ramMB: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.googleAI,
-    cloudModelId: 'gemini-2.5-pro-preview-06-05',
+    cloudModelId: 'gemini-2.5-pro',
     capabilities: ['text', 'reasoning', 'code', 'vision'],
-    isBeta: true,
+  ),
+
+  // -- xAI (Grok) -------------------------------------------------------------
+
+  LocalModelConfig(
+    id: 'grok-4',
+    displayName: 'Grok 4',
+    description: 'xAI\u2019s flagship \u2014 strong reasoning, real-time access',
+    sizeGB: 0,
+    ramMB: 0,
+    format: ModelFormat.cloud,
+    provider: ModelProvider.xai,
+    cloudApiEndpoint: 'https://api.x.ai/v1/chat/completions',
+    cloudModelId: 'grok-4-latest',
+    cloudApiKeyPrefix: 'xai-',
+    capabilities: ['text', 'reasoning', 'code'],
+  ),
+
+  // -- Moonshot (Kimi) --------------------------------------------------------
+
+  LocalModelConfig(
+    id: 'kimi-k2',
+    displayName: 'Kimi K2',
+    description: 'Moonshot\u2019s long-context flagship \u2014 strong on code and tools',
+    sizeGB: 0,
+    ramMB: 0,
+    format: ModelFormat.cloud,
+    provider: ModelProvider.moonshot,
+    cloudApiEndpoint: 'https://api.moonshot.ai/v1/chat/completions',
+    cloudModelId: 'kimi-k2-turbo-preview',
+    cloudApiKeyPrefix: 'sk-',
+    capabilities: ['text', 'reasoning', 'code'],
   ),
 ];

@@ -768,6 +768,8 @@ void _showCloudApiKeyDialog(
     CloudProvider.anthropic => 'Anthropic',
     CloudProvider.openAI    => 'OpenAI',
     CloudProvider.googleAI  => 'Google AI',
+    CloudProvider.xai       => 'xAI',
+    CloudProvider.moonshot  => 'Moonshot',
   };
   final hintText = model.cloudApiKeyPrefix ?? 'sk-...';
 

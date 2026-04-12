@@ -5,7 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 /// Supported cloud API providers
-enum CloudProvider { anthropic, openAI, googleAI }
+enum CloudProvider { anthropic, openAI, googleAI, xai, moonshot }
 
 class ApiKeyService {
   static const _storage = FlutterSecureStorage(
@@ -79,12 +79,40 @@ class ApiKeyService {
     }
   }
 
+  /// Validate an xAI (Grok) API key.
+  Future<bool> validateXai(String key) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.x.ai/v1/models'),
+        headers: {'Authorization': 'Bearer $key'},
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Validate a Moonshot (Kimi) API key.
+  Future<bool> validateMoonshot(String key) async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.moonshot.ai/v1/models'),
+        headers: {'Authorization': 'Bearer $key'},
+      );
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Validate any provider's key.
   Future<bool> validate(CloudProvider provider, String key) {
     return switch (provider) {
       CloudProvider.anthropic => validateAnthropic(key),
       CloudProvider.openAI    => validateOpenAI(key),
       CloudProvider.googleAI  => validateGoogleAI(key),
+      CloudProvider.xai       => validateXai(key),
+      CloudProvider.moonshot  => validateMoonshot(key),
     };
   }
 
@@ -97,6 +125,8 @@ class ApiKeyService {
       'anthropic' => CloudProvider.anthropic,
       'openAI'    => CloudProvider.openAI,
       'googleAI'  => CloudProvider.googleAI,
+      'xai'       => CloudProvider.xai,
+      'moonshot'  => CloudProvider.moonshot,
       _           => null,
     };
   }
