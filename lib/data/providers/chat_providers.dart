@@ -156,6 +156,43 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   final agent = ref.read(localAgentProvider);
   final messages = ref.read(messagesProvider.notifier);
 
+  // Ensure the local engine has actually loaded the selected model.
+  // We removed the startup-time modelInitProvider watch to keep launch
+  // instant, so the engine can be in a 'never loaded' state even after
+  // the user downloaded a model. Load on demand here.
+  final engine = ref.read(llmEngineProvider);
+  if (!engine.isLoaded) {
+    try {
+      final prefs = ref.read(sharedPrefsProvider);
+      final selectedId = prefs.getString('selected_model');
+      if (selectedId == null || selectedId.isEmpty) {
+        messages.add(ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content:
+              'No local model selected. Settings \u2192 Models \u2192 pick one.',
+          source: MessageSource.local,
+          timestamp: DateTime.now(),
+        ));
+        return;
+      }
+      final selector = ref.read(modelSelectorProvider);
+      final config =
+          selector.getConfigById(selectedId) ?? await selector.selectModel();
+      await engine.loadModel(config);
+    } catch (e) {
+      messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content: 'Failed to load local model: $e\n\n'
+            'Try re-downloading in Settings \u2192 Models.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+      return;
+    }
+  }
+
   // Add streaming placeholder
   final msgId = _uuid.v4();
   messages.add(ChatMessage(
