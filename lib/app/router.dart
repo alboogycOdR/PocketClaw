@@ -17,8 +17,9 @@ import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
 import '../features/skills/skills_screen.dart';
 
-final GlobalKey<NavigatorState> _rootNavigatorKey =
+final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> _rootNavigatorKey = rootNavigatorKey;
 
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,

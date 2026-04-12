@@ -6,7 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const _dbName = 'pocket_claw.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   Database? _database;
 
@@ -53,7 +53,8 @@ class AppDatabase {
         content TEXT NOT NULL,
         source TEXT,
         timestamp TEXT NOT NULL,
-        image_url TEXT
+        image_url TEXT,
+        mode TEXT NOT NULL DEFAULT 'openclaw'
       )
     ''');
 
@@ -93,8 +94,17 @@ class AppDatabase {
         started_at TEXT NOT NULL,
         message_count INTEGER NOT NULL DEFAULT 0,
         token_count INTEGER NOT NULL DEFAULT 0,
-        is_active INTEGER NOT NULL DEFAULT 0
+        is_active INTEGER NOT NULL DEFAULT 0,
+        mode TEXT NOT NULL DEFAULT 'openclaw'
       )
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_sessions_mode ON sessions (mode, started_at DESC)
+    ''');
+
+    await db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_messages_mode ON messages (mode)
     ''');
 
     await db.execute('''
@@ -207,6 +217,47 @@ class AppDatabase {
         // v2 tables use IF NOT EXISTS — safe to continue.
       }
     }
+    if (oldVersion < 3) {
+      try {
+        await _migrateToV3(db);
+      } catch (e) {
+        // ignore: avoid_print
+        print('AppDatabase: v3 migration failed (non-fatal): $e');
+      }
+    }
+  }
+
+  /// v3: add `mode` column to messages + sessions for per-mode isolation.
+  /// Existing rows default to 'openclaw' (safest default — treated as
+  /// server-side history going forward).
+  Future<void> _migrateToV3(Database db) async {
+    // Add mode column to messages if absent
+    final msgCols = await db.rawQuery("PRAGMA table_info(messages)");
+    final hasMessagesMode =
+        msgCols.any((r) => (r['name'] as String) == 'mode');
+    if (!hasMessagesMode) {
+      await db.execute(
+        "ALTER TABLE messages ADD COLUMN mode TEXT NOT NULL DEFAULT 'openclaw'",
+      );
+    }
+
+    // Add mode column to sessions if absent
+    final sessCols = await db.rawQuery("PRAGMA table_info(sessions)");
+    final hasSessionsMode =
+        sessCols.any((r) => (r['name'] as String) == 'mode');
+    if (!hasSessionsMode) {
+      await db.execute(
+        "ALTER TABLE sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'openclaw'",
+      );
+    }
+
+    // Indexes
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sessions_mode ON sessions (mode, started_at DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_messages_mode ON messages (mode)',
+    );
   }
 
   Future<void> close() async {

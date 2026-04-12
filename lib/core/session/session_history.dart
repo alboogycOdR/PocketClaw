@@ -20,7 +20,13 @@ class SessionHistory {
   Future<Database> get _db => _appDb.getDatabase();
 
   /// Persist a session's messages and update the sessions table.
-  Future<void> saveSession(String key, List<ChatMessage> messages) async {
+  /// [mode] identifies which chat mode this session belongs to
+  /// (local / cloud / openclaw). Defaults to 'openclaw' for legacy.
+  Future<void> saveSession(
+    String key,
+    List<ChatMessage> messages, {
+    String mode = 'openclaw',
+  }) async {
     final db = await _db;
 
     // Upsert session row
@@ -34,6 +40,7 @@ class SessionHistory {
         'message_count': messages.length,
         'token_count': _estimateTokens(messages),
         'is_active': 1,
+        'mode': mode,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -48,6 +55,7 @@ class SessionHistory {
               'source': m.source?.name,
               'timestamp': m.timestamp.toIso8601String(),
               'image_url': m.imageUrl,
+              'mode': mode,
             })
         .toList();
     await _messageDao.insertAll(rows);
@@ -59,10 +67,16 @@ class SessionHistory {
     return rows.map(_rowToMessage).toList();
   }
 
-  /// List all saved sessions, most recent first.
-  Future<List<SessionInfo>> listSessions() async {
+  /// List saved sessions, most recent first. If [mode] is provided,
+  /// only sessions for that mode are returned.
+  Future<List<SessionInfo>> listSessions({String? mode}) async {
     final db = await _db;
-    final rows = await db.query('sessions', orderBy: 'started_at DESC');
+    final rows = await db.query(
+      'sessions',
+      where: mode != null ? 'mode = ?' : null,
+      whereArgs: mode != null ? [mode] : null,
+      orderBy: 'started_at DESC',
+    );
     return rows.map((r) => SessionInfo.fromRow(r)).toList();
   }
 
@@ -94,7 +108,7 @@ class SessionHistory {
         imageUrl: row['image_url'] as String?,
       );
 
-  /// Rough token estimate (4 chars ≈ 1 token).
+  /// Rough token estimate (4 chars \u2248 1 token).
   int _estimateTokens(List<ChatMessage> messages) {
     final totalChars =
         messages.fold<int>(0, (sum, m) => sum + m.content.length);
@@ -109,6 +123,7 @@ class SessionInfo {
   final int messageCount;
   final int tokenCount;
   final bool isActive;
+  final String mode;
 
   const SessionInfo({
     required this.key,
@@ -116,6 +131,7 @@ class SessionInfo {
     required this.messageCount,
     required this.tokenCount,
     required this.isActive,
+    this.mode = 'openclaw',
   });
 
   factory SessionInfo.fromRow(Map<String, dynamic> row) => SessionInfo(
@@ -124,5 +140,6 @@ class SessionInfo {
         messageCount: row['message_count'] as int? ?? 0,
         tokenCount: row['token_count'] as int? ?? 0,
         isActive: (row['is_active'] as int? ?? 0) == 1,
+        mode: (row['mode'] as String?) ?? 'openclaw',
       );
 }

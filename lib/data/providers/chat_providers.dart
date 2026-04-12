@@ -460,18 +460,22 @@ final currentSessionKeyProvider = StateProvider<String>((ref) {
   return session.currentSessionKey;
 });
 
-/// Lists all saved sessions, most recent first.
+/// Lists saved sessions, most recent first. Filters by the current chat
+/// mode so that Local / Cloud / OpenClaw sessions never cross-contaminate.
 final sessionListProvider = FutureProvider<List<SessionInfo>>((ref) async {
   final session = ref.watch(sessionManagerProvider);
-  return session.listSessions();
+  final mode = ref.watch(chatModeProvider);
+  return session.listSessions(mode: mode.name);
 });
 
 /// Invalidation trigger — bump this to refresh the session list.
 final sessionListRefreshProvider = StateProvider<int>((_) => 0);
 
 /// Session list that auto-refreshes when the trigger changes.
+/// Filtered by active chat mode.
 final sessionListAutoProvider = FutureProvider<List<SessionInfo>>((ref) async {
   ref.watch(sessionListRefreshProvider);
+  final mode = ref.watch(chatModeProvider);
   final history = SessionHistory();
-  return history.listSessions();
+  return history.listSessions(mode: mode.name);
 });

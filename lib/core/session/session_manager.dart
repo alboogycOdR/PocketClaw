@@ -1,4 +1,6 @@
 /// Manages the active conversation session — context window and message flow.
+/// Each session is scoped to a chat mode (local / cloud / openclaw) and its
+/// history never crosses into other modes.
 library;
 
 import 'package:uuid/uuid.dart';
@@ -13,6 +15,7 @@ class SessionManager {
   final _uuid = const Uuid();
 
   String _currentSessionKey;
+  String _currentMode;
   final List<ChatMessage> _buffer = [];
 
   /// Maximum messages to keep in the in-memory buffer before flushing.
@@ -22,20 +25,33 @@ class SessionManager {
     MessageDao? messageDao,
     SessionHistory? history,
     String? sessionKey,
+    String mode = 'openclaw',
   })  : _messageDao = messageDao ?? MessageDao(),
         _history = history ?? SessionHistory(),
-        _currentSessionKey = sessionKey ?? 'session_${DateTime.now().millisecondsSinceEpoch}';
+        _currentSessionKey =
+            sessionKey ?? 'session_${DateTime.now().millisecondsSinceEpoch}',
+        _currentMode = mode;
 
   /// The key that identifies the active session.
   String get currentSessionKey => _currentSessionKey;
 
-  /// Start a fresh session (clears the in-memory buffer, creates a new key).
-  Future<void> startNewSession() async {
+  /// The mode this session belongs to.
+  String get currentMode => _currentMode;
+
+  /// Set the active mode. Should be called when the user switches chat mode.
+  void setMode(String mode) {
+    _currentMode = mode;
+  }
+
+  /// Start a fresh session for the given mode (or current mode if null).
+  Future<void> startNewSession({String? mode}) async {
     // Persist current buffer before switching
     if (_buffer.isNotEmpty) {
-      await _history.saveSession(_currentSessionKey, _buffer);
+      await _history.saveSession(_currentSessionKey, _buffer,
+          mode: _currentMode);
     }
 
+    if (mode != null) _currentMode = mode;
     _currentSessionKey =
         'session_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}';
     _buffer.clear();
@@ -54,6 +70,7 @@ class SessionManager {
       'source': message.source?.name,
       'timestamp': message.timestamp.toIso8601String(),
       'image_url': message.imageUrl,
+      'mode': _currentMode,
     });
 
     // Trim the in-memory buffer if it gets too large
@@ -84,7 +101,8 @@ class SessionManager {
   Future<void> loadSession(String key) async {
     // Persist current before switching
     if (_buffer.isNotEmpty) {
-      await _history.saveSession(_currentSessionKey, _buffer);
+      await _history.saveSession(_currentSessionKey, _buffer,
+          mode: _currentMode);
     }
 
     _currentSessionKey = key;
@@ -94,8 +112,10 @@ class SessionManager {
       ..addAll(messages);
   }
 
-  /// List all saved sessions, most recent first.
-  Future<List<SessionInfo>> listSessions() => _history.listSessions();
+  /// List saved sessions. If [mode] is provided, only that mode's sessions
+  /// are returned — critical for privacy isolation.
+  Future<List<SessionInfo>> listSessions({String? mode}) =>
+      _history.listSessions(mode: mode);
 
   ChatMessage _rowToMessage(Map<String, dynamic> row) => ChatMessage(
         id: row['id'] as String,

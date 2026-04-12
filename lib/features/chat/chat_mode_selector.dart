@@ -80,9 +80,13 @@ class ChatModeSelector extends ConsumerWidget {
     await prefs.setString('chat_mode', mode.name);
     ref.read(chatModeProvider.notifier).state = mode;
 
+    // Tell the SessionManager which mode it is in so subsequent messages
+    // are tagged correctly.
+    final sessionManager = ref.read(sessionManagerProvider);
+    sessionManager.setMode(mode.name);
+
     // Load the new mode's last session (or start fresh)
     final savedKey = prefs.getString(mode.storageKey);
-    final sessionManager = ref.read(sessionManagerProvider);
     final messages = ref.read(messagesProvider.notifier);
 
     if (savedKey != null) {
@@ -95,11 +99,11 @@ class ChatModeSelector extends ConsumerWidget {
         }
       } catch (_) {
         // Corrupt or missing session — start fresh
-        await sessionManager.startNewSession();
+        await sessionManager.startNewSession(mode: mode.name);
         messages.clear();
       }
     } else {
-      await sessionManager.startNewSession();
+      await sessionManager.startNewSession(mode: mode.name);
       messages.clear();
     }
 

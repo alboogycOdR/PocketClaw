@@ -22,6 +22,7 @@ import 'chat_mode_selector.dart';
 import 'draft_confirm_card.dart';
 import 'function_call_indicator.dart';
 import 'photo_preview.dart';
+import 'privacy_warning_banner.dart';
 import 'voice_input_widget.dart';
 
 const _uuid = Uuid();
@@ -40,9 +41,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   String? _pendingImageUrl;
   bool _isVoiceRecording = false;
+  String _draftText = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onDraftChanged);
+  }
+
+  void _onDraftChanged() {
+    final next = _textController.text;
+    if (next != _draftText) {
+      setState(() => _draftText = next);
+    }
+  }
 
   @override
   void dispose() {
+    _textController.removeListener(_onDraftChanged);
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -512,6 +528,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Pending image preview
           if (_pendingImageUrl != null)
             _buildPendingImage(),
+
+          // Privacy warning (shown when sensitive keywords typed in
+          // Cloud or OpenClaw mode)
+          PrivacyWarningBanner(draftText: _draftText),
 
           // Input bar
           _buildInputBar(),
