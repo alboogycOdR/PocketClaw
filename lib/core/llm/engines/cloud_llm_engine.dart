@@ -268,6 +268,8 @@ class CloudLLMEngine implements AbstractLLMEngine {
       );
     }
 
+    String? finishReason;
+
     await for (final chunk in response.stream
         .transform(utf8.decoder)
         .transform(const LineSplitter())) {
@@ -278,16 +280,27 @@ class CloudLLMEngine implements AbstractLLMEngine {
         final json = jsonDecode(data) as Map<String, dynamic>;
         final candidates = json['candidates'] as List<dynamic>?;
         if (candidates != null && candidates.isNotEmpty) {
-          final content = candidates[0]['content'] as Map<String, dynamic>?;
+          final cand = candidates[0] as Map<String, dynamic>;
+          final content = cand['content'] as Map<String, dynamic>?;
           final parts = content?['parts'] as List<dynamic>?;
           if (parts != null && parts.isNotEmpty) {
             final text = parts[0]['text'] as String?;
             if (text != null && text.isNotEmpty) yield text;
           }
+          // Capture finishReason for post-stream reporting
+          final reason = cand['finishReason'] as String?;
+          if (reason != null) finishReason = reason;
         }
       } catch (_) {
         // Skip unparseable SSE lines
       }
+    }
+
+    // Surface non-STOP finish reasons so the user isn't left wondering
+    // why a response looks truncated.
+    if (finishReason != null && finishReason != 'STOP') {
+      yield '\n\n[Response ended: $finishReason. '
+          'Try raising maxTokens or simplifying the request.]';
     }
   }
 

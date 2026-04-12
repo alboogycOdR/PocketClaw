@@ -266,7 +266,10 @@ Future<void> _processCloud(Ref ref, String text) async {
   ));
 
   try {
-    await for (final token in engine.generateStream(text, maxTokens: 1024)) {
+    // 8192 is generous for modern cloud APIs and covers reasoning
+    // models (Gemini 2.5 Pro, GPT-o1, Claude extended thinking) that
+    // consume tokens internally before producing user-visible output.
+    await for (final token in engine.generateStream(text, maxTokens: 8192)) {
       messages.appendToLast(token);
     }
     messages.updateLast((m) => m.copyWith(isStreaming: false));
