@@ -102,7 +102,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
           if (!tokenAvailable) ...[
             const SizedBox(height: 12),
             _NoTokenBanner(
-              onTap: () => _showHfTokenDialog(context, ref),
+              onTap: () => showHfTokenDialog(context, ref),
             ),
           ],
 
@@ -211,7 +211,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
               hasToken: tokenAvailable,
               onDownload: () => _startDownload(model),
               onSelect: () => _selectModel(model),
-              onTokenTap: () => _showHfTokenDialog(context, ref),
+              onTokenTap: () => showHfTokenDialog(context, ref),
             );
           }),
         ],
@@ -693,7 +693,7 @@ class _StatusBadge extends StatelessWidget {
 
 // -- HuggingFace token dialog (moved here for import-free settings) -----------
 
-void _showHfTokenDialog(BuildContext context, WidgetRef ref) {
+void showHfTokenDialog(BuildContext context, WidgetRef ref) {
   final tokenService = ref.read(hfTokenServiceProvider);
   final controller = TextEditingController();
   var isValidating = false;

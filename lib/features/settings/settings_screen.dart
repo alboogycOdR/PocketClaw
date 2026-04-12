@@ -228,14 +228,7 @@ class SettingsScreen extends ConsumerWidget {
                 Icons.chevron_right,
                 color: Colors.white38,
               ),
-              onTap: () {
-                // Open the token dialog from model_config.dart
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ModelConfig(),
-                  ),
-                );
-              },
+              onTap: () => showHfTokenDialog(context, ref),
             ),
           ),
 
