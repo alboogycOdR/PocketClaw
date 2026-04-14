@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/router.dart' as app_router;
 import 'app/theme.dart';
 import 'data/providers/core_providers.dart';
 
@@ -59,6 +60,9 @@ void main() {
     } catch (e) {
       debugPrint('SharedPreferences failed, degraded mode: $e');
     }
+
+    // Seed the router's first-run flag before it builds any routes.
+    app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
 
     final overrides = <Override>[
       if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),

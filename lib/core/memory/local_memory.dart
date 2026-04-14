@@ -16,6 +16,7 @@ import '../../data/database/daos/notes_dao.dart';
 import '../../data/models/memory_note.dart';
 import '../local_agent/llm_engine.dart';
 import '../local_agent/tool_executor.dart';
+import 'local_embedder.dart';
 
 /// Result pairing a note with its similarity score (1.0 = identical).
 class ScoredNote {
@@ -28,6 +29,7 @@ class ScoredNote {
 class LocalMemory {
   final NotesDao _notesDao;
   final LlmEngine? _llmEngine;
+  final LocalEmbedder _fallbackEmbedder;
   final _uuid = const Uuid();
   Directory? _notesDir;
   Directory? _embeddingsDir;
@@ -38,9 +40,29 @@ class LocalMemory {
   /// Whether the embedding cache has been populated from disk.
   bool _cacheLoaded = false;
 
-  LocalMemory({NotesDao? notesDao, LlmEngine? llmEngine})
-      : _notesDao = notesDao ?? NotesDao(),
-        _llmEngine = llmEngine;
+  LocalMemory({
+    NotesDao? notesDao,
+    LlmEngine? llmEngine,
+    LocalEmbedder? embedder,
+  })  : _notesDao = notesDao ?? NotesDao(),
+        _llmEngine = llmEngine,
+        _fallbackEmbedder = embedder ?? LocalEmbedder();
+
+  /// Produce an embedding for [text]. Prefers the LLM engine when it can
+  /// supply a non-zero vector; falls back to the deterministic hashing
+  /// embedder so semantic search works without an on-device model.
+  Future<List<double>> _embed(String text) async {
+    if (_llmEngine != null) {
+      try {
+        final v = await _llmEngine.generateEmbedding(text);
+        if (!_isZeroVector(v)) return v;
+      } catch (_) {
+        // fall through to local embedder
+      }
+    }
+    if (!_fallbackEmbedder.isMeaningful(text)) return const [];
+    return _fallbackEmbedder.embed(text);
+  }
 
   /// Lazily resolve the notes storage directory.
   Future<Directory> get _storageDir async {
@@ -164,14 +186,10 @@ class LocalMemory {
     int limit = 5,
     double threshold = 0.3,
   }) async {
-    if (_llmEngine == null) return [];
-
     try {
-      // Generate query embedding
-      final queryEmbedding = await _llmEngine.generateEmbedding(query);
-
-      // Check for zero-vector (embedding model not available)
-      if (_isZeroVector(queryEmbedding)) return [];
+      // Generate query embedding (LLM or fallback)
+      final queryEmbedding = await _embed(query);
+      if (queryEmbedding.isEmpty) return [];
 
       // Ensure cache is populated
       await _loadEmbeddingCache();
@@ -330,13 +348,11 @@ class LocalMemory {
 
   /// Fire-and-forget: generate an embedding and persist it to disk + cache.
   void _generateAndStoreEmbedding(String noteId, String text) {
-    if (_llmEngine == null) return;
-
     // Run async without awaiting — note creation should not block on embedding.
     Future<void>(() async {
       try {
-        final embedding = await _llmEngine.generateEmbedding(text);
-        if (_isZeroVector(embedding)) return; // model not available
+        final embedding = await _embed(text);
+        if (embedding.isEmpty) return;
 
         await _saveEmbedding(noteId, embedding);
         _embeddingCache[noteId] = embedding;

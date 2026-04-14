@@ -21,9 +21,22 @@ final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
 final GlobalKey<NavigatorState> _rootNavigatorKey = rootNavigatorKey;
 
+/// Set by `main()` from SharedPreferences before the router is built.
+/// When false, the router redirects first-run users to /onboarding.
+bool hasOnboarded = true;
+
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
+  redirect: (context, state) {
+    final loc = state.matchedLocation;
+    // Allow the onboarding flow + its sub-screens through.
+    if (loc.startsWith('/onboarding') || loc.startsWith('/packs')) {
+      return null;
+    }
+    if (!hasOnboarded) return '/onboarding';
+    return null;
+  },
   routes: [
     // Onboarding (outside shell)
     GoRoute(

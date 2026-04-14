@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/memory_note.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
@@ -297,7 +298,7 @@ class _ServerFileBrowser extends ConsumerWidget {
             const Icon(Icons.cloud_off, size: 48, color: Colors.white24),
             const SizedBox(height: 12),
             Text(
-              'Failed to load server files:\n$error',
+              friendlyGatewayError(error),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white38, fontSize: 13),
             ),

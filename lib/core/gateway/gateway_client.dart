@@ -3,11 +3,14 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../data/models/gateway_event.dart';
+import 'file_logger.dart';
 
 class GatewayClient {
   WebSocketChannel? _channel;
@@ -31,41 +34,70 @@ class GatewayClient {
     required this.authToken,
   });
 
+  static const String _tag = '[gateway]';
+
   Future<void> connect() async {
     if (_disposed) return;
     _connectionState.value = GatewayState.connecting;
+    FileLogger.instance.log(_tag, 'connect() url=$gatewayUrl tokenLen=${authToken.length}');
 
     try {
-      _channel = WebSocketChannel.connect(
-        Uri.parse(gatewayUrl),
-        protocols: ['openclaw-v1'],
+      final socket = await WebSocket.connect(
+        gatewayUrl,
+        headers: {
+          'Authorization': 'Bearer $authToken',
+        },
       );
 
-      // Send auth on connect
-      _channel!.sink.add(jsonEncode({
-        'type': 'auth',
-        'token': authToken,
-      }));
+      FileLogger.instance.log(_tag, 'ws OPEN  readyState=${socket.readyState} '
+          'protocol=${socket.protocol}');
+
+      _channel = IOWebSocketChannel(socket);
+
+      // Also send the auth envelope after connect
+      final authMsg = jsonEncode({'type': 'auth', 'token': authToken});
+      _channel!.sink.add(authMsg);
+      FileLogger.instance.log(_tag, 'SEND -> $authMsg');
 
       _connectionState.value = GatewayState.connected;
 
       _channel!.stream.listen(
-        (data) => _handleMessage(jsonDecode(data as String)),
-        onError: (Object e) => _handleError(e),
-        onDone: () => _handleDisconnect(),
+        (data) {
+          final preview = data is String
+              ? (data.length > 400 ? '${data.substring(0, 400)}...' : data)
+              : '<binary>';
+          FileLogger.instance.log(_tag, 'RECV <- $preview');
+          try {
+            _handleMessage(jsonDecode(data as String));
+          } catch (e) {
+            FileLogger.instance.log(_tag, 'RECV parse error: $e');
+          }
+        },
+        onError: (Object e) {
+          FileLogger.instance.log(_tag, 'stream ERROR: $e');
+          _handleError(e);
+        },
+        onDone: () {
+          FileLogger.instance.log(_tag, 'stream DONE  closeCode=${_channel?.closeCode} '
+              'closeReason=${_channel?.closeReason}');
+          _handleDisconnect();
+        },
       );
-    } catch (e) {
+    } catch (e, st) {
+      FileLogger.instance.log(_tag, 'connect FAILED: $e\n$st');
       _connectionState.value = GatewayState.error;
     }
   }
 
   Future<void> sendMessage(String message, {String? sessionKey}) async {
-    _channel?.sink.add(jsonEncode({
+    final frame = jsonEncode({
       'type': 'message',
       'content': message,
       'sessionKey': sessionKey ?? 'pocket-claw-main',
       'source': 'pocket-claw',
-    }));
+    });
+    FileLogger.instance.log(_tag, 'SEND -> $frame');
+    _channel?.sink.add(frame);
   }
 
   Future<void> sendTask(String action, Map<String, dynamic> data) async {
@@ -94,12 +126,15 @@ class GatewayClient {
       case 'heartbeat':
         _agentEvents.add(AgentEvent.heartbeat(data));
         break;
+      default:
+        FileLogger.instance.log(_tag, 'UNHANDLED message type="${data['type']}" '
+            'keys=${data.keys.toList()}');
     }
   }
 
   void _handleError(Object error) {
     _connectionState.value = GatewayState.error;
-    debugPrint('Gateway error: $error');
+    FileLogger.instance.log(_tag, 'error: $error');
   }
 
   Future<void> _handleDisconnect() async {

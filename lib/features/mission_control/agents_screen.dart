@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/agent.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -61,7 +62,7 @@ class AgentsScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline,
-          message: 'Failed to load agents\n$e',
+          message: friendlyGatewayError(e),
           actionLabel: 'Retry',
           onAction: () => ref.invalidate(mcAgentsProvider),
         ),

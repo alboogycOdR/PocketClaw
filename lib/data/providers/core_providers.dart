@@ -32,6 +32,7 @@ import '../database/app_database.dart';
 import '../repositories/project_memory_repository.dart';
 import '../../core/router/smart_router.dart';
 import '../../core/session/session_manager.dart';
+import '../../core/skills/bridge_skill_runner.dart';
 import '../../core/skills/skill_registry.dart';
 import '../../core/device/calendar_service.dart';
 import '../../core/device/camera_service.dart';
@@ -279,6 +280,16 @@ final sessionManagerProvider = Provider<SessionManager>((ref) {
     return SessionManager();
   }
   return SessionManager();
+});
+
+// ── Bridge skill runner ──
+
+final bridgeSkillRunnerProvider = Provider<BridgeSkillRunner>((ref) {
+  return BridgeSkillRunner(
+    camera: ref.watch(cameraServiceProvider),
+    calendar: ref.watch(calendarServiceProvider),
+    gateway: ref.watch(gatewayClientProvider),
+  );
 });
 
 // ── Tool Executor ──

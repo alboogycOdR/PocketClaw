@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
 import '../../data/models/chat_message.dart';
+import '../../data/models/skill.dart';
 
 import '../../data/providers/core_providers.dart';
 import '../../shared/widgets/source_badge.dart';
@@ -95,6 +96,12 @@ class SkillDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(skillName),
         actions: [
+          if (skill.runtime == 'bridge')
+            IconButton(
+              tooltip: 'Run bridge skill',
+              icon: const Icon(Icons.play_arrow, size: 22),
+              onPressed: () => _runBridge(context, ref, skill),
+            ),
           IconButton(
             icon: const Icon(Icons.edit, size: 20),
             onPressed: () {
@@ -277,6 +284,35 @@ class SkillDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+Future<void> _runBridge(
+  BuildContext context,
+  WidgetRef ref,
+  Skill skill,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(
+    SnackBar(content: Text('Running ${skill.name}...')),
+  );
+  try {
+    final runner = ref.read(bridgeSkillRunnerProvider);
+    final result = await runner.run(skill);
+    if (!context.mounted) return;
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.ok
+            ? PocketClawTheme.electricTeal.withAlpha(60)
+            : PocketClawTheme.lobsterRed.withAlpha(80),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    messenger.clearSnackBars();
+    messenger.showSnackBar(SnackBar(content: Text('Bridge skill failed: $e')));
   }
 }
 

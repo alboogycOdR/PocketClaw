@@ -2,17 +2,20 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/router.dart' as app_router;
 import '../../app/theme.dart';
+import '../../data/providers/core_providers.dart';
 import 'gateway_setup.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -113,7 +116,12 @@ class WelcomeScreen extends StatelessWidget {
 
               // Skip to app
               TextButton(
-                onPressed: () => context.go('/'),
+                onPressed: () async {
+                  final prefs = ref.read(sharedPrefsProvider);
+                  await prefs.setBool('onboarded', true);
+                  app_router.hasOnboarded = true;
+                  if (context.mounted) context.go('/');
+                },
                 child: const Text(
                   'Skip for now',
                   style: TextStyle(color: Colors.white38),

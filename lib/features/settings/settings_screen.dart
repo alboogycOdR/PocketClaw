@@ -49,34 +49,28 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 ListTile(
                   leading: const Icon(Icons.cloud_outlined),
-                  title: const Text('Gateway Status'),
-                  subtitle: Row(
+                  title: const Text('OpenClaw Gateway'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      ConnectionIndicator(state: gatewayState),
+                      Row(children: [
+                        ConnectionIndicator(state: gatewayState),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(
+                        gatewayUrl.isEmpty ? 'Not configured' : gatewayUrl,
+                        style: GoogleFonts.jetBrainsMono(
+                          fontSize: 12,
+                          color: Colors.white54,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
                   trailing: const Icon(
                     Icons.chevron_right,
                     color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const GatewayConfig(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.link),
-                  title: const Text('Gateway URL'),
-                  subtitle: Text(
-                    gatewayUrl.isEmpty ? 'Not configured' : gatewayUrl,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
-                      color: Colors.white54,
-                    ),
                   ),
                   onTap: () {
                     Navigator.of(context).push(

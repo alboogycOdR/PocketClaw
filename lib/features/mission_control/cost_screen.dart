@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/usage_stats.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
@@ -56,7 +57,7 @@ class _CostScreenState extends ConsumerState<CostScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline,
-          message: 'Failed to load usage data\n$e',
+          message: friendlyGatewayError(e),
           actionLabel: 'Retry',
           onAction: () => ref.invalidate(mcUsageProvider),
         ),

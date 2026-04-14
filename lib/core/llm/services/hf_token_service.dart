@@ -11,7 +11,9 @@ class HFTokenService {
   );
 
   Future<String?> getToken() async {
-    return _storage.read(key: _kTokenKey);
+    final stored = await _storage.read(key: _kTokenKey);
+    if (stored != null && stored.isNotEmpty) return stored;
+    return null;
   }
 
   Future<void> saveToken(String token) async {
