@@ -79,6 +79,46 @@ final connectionStateProvider = StateProvider<GatewayState>((ref) {
 
 final isProcessingProvider = StateProvider<bool>((_) => false);
 
+// ── OpenClaw session key (one "conversation") ──
+//
+// A fresh UUID is generated per device launch and whenever the user taps
+// "New chat". The agent keeps conversation state keyed by this on the server
+// side, so mutating it starts a new thread.
+final sessionKeyProvider = StateProvider<String>((_) =>
+    'pocket-claw-${_uuid.v4()}');
+
+/// The runId of the currently-streaming server reply, or null if idle.
+/// Used by the Stop button to call chat.abort against the right run.
+final currentRunIdProvider = StateProvider<String?>((_) => null);
+
+/// Start a new conversation: fresh sessionKey + empty thread.
+final resetChatProvider = Provider<void Function()>((ref) {
+  return () {
+    ref.read(sessionKeyProvider.notifier).state = 'pocket-claw-${_uuid.v4()}';
+    ref.read(messagesProvider.notifier).clear();
+    ref.read(currentRunIdProvider.notifier).state = null;
+    ref.read(isProcessingProvider.notifier).state = false;
+  };
+});
+
+/// Abort the in-flight streaming reply (best-effort).
+final abortChatProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    final client = ref.read(gatewayClientProvider);
+    final runId = ref.read(currentRunIdProvider);
+    final sessionKey = ref.read(sessionKeyProvider);
+    if (client == null || runId == null) return;
+    await client.abortChat(sessionKey: sessionKey, runId: runId);
+    ref.read(messagesProvider.notifier).updateLast((m) => m.copyWith(
+          isStreaming: false,
+          content: m.content.isEmpty ? '[Cancelled]' : '${m.content}\n\n[Cancelled]',
+          clearStatusText: true,
+        ));
+    ref.read(currentRunIdProvider.notifier).state = null;
+    ref.read(isProcessingProvider.notifier).state = false;
+  };
+});
+
 // ── Send Message Action ──
 
 final sendMessageProvider = Provider<Future<void> Function(String, {String? imageUrl})>((ref) {
@@ -303,6 +343,7 @@ Future<void> _processCloud(Ref ref, String text) async {
 Future<void> _processServer(Ref ref, String text) async {
   final client = ref.read(gatewayClientProvider);
   final messages = ref.read(messagesProvider.notifier);
+  final sessionKey = ref.read(sessionKeyProvider);
 
   if (client == null) {
     // Queue the message for later if gateway is configured but offline
@@ -336,45 +377,88 @@ Future<void> _processServer(Ref ref, String text) async {
     return;
   }
 
-  // Add streaming placeholder
+  // Add streaming placeholder (we'll attach the runId to it once the server
+  // acks the send, so the Stop button knows which run to abort).
+  final placeholderId = _uuid.v4();
   messages.add(ChatMessage(
-    id: _uuid.v4(),
+    id: placeholderId,
     role: MessageRole.assistant,
     content: '',
     source: MessageSource.server,
     timestamp: DateTime.now(),
     isStreaming: true,
+    statusText: 'Sending…',
   ));
 
-  // Send to gateway
-  await client.sendMessage(text);
+  // Send and await the ack so we know the runId.
+  String? runId;
+  try {
+    runId = await client.sendMessage(text, sessionKey: sessionKey);
+  } catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: 'Send failed: $e',
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+    return;
+  }
+  ref.read(currentRunIdProvider.notifier).state = runId;
+  messages.updateById(placeholderId, (m) => m.copyWith(
+        runId: runId,
+        statusText: 'Thinking…',
+      ));
 
-  // Listen for response chunks
   final completer = Completer<void>();
   late StreamSubscription<ServerResponse> sub;
 
   sub = client.responses.listen((response) {
-    messages.appendToLast(response.chunk);
+    // Proactive agent pushes (no runId match) surface as a fresh bubble
+    // so they don't overwrite the in-flight reply.
+    if (response.proactive && response.runId != runId) {
+      if (response.chunk.isNotEmpty) {
+        messages.add(ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content: response.chunk,
+          source: MessageSource.server,
+          timestamp: DateTime.now(),
+          runId: response.runId,
+        ));
+      }
+      return;
+    }
+
+    // Only react to our own run.
+    if (response.runId != null && response.runId != runId) return;
+
+    if (response.statusText != null) {
+      messages.updateById(placeholderId,
+          (m) => m.copyWith(statusText: response.statusText));
+    }
+    if (response.chunk.isNotEmpty) {
+      messages.updateById(placeholderId, (m) => m.copyWith(
+            content: m.content + response.chunk,
+            clearStatusText: true,
+          ));
+    }
     if (response.done) {
-      messages.updateLast((m) => m.copyWith(isStreaming: false));
+      messages.updateById(placeholderId, (m) => m.copyWith(
+            isStreaming: false,
+            clearStatusText: true,
+          ));
       sub.cancel();
       if (!completer.isCompleted) completer.complete();
     }
   });
 
-  // Timeout after 60s
-  await completer.future.timeout(
-    const Duration(seconds: 60),
-    onTimeout: () {
-      sub.cancel();
-      messages.updateLast(
-        (m) => m.copyWith(
-          content: '${m.content}\n\n[Response timed out]',
-          isStreaming: false,
-        ),
-      );
-    },
-  );
+  // No hard timeout — a long tool run can legitimately take minutes. The
+  // user has a Stop button (abortChatProvider) if they want out.
+  try {
+    await completer.future;
+  } finally {
+    sub.cancel();
+    ref.read(currentRunIdProvider.notifier).state = null;
+  }
 }
 
 Future<void> _processBridge(Ref ref, String text, {String? imageUrl}) async {

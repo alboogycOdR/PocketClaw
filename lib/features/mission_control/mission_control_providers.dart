@@ -9,12 +9,22 @@ import '../../data/models/task.dart';
 import '../../data/models/usage_stats.dart';
 import '../../data/providers/core_providers.dart';
 
+// All of the REST endpoints below may not be implemented on every gateway
+// build — the /__openclaw__/api/* surface is partial and evolves. We catch
+// fetch errors and fall back to empty/default values so the Mission Control
+// screen degrades gracefully (tiles show "—" / 0) instead of blowing up
+// with a type-cast error from Dio trying to parse the SPA index HTML.
+
 // ── Agents ──
 
 final mcAgentsProvider = FutureProvider<List<Agent>>((ref) async {
   final client = ref.watch(gatewayRestClientProvider);
   if (client == null) return [];
-  return client.getAgents();
+  try {
+    return await client.getAgents();
+  } catch (_) {
+    return [];
+  }
 });
 
 // ── Tasks ──
@@ -22,7 +32,11 @@ final mcAgentsProvider = FutureProvider<List<Agent>>((ref) async {
 final mcTasksProvider = FutureProvider<List<Task>>((ref) async {
   final client = ref.watch(gatewayRestClientProvider);
   if (client == null) return [];
-  return client.getTasks();
+  try {
+    return await client.getTasks();
+  } catch (_) {
+    return [];
+  }
 });
 
 // ── Usage Stats ──
@@ -30,19 +44,40 @@ final mcTasksProvider = FutureProvider<List<Task>>((ref) async {
 final mcUsageProvider = FutureProvider<UsageStats>((ref) async {
   final client = ref.watch(gatewayRestClientProvider);
   if (client == null) return const UsageStats();
-  return client.getUsageStats();
+  try {
+    return await client.getUsageStats();
+  } catch (_) {
+    return const UsageStats();
+  }
 });
 
 // ── System Health ──
-
-final mcHealthProvider = FutureProvider<SystemHealth>((ref) async {
-  final client = ref.watch(gatewayRestClientProvider);
+//
+// Driven by the gateway's live `event:"health"` frames rather than a REST
+// round-trip. We receive one of these every ~30s on the WS already, and the
+// REST `/api/health` endpoint isn't reliably present on current builds.
+final mcHealthProvider = StreamProvider<SystemHealth>((ref) async* {
+  final client = ref.watch(gatewayClientProvider);
   if (client == null) {
-    return SystemHealth(
-      lastHeartbeat: DateTime.now(),
+    yield SystemHealth(lastHeartbeat: DateTime.now());
+    return;
+  }
+  // Seed with an "unknown but not crashed" value so the widget renders
+  // immediately rather than staying stuck on the loading spinner.
+  yield SystemHealth(
+    gatewayRunning: true,
+    lastHeartbeat: DateTime.now(),
+  );
+  await for (final payload in client.healthStream) {
+    final tsMs = payload['ts'];
+    final lastHeartbeat = tsMs is int
+        ? DateTime.fromMillisecondsSinceEpoch(tsMs)
+        : DateTime.now();
+    yield SystemHealth(
+      gatewayRunning: payload['ok'] == true,
+      lastHeartbeat: lastHeartbeat,
     );
   }
-  return client.getSystemHealth();
 });
 
 // ── Cron Jobs ──
@@ -50,7 +85,11 @@ final mcHealthProvider = FutureProvider<SystemHealth>((ref) async {
 final mcCronJobsProvider = FutureProvider<List<CronJob>>((ref) async {
   final client = ref.watch(gatewayRestClientProvider);
   if (client == null) return [];
-  return client.getCronJobs();
+  try {
+    return await client.getCronJobs();
+  } catch (_) {
+    return [];
+  }
 });
 
 // ── Activity (live WebSocket events converted to ActivityEvent list) ──

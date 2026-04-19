@@ -428,6 +428,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: _openSessionDrawer,
           ),
           IconButton(
+            icon: const Icon(Icons.add_comment_outlined, size: 20),
+            tooltip: 'New chat',
+            onPressed: () {
+              ref.read(resetChatProvider)();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.more_vert, size: 20),
             onPressed: () {},
           ),
@@ -571,6 +578,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildInputBar() {
+    final isProcessing = ref.watch(isProcessingProvider);
     return Container(
       padding: EdgeInsets.fromLTRB(
         8,
@@ -646,14 +654,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onStop: _onVoiceStop,
           ),
 
-          // Send button
-          IconButton(
-            onPressed: _sendMessage,
-            icon: const Icon(Icons.send_rounded, size: 22),
-            color: PocketClawTheme.lobsterRed,
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-          ),
+          // Send / Stop button — swaps to Stop while a server reply is
+          // streaming, so the user can cancel long tool runs.
+          if (isProcessing)
+            IconButton(
+              onPressed: () => ref.read(abortChatProvider)(),
+              icon: const Icon(Icons.stop_circle_outlined, size: 22),
+              color: PocketClawTheme.lobsterRed,
+              tooltip: 'Stop',
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            )
+          else
+            IconButton(
+              onPressed: _sendMessage,
+              icon: const Icon(Icons.send_rounded, size: 22),
+              color: PocketClawTheme.lobsterRed,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            ),
         ],
       ),
     );

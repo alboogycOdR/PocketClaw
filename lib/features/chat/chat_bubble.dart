@@ -80,6 +80,36 @@ class ChatBubble extends StatelessWidget {
                   else
                     _AssistantMarkdown(content: message.content),
 
+                  // Inline tool / lifecycle status while the agent is working
+                  // (e.g. "Searching the web: 'ed25519 flutter'").
+                  if (message.isStreaming && message.statusText != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 10,
+                          height: 10,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            message.statusText!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   // Memory citations
                   if (message.memoryCitations.isNotEmpty) ...[
                     const SizedBox(height: 8),

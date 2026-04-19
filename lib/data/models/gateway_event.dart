@@ -10,16 +10,38 @@ class ServerResponse {
   final String chunk;
   final bool done;
 
+  /// OpenClaw run identifier (uuid). Lets the chat layer correlate
+  /// streaming deltas to the specific `chat.send` that started them,
+  /// and distinguish proactive agent pushes from our in-flight reply.
+  final String? runId;
+
+  /// Transient inline status, e.g. "Searching the web for 'flutter ed25519'"
+  /// or "Reading memory: skills/...". Rendered below the bubble content.
+  /// Only set on tool / lifecycle events — never on actual assistant tokens.
+  final String? statusText;
+
+  /// True if this response originated from an agent push that we did NOT
+  /// solicit (no matching in-flight runId on the client side). Chat layer
+  /// renders these as fresh bubbles instead of appending to a streaming
+  /// placeholder.
+  final bool proactive;
+
   const ServerResponse({
     required this.sessionKey,
     required this.chunk,
     this.done = false,
+    this.runId,
+    this.statusText,
+    this.proactive = false,
   });
 
   factory ServerResponse.fromJson(Map<String, dynamic> json) => ServerResponse(
         sessionKey: json['sessionKey'] as String? ?? '',
         chunk: json['chunk'] as String? ?? '',
         done: json['done'] as bool? ?? false,
+        runId: json['runId'] as String?,
+        statusText: json['statusText'] as String?,
+        proactive: json['proactive'] as bool? ?? false,
       );
 }
 

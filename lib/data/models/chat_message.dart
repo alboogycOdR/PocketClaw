@@ -19,6 +19,14 @@ class ChatMessage {
   final String? imageUrl;
   final List<String> memoryCitations;
 
+  /// Inline status shown while the agent is using a tool or transitioning
+  /// lifecycle state (e.g. "Searching the web…"). Cleared when the final
+  /// assistant text arrives.
+  final String? statusText;
+
+  /// OpenClaw run identifier this message is tied to (for abort/correlation).
+  final String? runId;
+
   const ChatMessage({
     required this.id,
     required this.role,
@@ -30,6 +38,8 @@ class ChatMessage {
     this.draftAction,
     this.imageUrl,
     this.memoryCitations = const [],
+    this.statusText,
+    this.runId,
   });
 
   ChatMessage copyWith({
@@ -38,6 +48,9 @@ class ChatMessage {
     FunctionCallInfo? functionCall,
     DraftAction? draftAction,
     List<String>? memoryCitations,
+    String? statusText,
+    bool clearStatusText = false,
+    String? runId,
   }) =>
       ChatMessage(
         id: id,
@@ -50,6 +63,8 @@ class ChatMessage {
         draftAction: draftAction ?? this.draftAction,
         imageUrl: imageUrl,
         memoryCitations: memoryCitations ?? this.memoryCitations,
+        statusText: clearStatusText ? null : (statusText ?? this.statusText),
+        runId: runId ?? this.runId,
       );
 
   Map<String, dynamic> toJson() => {

@@ -32,6 +32,11 @@ class GatewayClient {
   final _responses = StreamController<ServerResponse>.broadcast();
   Stream<ServerResponse> get responses => _responses.stream;
 
+  /// Latest `event:"health"` payload from the gateway. Drives the Mission
+  /// Control health panel without another REST call.
+  final _health = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get healthStream => _health.stream;
+
   bool _disposed = false;
   bool _connectCompleted = false;
   bool _reconnecting = false;
@@ -39,6 +44,16 @@ class GatewayClient {
   int _connAttempt = 0;
   StreamSubscription<dynamic>? _streamSub;
   final Map<String, Completer<dynamic>> _pending = {};
+
+  /// Run IDs the client has open chat.send calls for. Any incoming event
+  /// whose runId isn't here is treated as a PROACTIVE agent push and
+  /// surfaced as a fresh bubble rather than appended to a streaming reply.
+  final Set<String> _inFlightRunIds = {};
+
+  /// Per-run last-seen assistant accumulated text. Used to synthesise a
+  /// delta when the server frame only carries `data.text` (full) without
+  /// `data.delta`. Cleared on the run's final frame.
+  final Map<String, String> _lastAssistantTextByRun = {};
 
   GatewayClient({
     required this.gatewayUrl,
@@ -127,13 +142,17 @@ class GatewayClient {
     }
   }
 
-  Future<void> sendMessage(String message, {String? sessionKey}) async {
-    // Gateway method is `chat.send`. Required params: sessionKey, message,
-    // idempotencyKey (UUID, also used as runId). Server replies with
-    // {runId, status:"started"}; assistant tokens stream later as separate
-    // server-pushed `session.message` frames correlated by runId.
+  /// Send a user message. Returns the server-assigned runId (also equal to
+  /// our idempotencyKey) — callers use it to abort mid-stream and to
+  /// correlate incoming streaming events to this specific turn.
+  Future<String?> sendMessage(String message, {String? sessionKey}) async {
     final id = _nextId();
     final idempotencyKey = _uuid.v4();
+    _inFlightRunIds.add(idempotencyKey);
+
+    final completer = Completer<dynamic>();
+    _pending[id] = completer;
+
     final frame = jsonEncode({
       'type': 'req',
       'id': id,
@@ -146,6 +165,39 @@ class GatewayClient {
     });
     FileLogger.instance.log(_tag, 'SEND -> $frame');
     _channel?.sink.add(frame);
+
+    try {
+      final ack = await completer.future.timeout(const Duration(seconds: 10));
+      // Server echoes our idempotencyKey as runId; prefer the server's value.
+      if (ack is Map && ack['runId'] is String) {
+        return ack['runId'] as String;
+      }
+      return idempotencyKey;
+    } catch (e) {
+      _inFlightRunIds.remove(idempotencyKey);
+      FileLogger.instance.log(_tag, 'chat.send ack failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Ask the server to stop an in-flight chat run. Best-effort.
+  Future<void> abortChat({
+    required String sessionKey,
+    required String runId,
+  }) async {
+    _inFlightRunIds.remove(runId);
+    final id = _nextId();
+    _channel?.sink.add(jsonEncode({
+      'type': 'req',
+      'id': id,
+      'method': 'chat.abort',
+      'params': {
+        'sessionKey': sessionKey,
+        'runId': runId,
+      },
+    }));
+    FileLogger.instance
+        .log(_tag, 'SEND -> chat.abort sessionKey=$sessionKey runId=$runId');
   }
 
   Future<void> sendTask(String action, Map<String, dynamic> data) async {
@@ -266,38 +318,152 @@ class GatewayClient {
           break;
         }
 
-        // Chat deltas: event="agent", stream="assistant" carries {text, delta}.
-        // We stream data.delta (incremental) so the UI appends tokens.
+        final runId = payload['runId'] as String?;
+        final sessionKey =
+            (payload['sessionKey'] as String?) ?? 'pocket-claw-main';
+        final proactive = runId != null && !_inFlightRunIds.contains(runId);
+
+        // Chat deltas: event="agent", stream="assistant".
+        //
+        // The frame's `data` payload carries `text` (full accumulated text
+        // so far) and sometimes `delta` (just the new tokens). Not every
+        // model emits `delta`; some only give us the growing `text`, in
+        // which case we synthesise the delta by diffing against the last
+        // accumulated text we saw for this runId.
         if (event == 'agent' && payload['stream'] == 'assistant') {
           final dataField = payload['data'];
-          final delta = (dataField is Map)
-              ? (dataField['delta'] as String?) ?? ''
-              : '';
+          String delta = '';
+          if (dataField is Map) {
+            final rawDelta = dataField['delta'] as String?;
+            final fullText = dataField['text'] as String?;
+            if (rawDelta != null && rawDelta.isNotEmpty) {
+              delta = rawDelta;
+              if (runId != null && fullText != null) {
+                _lastAssistantTextByRun[runId] = fullText;
+              }
+            } else if (fullText != null && runId != null) {
+              final prior = _lastAssistantTextByRun[runId] ?? '';
+              if (fullText.length > prior.length &&
+                  fullText.startsWith(prior)) {
+                delta = fullText.substring(prior.length);
+              } else if (fullText != prior) {
+                // Model rewrote earlier tokens — safest fallback is to
+                // resync by skipping; the `chat final` frame delivers the
+                // full message anyway, so the UI will end up consistent.
+                delta = '';
+              }
+              _lastAssistantTextByRun[runId] = fullText;
+            }
+          }
           if (delta.isNotEmpty) {
             _responses.add(ServerResponse(
-              sessionKey:
-                  (payload['sessionKey'] as String?) ?? 'pocket-claw-main',
+              sessionKey: sessionKey,
+              runId: runId,
               chunk: delta,
               done: false,
+              proactive: proactive,
             ));
           }
           break;
         }
 
+        // Tool events: event="agent", stream="tool" surfaces the agent
+        // running a function call (web search, memory, etc). Render as
+        // inline status so the user knows what's happening.
+        if (event == 'agent' && payload['stream'] == 'tool') {
+          final d = payload['data'];
+          final status = _describeToolEvent(d);
+          if (status != null) {
+            _responses.add(ServerResponse(
+              sessionKey: sessionKey,
+              runId: runId,
+              chunk: '',
+              statusText: status,
+              done: false,
+              proactive: proactive,
+            ));
+          }
+          break;
+        }
+
+        // Lifecycle: start/phase transitions. Keep the user informed on
+        // long runs without bloating the bubble with noise.
+        if (event == 'agent' && payload['stream'] == 'lifecycle') {
+          final d = payload['data'];
+          if (d is Map) {
+            final phase = d['phase'] as String?;
+            String? status;
+            if (phase == 'start') status = 'Thinking…';
+            if (phase == 'tool_call') status = 'Running tool…';
+            if (phase == 'completed') status = null; // clear
+            if (status != null) {
+              _responses.add(ServerResponse(
+                sessionKey: sessionKey,
+                runId: runId,
+                chunk: '',
+                statusText: status,
+                done: false,
+                proactive: proactive,
+              ));
+            }
+          }
+          break;
+        }
+
         // Chat completion: event="chat", state="final" ends the stream.
-        // Emit an empty done=true chunk so the chat UI stops the spinner.
         if (event == 'chat' && payload['state'] == 'final') {
+          // Emit any remaining unseen text from the final message, in case
+          // the agent stream's last delta didn't cover everything.
+          String trailingDelta = '';
+          if (runId != null) {
+            final msg = payload['message'];
+            if (msg is Map) {
+              final parts = msg['content'];
+              if (parts is List && parts.isNotEmpty) {
+                final first = parts.first;
+                if (first is Map) {
+                  final finalText = first['text'] as String?;
+                  if (finalText != null) {
+                    final prior = _lastAssistantTextByRun[runId] ?? '';
+                    if (finalText.length > prior.length &&
+                        finalText.startsWith(prior)) {
+                      trailingDelta = finalText.substring(prior.length);
+                    } else if (prior.isEmpty) {
+                      trailingDelta = finalText;
+                    }
+                  }
+                }
+              }
+            }
+            _lastAssistantTextByRun.remove(runId);
+            _inFlightRunIds.remove(runId);
+          }
+          if (trailingDelta.isNotEmpty) {
+            _responses.add(ServerResponse(
+              sessionKey: sessionKey,
+              runId: runId,
+              chunk: trailingDelta,
+              done: false,
+              proactive: proactive,
+            ));
+          }
           _responses.add(ServerResponse(
-            sessionKey:
-                (payload['sessionKey'] as String?) ?? 'pocket-claw-main',
+            sessionKey: sessionKey,
+            runId: runId,
             chunk: '',
             done: true,
+            proactive: proactive,
           ));
           break;
         }
 
-        // Other events (chat deltas — redundant with agent, lifecycle,
-        // health, tick) just flow through to the observer stream.
+        // Live health snapshots.
+        if (event == 'health') {
+          _health.add(payload);
+        }
+
+        // Other events (chat delta — redundant with agent.assistant,
+        // tick, etc) just flow through to the observer stream.
         _agentEvents.add(AgentEvent.fromJson(data));
         break;
       case 'heartbeat':
@@ -399,6 +565,27 @@ class GatewayClient {
     }
   }
 
+  /// Best-effort mapping of a `stream:"tool"` payload into a short
+  /// human-readable status line. Tool frames have varied shapes; we try a
+  /// few well-known fields and fall back to the tool name.
+  String? _describeToolEvent(dynamic data) {
+    if (data is! Map) return null;
+    final name = (data['tool'] ?? data['name']) as String?;
+    final phase = (data['phase'] ?? data['state']) as String?;
+    final query = (data['query'] ?? data['arg'] ?? data['input']) as String?;
+    if (name == null && query == null) return null;
+    final verb = switch (name) {
+      'web_search' || 'web.search' => 'Searching the web',
+      'web_fetch' || 'web.fetch' => 'Fetching page',
+      'memory.read' || 'memory_read' => 'Reading memory',
+      'memory.write' || 'memory_write' => 'Writing to memory',
+      _ => name != null ? 'Running $name' : 'Running tool',
+    };
+    final suffix = query != null && query.isNotEmpty ? ': $query' : '';
+    final phaseSuffix = phase == 'end' || phase == 'completed' ? ' ✓' : '…';
+    return '$verb$suffix$phaseSuffix';
+  }
+
   void _handleError(Object error) {
     _connectionState.value = GatewayState.error;
     FileLogger.instance.log(_tag, 'error: $error');
@@ -449,6 +636,7 @@ class GatewayClient {
     disconnect();
     _agentEvents.close();
     _responses.close();
+    _health.close();
     _connectionState.dispose();
   }
 }
