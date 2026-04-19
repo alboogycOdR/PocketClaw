@@ -133,7 +133,7 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
           const SizedBox(height: 8),
           TextField(
             controller: _tokenController,
-            obscureText: true,
+            obscureText: false,
             style: GoogleFonts.jetBrainsMono(fontSize: 14),
             decoration: const InputDecoration(
               hintText: 'Optional authentication token',

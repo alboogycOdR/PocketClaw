@@ -50,14 +50,20 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 
 // ── Settings (reactive) ──
 
+// DEBUG BUILD: URL hardcoded alongside token to eliminate UI-entry variables.
+const String _kDebugHardcodedGatewayUrl = 'ws://100.78.70.2:18789';
+
 final gatewayUrlProvider = StateProvider<String>((ref) {
-  final prefs = ref.watch(sharedPrefsProvider);
-  return prefs.getString('gateway_url') ?? '';
+  return _kDebugHardcodedGatewayUrl;
 });
 
+// DEBUG BUILD: token hardcoded to rule out paste artifacts in the UI field.
+// Remove this override and restore prefs-based read before shipping.
+const String _kDebugHardcodedGatewayToken =
+    'da860812aa80a7dcb254b611e041b8f4f6f9f704903e925c';
+
 final gatewayTokenProvider = StateProvider<String>((ref) {
-  final prefs = ref.watch(sharedPrefsProvider);
-  return prefs.getString('gateway_token') ?? '';
+  return _kDebugHardcodedGatewayToken;
 });
 
 /// Active project for Memory Router context (spec §5.4). Persisted via [setActiveProjectId].
@@ -113,6 +119,12 @@ final gatewayClientProvider = Provider<GatewayClient?>((ref) {
   if (url.isEmpty || token.isEmpty) return null;
 
   final client = GatewayClient(gatewayUrl: url, authToken: token);
+
+  // Kick off the WebSocket connection eagerly. Without this, sendMessage()
+  // silently no-ops because _channel is still null and nothing ever leaves
+  // the phone. The client handles its own reconnect/backoff loop.
+  // ignore: unawaited_futures
+  client.connect();
 
   // Replay offline queue when connected
   final queue = ref.read(offlineQueueProvider);

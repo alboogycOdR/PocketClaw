@@ -29,10 +29,9 @@ class _GatewaySetupState extends ConsumerState<GatewaySetup> {
   @override
   void initState() {
     super.initState();
-    // Prefill from any previous config.
-    final prefs = ref.read(sharedPrefsProvider);
-    _urlController.text = prefs.getString('gateway_url') ?? '';
-    _tokenController.text = prefs.getString('gateway_token') ?? '';
+    // DEBUG BUILD: hardcode URL + token via providers (ignore any stale prefs).
+    _urlController.text = ref.read(gatewayUrlProvider);
+    _tokenController.text = ref.read(gatewayTokenProvider);
   }
 
   @override
@@ -171,7 +170,7 @@ class _GatewaySetupState extends ConsumerState<GatewaySetup> {
               const SizedBox(height: 12),
               TextField(
                 controller: _tokenController,
-                obscureText: true,
+                obscureText: false,
                 style: GoogleFonts.jetBrainsMono(fontSize: 13),
                 decoration: const InputDecoration(
                   labelText: 'Auth token',
