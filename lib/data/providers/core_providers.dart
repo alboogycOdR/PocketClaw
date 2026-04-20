@@ -126,6 +126,20 @@ final gatewayClientProvider = Provider<GatewayClient?>((ref) {
   // ignore: unawaited_futures
   client.connect();
 
+  // Mirror the client's connection state into the gateway state provider so
+  // widgets can react (e.g. show the pairing banner when state flips to
+  // pairingRequired). Without this the provider stayed on "disconnected"
+  // forever.
+  void mirrorState() {
+    // Using a microtask keeps us out of a setState-during-build trap.
+    Future.microtask(() {
+      // ignore: invalid_use_of_protected_member
+      ref.read(gatewayStateProvider.notifier).state = client.connectionState.value;
+    });
+  }
+  client.connectionState.addListener(mirrorState);
+  mirrorState();
+
   // Replay offline queue when connected
   final queue = ref.read(offlineQueueProvider);
   if (queue.hasPending) {

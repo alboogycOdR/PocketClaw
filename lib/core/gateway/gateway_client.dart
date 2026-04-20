@@ -55,6 +55,17 @@ class GatewayClient {
   /// `data.delta`. Cleared on the run's final frame.
   final Map<String, String> _lastAssistantTextByRun = {};
 
+  /// Last loaded device identity — exposed so the UI can show the deviceId
+  /// on the pairing-waiting screen. Populated on the first connect attempt.
+  DeviceIdentity? _deviceIdentity;
+  DeviceIdentity? get deviceIdentity => _deviceIdentity;
+
+  /// True if the most recent close reason indicated pairing approval is
+  /// outstanding. The reconnect loop respects this and stops looping; the
+  /// UI prompts the user (or a VPS admin) to approve the device.
+  bool _pairingRequired = false;
+  bool get pairingRequired => _pairingRequired;
+
   GatewayClient({
     required this.gatewayUrl,
     required this.authToken,
@@ -80,6 +91,9 @@ class GatewayClient {
     } catch (_) {}
     _channel = null;
 
+    // Clear the pairing-required flag — a fresh manual reconnect means the
+    // caller (UI "Check approval" button, etc) wants to retry from scratch.
+    _pairingRequired = false;
     _connectionState.value = GatewayState.connecting;
     _connectCompleted = false;
     final attempt = ++_connAttempt;
@@ -129,10 +143,20 @@ class GatewayClient {
         onDone: () {
           // Ignore zombie onDone from a subscription we've already replaced.
           if (attempt != _connAttempt) return;
+          final reason = _channel?.closeReason ?? '';
           FileLogger.instance.log(
               _tag,
               'stream DONE  closeCode=${_channel?.closeCode} '
-              'closeReason=${_channel?.closeReason}');
+              'closeReason=$reason');
+          // Surface the "pairing required" terminal state to the UI and
+          // stop the retry loop — approval is a one-time external action,
+          // not something a tighter backoff will fix.
+          if (reason.toLowerCase().contains('pairing required') ||
+              reason.toLowerCase().contains('not-paired')) {
+            _pairingRequired = true;
+            _connectionState.value = GatewayState.pairingRequired;
+            return;
+          }
           _handleDisconnect();
         },
       );
@@ -176,6 +200,34 @@ class GatewayClient {
     } catch (e) {
       _inFlightRunIds.remove(idempotencyKey);
       FileLogger.instance.log(_tag, 'chat.send ack failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Send a JSON-RPC-style request to the gateway and await the response
+  /// payload. Use this for one-shot queries (agents.files.list,
+  /// doctor.memory.status, channels.status, etc.). Throws the server's
+  /// error map if ok=false, a TimeoutException on timeout, or "disconnected"
+  /// on an abrupt close.
+  Future<dynamic> request(
+    String method,
+    Map<String, dynamic> params, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final id = _nextId();
+    final completer = Completer<dynamic>();
+    _pending[id] = completer;
+    _channel?.sink.add(jsonEncode({
+      'type': 'req',
+      'id': id,
+      'method': method,
+      'params': params,
+    }));
+    FileLogger.instance.log(_tag, 'SEND -> req $method id=$id');
+    try {
+      return await completer.future.timeout(timeout);
+    } catch (e) {
+      _pending.remove(id);
       rethrow;
     }
   }
@@ -490,6 +542,7 @@ class GatewayClient {
     final DeviceIdentity identity;
     try {
       identity = await DeviceIdentity.loadOrCreate();
+      _deviceIdentity = identity;
     } catch (e) {
       FileLogger.instance.log(_tag, 'device identity load failed: $e');
       return;

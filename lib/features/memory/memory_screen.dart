@@ -6,25 +6,88 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
-import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/memory_note.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/empty_state.dart';
-import 'file_browser.dart';
 import 'note_editor.dart';
 import 'search_view.dart';
 
-// Real data providers
+// Default agent name on single-agent OpenClaw gateways. Matches the
+// sessionKey prefix we see in server traffic ("agent:main:..."). If a
+// deployment uses a different agent, we'll switch to calling
+// `agent.identity.get` first — for now this covers the common case.
+const String _kDefaultAgentId = 'main';
+
+/// Local notes from the on-device SQLite store.
 final _localNotesProvider = FutureProvider<List<MemoryNote>>((ref) async {
   final localMemory = ref.watch(localMemoryProvider);
   return localMemory.getAllNotes();
 });
 
+/// Server-side memory files via the `agents.files.list` WS RPC. The
+/// gateway's REST `/api/memory*` paths don't exist — they fall through
+/// to the SPA catch-all and return HTML. Only bootstrap files + MEMORY.md
+/// are returned by the server (whitelisted in `ALLOWED_FILE_NAMES`).
 final _serverFilesProvider = FutureProvider<List<MemoryFile>>((ref) async {
-  final rest = ref.watch(gatewayRestClientProvider);
-  if (rest == null) return [];
-  return rest.getMemoryFiles();
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return [];
+  final result = await client.request(
+    'agents.files.list',
+    {'agentId': _kDefaultAgentId},
+  );
+  if (result is! Map) return [];
+  final rawFiles = result['files'];
+  if (rawFiles is! List) return [];
+  return rawFiles
+      .whereType<Map>()
+      .where((f) => f['missing'] != true)
+      .map((f) {
+        final updatedMs = f['updatedAtMs'];
+        return MemoryFile(
+          name: (f['name'] as String?) ?? '?',
+          path: (f['path'] as String?) ?? '',
+          isDirectory: false,
+          modified: updatedMs is int
+              ? DateTime.fromMillisecondsSinceEpoch(updatedMs)
+              : null,
+        );
+      })
+      .toList();
+});
+
+/// Health of the agent's memory subsystem (embedding provider, dreaming).
+/// Surfaced as a small header card — nice to have, not required.
+final _memoryStatusProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return const {};
+  try {
+    final result = await client.request(
+      'doctor.memory.status',
+      const {},
+    );
+    return result is Map
+        ? Map<String, dynamic>.from(result)
+        : const <String, dynamic>{};
+  } catch (_) {
+    return const {};
+  }
+});
+
+/// Body of a specific memory file. Used by the file-view screen.
+final memoryFileContentProvider =
+    FutureProvider.family<String, String>((ref, fileName) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return '';
+  final result = await client.request(
+    'agents.files.get',
+    {'agentId': _kDefaultAgentId, 'name': fileName},
+  );
+  if (result is! Map) return '';
+  final file = result['file'];
+  if (file is! Map) return '';
+  if (file['missing'] == true) return '';
+  return (file['content'] as String?) ?? '';
 });
 
 class MemoryScreen extends ConsumerStatefulWidget {
@@ -286,56 +349,206 @@ class _ServerFileBrowser extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filesAsync = ref.watch(_serverFilesProvider);
+    final statusAsync = ref.watch(_memoryStatusProvider);
 
-    return filesAsync.when(
-      loading: () => const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-      error: (error, _) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 48, color: Colors.white24),
-            const SizedBox(height: 12),
-            Text(
-              friendlyGatewayError(error),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white38, fontSize: 13),
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(_serverFilesProvider);
+        ref.invalidate(_memoryStatusProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Memory-subsystem health header (embedding provider, dreaming)
+          statusAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: _MemoryStatusHeader.new,
+          ),
+
+          const SizedBox(height: 12),
+
+          // File list from agents.files.list
+          filesAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => ref.invalidate(_serverFilesProvider),
-              child: const Text('Retry'),
+            error: (error, _) => _ServerErrorCard(
+              error: error,
+              onRetry: () => ref.invalidate(_serverFilesProvider),
+            ),
+            data: (files) {
+              if (files.isEmpty) {
+                return const EmptyState(
+                  icon: Icons.cloud_off,
+                  message: 'No memory files on the server yet',
+                );
+              }
+              return Column(
+                children: [
+                  for (final f in files) _ServerFileTile(file: f),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryStatusHeader extends StatelessWidget {
+  final Map<String, dynamic> status;
+  const _MemoryStatusHeader(this.status);
+
+  @override
+  Widget build(BuildContext context) {
+    if (status.isEmpty) return const SizedBox.shrink();
+    final embedding = status['embedding'];
+    final provider = status['provider'] as String?;
+    final embOk = embedding is Map ? embedding['ok'] == true : false;
+    final dreaming = status['dreaming'];
+    final promotedToday =
+        dreaming is Map ? dreaming['promotedToday'] as int? : null;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.psychology_outlined,
+              size: 20,
+              color: embOk
+                  ? PocketClawTheme.electricTeal
+                  : const Color(0xFFFFB74D),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Memory subsystem',
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      color: Colors.white54,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      if (provider != null) 'Embedding: $provider',
+                      embOk ? '✓ online' : '⚠ degraded',
+                      if (promotedToday != null)
+                        'Promoted today: $promotedToday',
+                    ].join('  ·  '),
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-      data: (files) {
-        return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(_serverFilesProvider),
-          child: files.isEmpty
-              ? ListView(
-                  children: const [
-                    SizedBox(height: 120),
-                    Center(
-                      child: Column(
-                        children: [
-                          Icon(Icons.cloud_off, size: 48,
-                              color: Colors.white24),
-                          SizedBox(height: 12),
-                          Text(
-                            'No server files found',
-                            style: TextStyle(
-                                color: Colors.white38, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-              : FileBrowser(files: files),
-        );
-      },
+    );
+  }
+}
+
+class _ServerFileTile extends StatelessWidget {
+  final MemoryFile file;
+  const _ServerFileTile({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        dense: true,
+        leading: const Icon(Icons.description_outlined, size: 18),
+        title: Text(file.name,
+            style: GoogleFonts.jetBrainsMono(fontSize: 13)),
+        subtitle: Text(
+          file.modified != null
+              ? 'Modified ${file.modified!.timeAgo}'
+              : file.path,
+          style: const TextStyle(fontSize: 11, color: Colors.white38),
+        ),
+        trailing:
+            const Icon(Icons.chevron_right, size: 18, color: Colors.white38),
+        onTap: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => _ServerFileViewer(file: file),
+          ));
+        },
+      ),
+    );
+  }
+}
+
+class _ServerFileViewer extends ConsumerWidget {
+  final MemoryFile file;
+  const _ServerFileViewer({required this.file});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contentAsync = ref.watch(memoryFileContentProvider(file.name));
+    return Scaffold(
+      appBar: AppBar(title: Text(file.name)),
+      body: contentAsync.when(
+        loading: () =>
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('Failed to load: $e',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54)),
+          ),
+        ),
+        data: (content) => SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: SelectableText(
+            content.isEmpty ? '(empty file)' : content,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 12,
+              color: Colors.white,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ServerErrorCard extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+  const _ServerErrorCard({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Icon(Icons.cloud_off, size: 36, color: Colors.white24),
+            const SizedBox(height: 10),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      ),
     );
   }
 }

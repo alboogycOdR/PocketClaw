@@ -1,7 +1,18 @@
 /// Gateway WebSocket event models
 library;
 
-enum GatewayState { disconnected, connecting, connected, reconnecting, error }
+enum GatewayState {
+  disconnected,
+  connecting,
+  connected,
+  reconnecting,
+  error,
+  // Device is known to the server but an admin has not approved the pairing
+  // request yet (`openclaw devices approve <id>` on the VPS). The UI should
+  // show the deviceId and a manual retry button rather than silently
+  // looping — approval is a one-time external action.
+  pairingRequired,
+}
 
 enum EventType { agentStart, agentEnd, agentError, taskProgress, heartbeat }
 

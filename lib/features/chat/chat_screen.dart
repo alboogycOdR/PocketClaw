@@ -21,6 +21,7 @@ import 'chat_bubble.dart';
 import 'chat_mode_selector.dart';
 import 'draft_confirm_card.dart';
 import 'function_call_indicator.dart';
+import 'pairing_banner.dart';
 import 'photo_preview.dart';
 import 'privacy_warning_banner.dart';
 import 'voice_input_widget.dart';
@@ -444,6 +445,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           // Chat mode selector (Local / Cloud / OpenClaw)
           const ChatModeSelector(),
+
+          // Pairing-required banner (only visible when the gateway rejected
+          // the last connect with PAIRING_REQUIRED).
+          const PairingBanner(),
 
           // Message list
           Expanded(

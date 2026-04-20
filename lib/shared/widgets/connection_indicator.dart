@@ -23,6 +23,7 @@ class ConnectionIndicator extends StatelessWidget {
           const Color(0xFFFFB74D),
         GatewayState.disconnected => const Color(0xFF00E5CC),
         GatewayState.error => const Color(0xFFE53935),
+        GatewayState.pairingRequired => const Color(0xFFFFB74D),
       };
 
   String get _label => switch (state) {
@@ -31,6 +32,7 @@ class ConnectionIndicator extends StatelessWidget {
         GatewayState.reconnecting => 'Reconnecting',
         GatewayState.disconnected => 'Local Only',
         GatewayState.error => 'Error',
+        GatewayState.pairingRequired => 'Awaiting approval',
       };
 
   @override
