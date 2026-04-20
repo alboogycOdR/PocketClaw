@@ -19,8 +19,11 @@ import '../../shared/extensions.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'chat_bubble.dart';
 import 'chat_mode_selector.dart';
+import 'command_catalog.dart';
+import 'command_palette.dart';
 import 'draft_confirm_card.dart';
 import 'function_call_indicator.dart';
+import 'gateway_down_banner.dart';
 import 'pairing_banner.dart';
 import 'photo_preview.dart';
 import 'privacy_warning_banner.dart';
@@ -66,9 +69,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  void _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty && _pendingImageUrl == null) return;
+
+    // Destructive slash commands (/restart, /kill, /reset, /new, /compact,
+    // /stop, /elevated, /bash) get a confirmation before being sent to the
+    // agent.
+    final cmd = lookupCommand(text);
+    if (cmd != null && cmd.destructive) {
+      final ok = await confirmDestructiveCommand(context, cmd, text);
+      if (!ok) return;
+    }
 
     ref.read(sendMessageProvider)(
       text.isNotEmpty ? text : 'Analyse this image',
@@ -87,6 +99,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
       }
     });
+  }
+
+  /// Inserts `spec.name + " "` at the cursor, replacing only the partial
+  /// slash-command token the user had started typing (so autocomplete
+  /// cleanly promotes "/he" → "/help "). Caret lands after the space so
+  /// the user can immediately type args if the command takes them.
+  void _insertCommand(CommandSpec spec) {
+    final current = _textController.text;
+    final trimmedLeft = current.trimLeft();
+    final firstWord =
+        trimmedLeft.startsWith('/') ? trimmedLeft.split(RegExp(r'\s')).first : '';
+    final leading = current.substring(0, current.length - trimmedLeft.length);
+    final rest = trimmedLeft.substring(firstWord.length);
+    final replacement =
+        '$leading${spec.name}${spec.takesArgs ? ' ' : ''}$rest';
+    final caret = leading.length + spec.name.length + (spec.takesArgs ? 1 : 0);
+    _textController.value = TextEditingValue(
+      text: replacement,
+      selection: TextSelection.collapsed(offset: caret),
+    );
+    _focusNode.requestFocus();
+  }
+
+  Future<void> _openCommandPalette() async {
+    final picked = await showModalBottomSheet<CommandSpec>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const CommandPaletteSheet(),
+    );
+    if (picked != null) _insertCommand(picked);
   }
 
   Future<void> _pickPhoto() async {
@@ -450,6 +493,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // the last connect with PAIRING_REQUIRED).
           const PairingBanner(),
 
+          // Gateway-offline banner (reconnecting / error / disconnected).
+          const GatewayDownBanner(),
+
           // Message list
           Expanded(
             child: messages.isEmpty
@@ -545,6 +591,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Cloud or OpenClaw mode)
           PrivacyWarningBanner(draftText: _draftText),
 
+          // Slash-command autocomplete strip (only visible while the
+          // user is typing the command-name portion of a "/" message).
+          if (_draftText.trimLeft().startsWith('/')) ...[
+            CommandAutocompleteStrip(
+              input: _draftText,
+              onPick: _insertCommand,
+            ),
+            const SizedBox(height: 6),
+          ],
+
           // Input bar
           _buildInputBar(),
         ],
@@ -607,6 +663,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: _pickPhoto,
             icon: const Icon(Icons.photo_camera_outlined, size: 22),
             color: Colors.white54,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          ),
+
+          // Slash-command palette — opens a categorised bottom sheet so
+          // the user doesn't have to remember what's available.
+          IconButton(
+            onPressed: _openCommandPalette,
+            icon: const Icon(Icons.terminal, size: 20),
+            color: Colors.white54,
+            tooltip: 'Slash commands',
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),

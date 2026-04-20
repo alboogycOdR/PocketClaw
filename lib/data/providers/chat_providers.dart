@@ -344,6 +344,32 @@ Future<void> _processServer(Ref ref, String text) async {
   final client = ref.read(gatewayClientProvider);
   final messages = ref.read(messagesProvider.notifier);
   final sessionKey = ref.read(sessionKeyProvider);
+  final gatewayState = ref.read(gatewayStateProvider);
+
+  // Fast-fail: if we already know the WS isn't connected, surface that
+  // immediately instead of waiting 10 seconds for chat.send to time out
+  // against a dead socket. Pairing-required has its own dedicated banner
+  // and we let that flow own the UX, so we don't duplicate the message.
+  if (client != null &&
+      gatewayState != GatewayState.connected &&
+      gatewayState != GatewayState.pairingRequired) {
+    final hint = switch (gatewayState) {
+      GatewayState.reconnecting =>
+        'Still reconnecting to the gateway — hold on a moment and try again.',
+      GatewayState.error =>
+        'Gateway error — check Tailscale / VPN and the gateway service.',
+      _ =>
+        'Gateway offline — check that Tailscale is on and the gateway is running.',
+    };
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content: hint,
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
 
   if (client == null) {
     // Queue the message for later if gateway is configured but offline
