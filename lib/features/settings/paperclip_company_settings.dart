@@ -7,9 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../core/gateway/paperclip_rest.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/paperclip_provider.dart';
+import 'paperclip_onboarding_wizard.dart';
 
 class PaperclipCompanySettings extends ConsumerStatefulWidget {
   const PaperclipCompanySettings({super.key});
@@ -125,6 +127,35 @@ class _PaperclipCompanySettingsState
               'Paperclip runs as its own service (port 3100) separate from '
               'OpenClaw. Auth is a long-lived agent API key.',
               style: TextStyle(fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            margin: EdgeInsets.zero,
+            color: PocketClawTheme.surfaceContainerLow,
+            child: ListTile(
+              leading: Icon(Icons.outbox_outlined,
+                  color: PocketClawTheme.electricTeal),
+              title: const Text('Onboard with invite'),
+              subtitle: const Text(
+                'Paste an invite token from the Paperclip dashboard — the '
+                'app handles the claim flow automatically.',
+                style: TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+              trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PaperclipOnboardingWizard(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Or paste an existing API key manually below.',
+              style: TextStyle(fontSize: 11, color: Colors.white54),
             ),
           ),
           const SizedBox(height: 12),

@@ -290,6 +290,150 @@ class PaperclipRestClient {
   void dispose() => _http.close();
 }
 
+/// Unauthenticated Paperclip client for the invite → join-request → claim-key
+/// onboarding flow. The invite token and claim secret ARE the auth on these
+/// endpoints, so no Authorization header is sent.
+///
+/// Wire spec from VPS recon 2026-04-22:
+///   1. POST /api/invites/{token}/accept → 202 {claimSecret, requestId, …}
+///   2. (Board approves in Paperclip UI)
+///   3. POST /api/join-requests/{requestId}/claim-api-key {claimSecret}
+///        → 201 {apiKey, agentId}  |  409 pending  |  403 invalid/consumed
+class PaperclipOnboardingClient {
+  final String baseUrl;
+  final http.Client _http;
+
+  PaperclipOnboardingClient({
+    required String baseUrl,
+    http.Client? httpClient,
+  })  : baseUrl = PaperclipRestClient._normaliseBaseUrl(baseUrl),
+        _http = httpClient ?? http.Client();
+
+  Future<InviteAcceptResponse> acceptInvite(String inviteToken) async {
+    final uri = Uri.parse('$baseUrl/invites/$inviteToken/accept');
+    final res = await _http
+        .post(uri,
+            headers: const {'Content-Type': 'application/json'},
+            body: '{}')
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw PaperclipApiException(
+        statusCode: res.statusCode,
+        body: res.body,
+        path: uri.path,
+      );
+    }
+    final json = res.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(res.body) as Map<String, dynamic>;
+    return InviteAcceptResponse.fromJson(json);
+  }
+
+  /// Attempts the final claim. Returns a [ClaimOutcome] discriminator so the
+  /// caller can handle `pending` (409) without treating it as an error.
+  Future<ClaimOutcome> claimApiKey({
+    required String requestId,
+    required String claimSecret,
+  }) async {
+    final uri =
+        Uri.parse('$baseUrl/join-requests/$requestId/claim-api-key');
+    final res = await _http
+        .post(
+          uri,
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'claimSecret': claimSecret}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (res.statusCode == 201 || res.statusCode == 200) {
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      final apiKey = (json['apiKey'] ?? json['token']) as String?;
+      final agentId = json['agentId'] as String?;
+      if (apiKey == null || apiKey.isEmpty) {
+        return ClaimOutcome.error(
+            'Paperclip returned 2xx but no apiKey in body');
+      }
+      return ClaimOutcome.ready(apiKey: apiKey, agentId: agentId);
+    }
+    if (res.statusCode == 409) return const ClaimOutcome.pending();
+    if (res.statusCode == 403) {
+      return ClaimOutcome.error(
+          'Invalid or already-consumed claim secret. Generate a new invite.');
+    }
+    if (res.statusCode == 404) {
+      return ClaimOutcome.error('Join request not found or expired.');
+    }
+    return ClaimOutcome.error(
+        'Paperclip returned HTTP ${res.statusCode} · ${res.body}');
+  }
+
+  void dispose() => _http.close();
+}
+
+class InviteAcceptResponse {
+  final String claimSecret;
+  final String requestId;
+  final String? inviteToken;
+  final String? companyId;
+  final Map<String, dynamic> manifest;
+  final Map<String, dynamic> raw;
+
+  const InviteAcceptResponse({
+    required this.claimSecret,
+    required this.requestId,
+    this.inviteToken,
+    this.companyId,
+    this.manifest = const {},
+    this.raw = const {},
+  });
+
+  factory InviteAcceptResponse.fromJson(Map<String, dynamic> json) {
+    // Field names seen in the wild: claimSecret, requestId. Manifest is a
+    // nested bag; diagnostics are informational and ignored here.
+    return InviteAcceptResponse(
+      claimSecret: (json['claimSecret'] ?? json['claim_secret']) as String? ??
+          '',
+      requestId: (json['requestId'] ?? json['request_id']) as String? ?? '',
+      inviteToken: json['inviteToken'] as String?,
+      companyId: (json['companyId'] ?? json['company_id']) as String?,
+      manifest: json['manifest'] is Map<String, dynamic>
+          ? json['manifest'] as Map<String, dynamic>
+          : const {},
+      raw: json,
+    );
+  }
+}
+
+/// Three terminal states of a claim attempt.
+class ClaimOutcome {
+  final bool ready;
+  final bool pending;
+  final String? apiKey;
+  final String? agentId;
+  final String? errorMessage;
+
+  const ClaimOutcome.ready({required this.apiKey, this.agentId})
+      : ready = true,
+        pending = false,
+        errorMessage = null;
+
+  const ClaimOutcome.pending()
+      : ready = false,
+        pending = true,
+        apiKey = null,
+        agentId = null,
+        errorMessage = null;
+
+  const ClaimOutcome.error(String message)
+      : ready = false,
+        pending = false,
+        apiKey = null,
+        agentId = null,
+        errorMessage = message;
+
+  bool get isError => errorMessage != null;
+}
+
 class PaperclipApiException implements Exception {
   final int statusCode;
   final String body;
