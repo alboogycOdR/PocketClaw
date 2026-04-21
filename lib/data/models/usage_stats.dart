@@ -34,6 +34,40 @@ class UsageStats {
             {},
       );
 
+  /// Maps `usage.cost` WS response (a 30-day daily rollup) onto our display
+  /// shape. Today = last entry, Week = last 7, Month = all `totals`.
+  /// `daily[]` is sorted ascending; we reverse-iterate.
+  factory UsageStats.fromCostResponse(Map<String, dynamic> json) {
+    final daily = (json['daily'] as List?) ?? const [];
+    final totals = json['totals'] as Map<String, dynamic>?;
+
+    double costToday = 0;
+    double costWeek = 0;
+    double costMonth = (totals?['totalCost'] as num?)?.toDouble() ?? 0;
+    int inputTokens = (totals?['input'] as num?)?.toInt() ?? 0;
+    int outputTokens = (totals?['output'] as num?)?.toInt() ?? 0;
+
+    if (daily.isNotEmpty) {
+      final last = daily.last;
+      if (last is Map) {
+        costToday = (last['totalCost'] as num?)?.toDouble() ?? 0;
+      }
+      final start = daily.length > 7 ? daily.length - 7 : 0;
+      for (var i = start; i < daily.length; i++) {
+        final d = daily[i];
+        if (d is Map) costWeek += (d['totalCost'] as num?)?.toDouble() ?? 0;
+      }
+    }
+
+    return UsageStats(
+      costToday: costToday,
+      costWeek: costWeek,
+      costMonth: costMonth,
+      inputTokens: inputTokens,
+      outputTokens: outputTokens,
+    );
+  }
+
   int get totalTokens => inputTokens + outputTokens;
 }
 

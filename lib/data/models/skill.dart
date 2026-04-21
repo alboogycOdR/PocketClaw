@@ -92,3 +92,76 @@ class SkillInfo {
         installed: json['installed'] as bool? ?? false,
       );
 }
+
+/// A server-side skill as returned by `skills.status`. The gateway groups
+/// these by origin (`openclaw-bundled`, `clawhub`, `workspace`).
+class ServerSkillEntry {
+  final String name;
+  final String description;
+  final String? emoji;
+  final String source;
+  final bool bundled;
+  final bool disabled;
+  final bool eligible;
+  final bool blockedByAllowlist;
+  final String? skillKey;
+  final String? homepage;
+  final Map<String, dynamic> raw;
+
+  const ServerSkillEntry({
+    required this.name,
+    required this.description,
+    required this.source,
+    required this.bundled,
+    required this.disabled,
+    required this.eligible,
+    required this.blockedByAllowlist,
+    required this.raw,
+    this.emoji,
+    this.skillKey,
+    this.homepage,
+  });
+
+  bool get enabled => !disabled;
+
+  factory ServerSkillEntry.fromJson(Map<String, dynamic> json) =>
+      ServerSkillEntry(
+        name: json['name'] as String? ?? '(unnamed)',
+        description: json['description'] as String? ?? '',
+        emoji: json['emoji'] as String?,
+        source: json['source'] as String? ?? 'unknown',
+        bundled: json['bundled'] == true,
+        disabled: json['disabled'] == true,
+        eligible: json['eligible'] != false,
+        blockedByAllowlist: json['blockedByAllowlist'] == true,
+        skillKey: json['skillKey'] as String?,
+        homepage: json['homepage'] as String?,
+        raw: json,
+      );
+}
+
+/// A Claw Hub search hit from `skills.search`.
+class ClawHubSearchHit {
+  final String slug;
+  final String displayName;
+  final String? summary;
+  final String? version;
+  final double? score;
+
+  const ClawHubSearchHit({
+    required this.slug,
+    required this.displayName,
+    this.summary,
+    this.version,
+    this.score,
+  });
+
+  factory ClawHubSearchHit.fromJson(Map<String, dynamic> json) =>
+      ClawHubSearchHit(
+        slug: json['slug'] as String? ?? '',
+        displayName: json['displayName'] as String? ?? json['slug'] as String? ?? '',
+        summary: json['summary'] as String?,
+        version: json['version'] as String?,
+        score: (json['score'] as num?)?.toDouble(),
+      );
+}

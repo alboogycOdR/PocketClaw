@@ -1,4 +1,6 @@
-/// Browse and install skills from the ClawHub registry via Gateway REST API
+/// Browse and install skills from the Claw Hub registry via the gateway's
+/// `skills.search` + `skills.install` WS RPCs. Previously called REST paths
+/// that return the SPA index — replaced 2026-04-21.
 library;
 
 import 'package:flutter/material.dart';
@@ -9,23 +11,20 @@ import '../../app/theme.dart';
 import '../../data/models/skill.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/widgets/empty_state.dart';
+import 'skills_providers.dart';
 
-/// Provider that fetches available skills from the server's skill registry.
-final clawHubSkillsProvider = FutureProvider<List<SkillInfo>>((ref) async {
-  final rest = ref.watch(gatewayRestClientProvider);
-  if (rest == null) return [];
-  return rest.getInstalledSkills();
-});
+final _clawHubQueryProvider = StateProvider<String>((_) => '');
 
 class ClawHubBrowser extends ConsumerWidget {
   const ClawHubBrowser({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rest = ref.watch(gatewayRestClientProvider);
-    final skillsAsync = ref.watch(clawHubSkillsProvider);
+    final client = ref.watch(gatewayClientProvider);
+    final query = ref.watch(_clawHubQueryProvider);
+    final resultsAsync = ref.watch(clawHubSearchProvider(query));
 
-    if (rest == null) {
+    if (client == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('ClawHub')),
         body: const EmptyState(
@@ -41,78 +40,108 @@ class ClawHubBrowser extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
-            onPressed: () => ref.invalidate(clawHubSkillsProvider),
+            onPressed: () => ref.invalidate(clawHubSearchProvider(query)),
           ),
         ],
       ),
-      body: skillsAsync.when(
-        data: (skills) {
-          if (skills.isEmpty) {
-            return const EmptyState(
-              icon: Icons.extension_off_outlined,
-              message: 'No skills available on the server',
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: skills.length,
-            itemBuilder: (context, index) {
-              final skill = skills[index];
-              return _ClawHubSkillCard(skill: skill);
-            },
-          );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-        error: (e, _) => EmptyState(
-          icon: Icons.error_outline,
-          message: 'Failed to load skills\n$e',
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(clawHubSkillsProvider),
-        ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search Claw Hub…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onChanged: (v) =>
+                  ref.read(_clawHubQueryProvider.notifier).state = v,
+              textInputAction: TextInputAction.search,
+            ),
+          ),
+          Expanded(
+            child: resultsAsync.when(
+              data: (hits) {
+                if (hits.isEmpty) {
+                  return const EmptyState(
+                    icon: Icons.extension_off_outlined,
+                    message: 'No skills found',
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: hits.length,
+                  itemBuilder: (_, i) => _HubHitCard(hit: hits[i]),
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              error: (e, _) => EmptyState(
+                icon: Icons.error_outline,
+                message: 'Failed to load skills\n$e',
+                actionLabel: 'Retry',
+                onAction: () =>
+                    ref.invalidate(clawHubSearchProvider(query)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ClawHubSkillCard extends ConsumerStatefulWidget {
-  final SkillInfo skill;
+class _HubHitCard extends ConsumerStatefulWidget {
+  final ClawHubSearchHit hit;
 
-  const _ClawHubSkillCard({required this.skill});
+  const _HubHitCard({required this.hit});
 
   @override
-  ConsumerState<_ClawHubSkillCard> createState() => _ClawHubSkillCardState();
+  ConsumerState<_HubHitCard> createState() => _HubHitCardState();
 }
 
-class _ClawHubSkillCardState extends ConsumerState<_ClawHubSkillCard> {
+class _HubHitCardState extends ConsumerState<_HubHitCard> {
   bool _installing = false;
   bool _installed = false;
+  String? _error;
 
   Future<void> _install() async {
-    final rest = ref.read(gatewayRestClientProvider);
-    if (rest == null) return;
-
-    setState(() => _installing = true);
-
+    setState(() {
+      _installing = true;
+      _error = null;
+    });
     try {
-      await rest.installSkill(widget.skill.slug);
+      final result = await installClawHubSkill(ref, widget.hit.slug);
+      final ok = result['ok'] == true;
       if (mounted) {
         setState(() {
           _installing = false;
-          _installed = true;
+          _installed = ok;
+          if (!ok) {
+            _error = result['message'] as String? ?? 'Install failed';
+          }
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${widget.skill.name} installed'),
-          ),
-        );
-        // Refresh the local skill registry
-        ref.invalidate(skillsLoadedProvider);
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${widget.hit.displayName} installed')),
+          );
+          ref.invalidate(serverSkillsProvider);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Install failed: $_error')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _installing = false);
+        setState(() {
+          _installing = false;
+          _error = '$e';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Install failed: $e')),
         );
@@ -122,11 +151,7 @@ class _ClawHubSkillCardState extends ConsumerState<_ClawHubSkillCard> {
 
   @override
   Widget build(BuildContext context) {
-    final skill = widget.skill;
-    final localRegistry = ref.watch(skillRegistryProvider);
-    final alreadyInstalled =
-        _installed || localRegistry.skills.any((s) => s.name == skill.slug);
-
+    final h = widget.hit;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -134,7 +159,6 @@ class _ClawHubSkillCardState extends ConsumerState<_ClawHubSkillCard> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Emoji
             Container(
               width: 40,
               height: 40,
@@ -142,70 +166,60 @@ class _ClawHubSkillCardState extends ConsumerState<_ClawHubSkillCard> {
                 color: PocketClawTheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Text(
-                  skill.emoji ?? '🔧',
-                  style: const TextStyle(fontSize: 20),
-                ),
+              child: const Center(
+                child: Text('🧩', style: TextStyle(fontSize: 20)),
               ),
             ),
             const SizedBox(width: 12),
-
-            // Details
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    skill.name,
+                    h.displayName,
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
-                    skill.description,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white54,
-                      height: 1.4,
+                    h.slug,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 10,
+                      color: Colors.white38,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: PocketClawTheme.electricTeal.withAlpha(20),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          skill.runtime,
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: PocketClawTheme.electricTeal,
-                          ),
-                        ),
+                  if (h.summary != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      h.summary!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white54,
+                        height: 1.4,
                       ),
-                    ],
-                  ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (h.version != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'v${h.version}',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 10,
+                        color: PocketClawTheme.electricTeal,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // Install button
-            if (alreadyInstalled)
-              const Icon(Icons.check_circle, size: 20, color: Color(0xFF4CAF50))
+            if (_installed)
+              const Icon(Icons.check_circle,
+                  size: 20, color: Color(0xFF4CAF50))
             else if (_installing)
               const SizedBox(
                 width: 20,
@@ -216,10 +230,8 @@ class _ClawHubSkillCardState extends ConsumerState<_ClawHubSkillCard> {
               OutlinedButton(
                 onPressed: _install,
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   textStyle: const TextStyle(fontSize: 12),
                 ),
                 child: const Text('Install'),

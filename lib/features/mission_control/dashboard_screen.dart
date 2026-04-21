@@ -21,7 +21,7 @@ class DashboardScreen extends ConsumerWidget {
     ref.invalidate(mcHealthProvider);
     ref.invalidate(mcUsageProvider);
     ref.invalidate(mcAgentsProvider);
-    ref.invalidate(mcTasksProvider);
+    ref.invalidate(mcSessionsCountProvider);
     ref.invalidate(mcCronJobsProvider);
   }
 
@@ -31,7 +31,7 @@ class DashboardScreen extends ConsumerWidget {
     final healthAsync = ref.watch(mcHealthProvider);
     final usageAsync = ref.watch(mcUsageProvider);
     final agentsAsync = ref.watch(mcAgentsProvider);
-    final tasksAsync = ref.watch(mcTasksProvider);
+    final sessionsAsync = ref.watch(mcSessionsCountProvider);
     final cronsAsync = ref.watch(mcCronJobsProvider);
 
     if (restClient == null) {
@@ -90,24 +90,19 @@ class DashboardScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: tasksAsync.when(
-                    data: (tasks) {
-                      final inProgress = tasks
-                          .where((t) => t.status.name == 'inProgress')
-                          .length;
-                      return StatCard(
-                        icon: Icons.task_alt,
-                        title: 'Tasks',
-                        value: '${tasks.length}',
-                        subtitle: '$inProgress in progress',
-                        iconColor: PocketClawTheme.electricTeal,
-                        onTap: () => context.go('/company/tasks'),
-                      );
-                    },
+                  child: sessionsAsync.when(
+                    data: (count) => StatCard(
+                      icon: Icons.chat_bubble_outline,
+                      title: 'Sessions',
+                      value: '$count',
+                      subtitle: 'recent',
+                      iconColor: PocketClawTheme.electricTeal,
+                      onTap: () => context.go('/company/tasks'),
+                    ),
                     loading: () => const _ShimmerCard(),
                     error: (_, __) => StatCard(
-                      icon: Icons.task_alt,
-                      title: 'Tasks',
+                      icon: Icons.chat_bubble_outline,
+                      title: 'Sessions',
                       value: '--',
                       subtitle: 'error',
                       iconColor: const Color(0xFFE53935),

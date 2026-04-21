@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/device/battery_optimization_service.dart';
+import '../core/gateway/proactive_notifier.dart';
 import '../data/providers/core_providers.dart';
 import 'biometric_lock_screen.dart';
 import 'router.dart';
@@ -88,6 +89,10 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
     } catch (e) {
       debugPrint('SharedPreferences unavailable: $e');
     }
+
+    // Keep the proactive-notification listener alive for the whole app
+    // lifetime. It no-ops when the app is foregrounded.
+    ref.watch(proactiveNotifierProvider);
     final showLock = biometricEnabled && !_unlocked;
 
     return MaterialApp.router(

@@ -38,6 +38,25 @@ class Agent {
         color: json['color'] as String?,
       );
 
+  /// Builds an Agent from the gateway's `agents.list` response shape:
+  /// `{id, workspace, model?:{primary,...}, name?, identity?:{name?,theme?,emoji?,...}}`.
+  /// The roster itself has no running-state — status stays idle until we
+  /// enrich from `sessions.usage`. Same for tokensToday.
+  factory Agent.fromSummary(Map<String, dynamic> json) {
+    final identity = json['identity'] as Map<String, dynamic>?;
+    final modelBlock = json['model'] as Map<String, dynamic>?;
+    return Agent(
+      id: json['id'] as String? ?? '',
+      name: (identity?['name'] as String?) ??
+          (json['name'] as String?) ??
+          (json['id'] as String? ?? 'unnamed'),
+      model: (modelBlock?['primary'] as String?) ?? 'unknown',
+      status: AgentStatus.idle,
+      emoji: identity?['emoji'] as String?,
+      color: identity?['theme'] as String?,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,

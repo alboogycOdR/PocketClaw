@@ -12,6 +12,7 @@ import '../../data/providers/core_providers.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/source_badge.dart';
 import '../../data/models/chat_message.dart';
+import 'skills_providers.dart';
 
 class SkillsScreen extends ConsumerWidget {
   const SkillsScreen({super.key});
@@ -59,16 +60,7 @@ class _SkillsList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(skillRegistryProvider);
     final skills = registry.skills;
-
-    if (skills.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Skills')),
-        body: const EmptyState(
-          icon: Icons.extension_off_outlined,
-          message: 'No skills installed',
-        ),
-      );
-    }
+    final serverSkillsAsync = ref.watch(serverSkillsProvider);
 
     final local = skills.where((s) => s.runtime == 'local').toList();
     final server = skills.where((s) => s.runtime == 'server').toList();
@@ -79,6 +71,11 @@ class _SkillsList extends ConsumerWidget {
         title: const Text('Skills'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, size: 20),
+            tooltip: 'Refresh server skills',
+            onPressed: () => ref.invalidate(serverSkillsProvider),
+          ),
+          IconButton(
             icon: const Icon(Icons.store_outlined, size: 22),
             tooltip: 'Browse ClawHub',
             onPressed: () => context.push('/skills/clawhub'),
@@ -86,13 +83,20 @@ class _SkillsList extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(skillsLoadedProvider),
+        onRefresh: () async {
+          ref.invalidate(skillsLoadedProvider);
+          ref.invalidate(serverSkillsProvider);
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Server-side skills (from the gateway's skills.status) go first
+            // so the user sees what's actually available to their agents.
+            ..._buildServerSection(ref, serverSkillsAsync),
+
             if (local.isNotEmpty) ...[
               _RuntimeHeader(
-                label: 'Local',
+                label: 'On device — Local',
                 count: local.length,
                 color: PocketClawTheme.electricTeal,
               ),
@@ -102,7 +106,7 @@ class _SkillsList extends ConsumerWidget {
             ],
             if (server.isNotEmpty) ...[
               _RuntimeHeader(
-                label: 'Server',
+                label: 'On device — Server-backed',
                 count: server.length,
                 color: PocketClawTheme.lobsterRed,
               ),
@@ -112,14 +116,179 @@ class _SkillsList extends ConsumerWidget {
             ],
             if (bridge.isNotEmpty) ...[
               _RuntimeHeader(
-                label: 'Bridge',
+                label: 'On device — Bridge',
                 count: bridge.length,
                 color: const Color(0xFFFFB74D),
               ),
               const SizedBox(height: 8),
               ...bridge.map((s) => _SkillCard(skill: s)),
             ],
+
+            if (skills.isEmpty && serverSkillsAsync.valueOrNull?.isEmpty != false)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: EmptyState(
+                  icon: Icons.extension_off_outlined,
+                  message: 'No skills available',
+                ),
+              ),
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildServerSection(
+    WidgetRef ref,
+    AsyncValue<List<ServerSkillEntry>> async,
+  ) {
+    final items = async.valueOrNull ?? const <ServerSkillEntry>[];
+    if (items.isEmpty && !async.isLoading) return const [];
+    return [
+      _RuntimeHeader(
+        label: 'On server',
+        count: items.length,
+        color: const Color(0xFF9C27B0),
+      ),
+      const SizedBox(height: 8),
+      if (async.isLoading && items.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        )
+      else
+        ...items.map((s) => _ServerSkillCard(entry: s)),
+      const SizedBox(height: 16),
+    ];
+  }
+}
+
+class _ServerSkillCard extends ConsumerStatefulWidget {
+  final ServerSkillEntry entry;
+
+  const _ServerSkillCard({required this.entry});
+
+  @override
+  ConsumerState<_ServerSkillCard> createState() => _ServerSkillCardState();
+}
+
+class _ServerSkillCardState extends ConsumerState<_ServerSkillCard> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool enabled) async {
+    final key = widget.entry.skillKey;
+    if (key == null || key.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Skill missing skillKey — cannot toggle')),
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await setServerSkillEnabled(ref, key, enabled);
+      ref.invalidate(serverSkillsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Toggle failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.entry;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: PocketClawTheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Center(
+                child: Text(
+                  e.emoji ?? '🔧',
+                  style: const TextStyle(fontSize: 20),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          e.name,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: e.enabled ? Colors.white : Colors.white54,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF9C27B0).withAlpha(25),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          e.source,
+                          style: GoogleFonts.jetBrainsMono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFBA68C8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    e.description,
+                    style: const TextStyle(fontSize: 12, color: Colors.white54),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (!e.eligible || e.blockedByAllowlist) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      e.blockedByAllowlist
+                          ? 'Blocked by allowlist'
+                          : 'Requirements not met',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: PocketClawTheme.lobsterRed,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_busy)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Switch(value: e.enabled, onChanged: _toggle),
           ],
         ),
       ),

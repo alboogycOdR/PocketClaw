@@ -9,43 +9,81 @@ import '../../data/models/task.dart';
 import '../../data/models/usage_stats.dart';
 import '../../data/providers/core_providers.dart';
 
-// All of the REST endpoints below may not be implemented on every gateway
-// build — the /__openclaw__/api/* surface is partial and evolves. We catch
-// fetch errors and fall back to empty/default values so the Mission Control
-// screen degrades gracefully (tiles show "—" / 0) instead of blowing up
-// with a type-cast error from Dio trying to parse the SPA index HTML.
+// The Mission Control providers talk to the gateway over WebSocket JSON-RPC
+// (see memory/gateway_control_surface.md for the authoritative methods).
+// The legacy /__openclaw__/api/* REST paths for these surfaces return the
+// SPA's index.html and can't be relied on. We catch errors and fall back to
+// empty/default values so the screen degrades gracefully (tiles show "—" /
+// 0) instead of blowing up when the gateway is unreachable.
 
 // ── Agents ──
+// `agents.list` returns config-only entries: no running/idle status and no
+// token counts. Those would need a second call to `sessions.usage` to
+// enrich from `aggregates.byAgent[]` — deferred for now.
 
 final mcAgentsProvider = FutureProvider<List<Agent>>((ref) async {
-  final client = ref.watch(gatewayRestClientProvider);
+  final client = ref.watch(gatewayClientProvider);
   if (client == null) return [];
   try {
-    return await client.getAgents();
+    final result = await client.request('agents.list', {});
+    if (result is! Map) return [];
+    final agents = result['agents'];
+    if (agents is! List) return [];
+    return [
+      for (final a in agents)
+        if (a is Map<String, dynamic>) Agent.fromSummary(a),
+    ];
   } catch (_) {
     return [];
   }
 });
 
 // ── Tasks ──
+// The gateway has no `tasks.*` RPC surface — confirmed via 2026-04-21 recon.
+// We keep the provider around so existing callers (TasksScreen kanban,
+// Dashboard legacy card) don't crash, but it always returns an empty list.
+// The Dashboard now shows Sessions instead; see mcSessionsCountProvider.
 
-final mcTasksProvider = FutureProvider<List<Task>>((ref) async {
-  final client = ref.watch(gatewayRestClientProvider);
-  if (client == null) return [];
+final mcTasksProvider = FutureProvider<List<Task>>((_) async => const []);
+
+// ── Sessions count ──
+// Derived from `sessions.usage` — used on the Dashboard as a live-activity
+// indicator in place of the unimplemented tasks surface.
+
+final mcSessionsCountProvider = FutureProvider<int>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return 0;
   try {
-    return await client.getTasks();
+    // Pull the full window (default ~30d) so `sessions.length` reflects the
+    // real count. A small `limit` would cap the count to that limit.
+    final result = await client.request('sessions.usage', {'limit': 1000});
+    if (result is! Map) return 0;
+    final sessions = result['sessions'];
+    if (sessions is List) return sessions.length;
+    final totals = result['totals'];
+    if (totals is Map && totals['sessions'] is num) {
+      return (totals['sessions'] as num).toInt();
+    }
+    return 0;
   } catch (_) {
-    return [];
+    return 0;
   }
 });
 
 // ── Usage Stats ──
+// A single `usage.cost {days:30}` call yields daily cost entries plus a
+// grand-total block; we derive today/week/month client-side.
 
 final mcUsageProvider = FutureProvider<UsageStats>((ref) async {
-  final client = ref.watch(gatewayRestClientProvider);
+  final client = ref.watch(gatewayClientProvider);
   if (client == null) return const UsageStats();
   try {
-    return await client.getUsageStats();
+    final result = await client.request(
+      'usage.cost',
+      {'days': 30, 'mode': 'utc'},
+    );
+    if (result is! Map<String, dynamic>) return const UsageStats();
+    return UsageStats.fromCostResponse(result);
   } catch (_) {
     return const UsageStats();
   }
