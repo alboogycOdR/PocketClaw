@@ -211,7 +211,9 @@ class DashboardScreen extends ConsumerWidget {
                           style: const TextStyle(fontSize: 13),
                         ),
                         trailing: Text(
-                          job.nextRun ?? '',
+                          job.nextRunAt != null
+                              ? job.nextRunAt!.toLocal().toString().split('.').first
+                              : '',
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 12,
                             color: Colors.white60,

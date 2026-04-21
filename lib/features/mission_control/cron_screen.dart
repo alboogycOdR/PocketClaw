@@ -1,4 +1,8 @@
-/// List of cron jobs with schedule, last/next run, enabled toggle
+/// Cron tab: list scheduled jobs with enable toggle, run-now, and delete.
+///
+/// Backed by the `cron.*` WS methods (core-implemented, independent of
+/// plugins). See memory/gateway_protocol_reference.md for the full spec
+/// extracted from the live gateway.
 library;
 
 import 'package:flutter/material.dart';
@@ -6,9 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
-import '../../core/gateway/gateway_rest.dart';
-import '../../data/models/usage_stats.dart';
 import '../../data/providers/core_providers.dart';
+import '../../shared/extensions.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'mission_control_providers.dart';
 
@@ -17,10 +20,10 @@ class CronScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final restClient = ref.watch(gatewayRestClientProvider);
-    final cronAsync = ref.watch(mcCronJobsProvider);
+    final client = ref.watch(gatewayClientProvider);
+    final jobsAsync = ref.watch(mcCronJobsProvider);
 
-    if (restClient == null) {
+    if (client == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Cron Jobs')),
         body: const EmptyState(
@@ -36,16 +39,34 @@ class CronScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
+            tooltip: 'Reload',
             onPressed: () => ref.invalidate(mcCronJobsProvider),
           ),
         ],
       ),
-      body: cronAsync.when(
+      body: jobsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => EmptyState(
+          icon: Icons.error_outline,
+          message: 'Failed to load cron jobs:\n$e',
+          actionLabel: 'Retry',
+          onAction: () => ref.invalidate(mcCronJobsProvider),
+        ),
         data: (jobs) {
           if (jobs.isEmpty) {
-            return const EmptyState(
-              icon: Icons.schedule,
-              message: 'No cron jobs configured',
+            return RefreshIndicator(
+              onRefresh: () async => ref.invalidate(mcCronJobsProvider),
+              child: ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(
+                    child: EmptyState(
+                      icon: Icons.schedule,
+                      message: 'No cron jobs configured',
+                    ),
+                  ),
+                ],
+              ),
             );
           }
           return RefreshIndicator(
@@ -53,52 +74,123 @@ class CronScreen extends ConsumerWidget {
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: jobs.length,
-              itemBuilder: (context, index) {
-                final job = jobs[index];
-                return _CronTile(
-                  job: job,
-                  onToggle: (enabled) async {
-                    try {
-                      await restClient.toggleCronJob(
-                        job.id,
-                        enabled: enabled,
-                      );
-                      ref.invalidate(mcCronJobsProvider);
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to toggle: $e'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                );
-              },
+              itemBuilder: (_, i) => _CronTile(
+                job: jobs[i],
+                onToggle: (enabled) async {
+                  await _toggle(context, ref, jobs[i].id, enabled);
+                },
+                onRunNow: () async {
+                  await _runNow(context, ref, jobs[i].id);
+                },
+                onDelete: () async {
+                  await _delete(context, ref, jobs[i]);
+                },
+              ),
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => EmptyState(
-          icon: Icons.error_outline,
-          message: friendlyGatewayError(e),
-          actionLabel: 'Retry',
-          onAction: () => ref.invalidate(mcCronJobsProvider),
-        ),
       ),
     );
+  }
+
+  Future<void> _toggle(
+    BuildContext ctx,
+    WidgetRef ref,
+    String id,
+    bool enabled,
+  ) async {
+    try {
+      await setCronEnabled(ref, id, enabled);
+      ref.invalidate(mcCronJobsProvider);
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Toggle failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _runNow(
+    BuildContext ctx,
+    WidgetRef ref,
+    String id,
+  ) async {
+    try {
+      await runCronNow(ref, id);
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('Run triggered')),
+        );
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Run failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(
+    BuildContext ctx,
+    WidgetRef ref,
+    CronJobEntry job,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Delete cron job?'),
+        content: Text('"${job.name}" will be removed. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: PocketClawTheme.lobsterRed,
+            ),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await removeCronJob(ref, job.id);
+      ref.invalidate(mcCronJobsProvider);
+    } catch (e) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+    }
   }
 }
 
 class _CronTile extends StatelessWidget {
-  final CronJob job;
+  final CronJobEntry job;
   final ValueChanged<bool> onToggle;
+  final VoidCallback onRunNow;
+  final VoidCallback onDelete;
 
-  const _CronTile({required this.job, required this.onToggle});
+  const _CronTile({
+    required this.job,
+    required this.onToggle,
+    required this.onRunNow,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = switch (job.lastStatus) {
+      'ok' => const Color(0xFF4CAF50),
+      'error' => PocketClawTheme.lobsterRed,
+      _ => Colors.white38,
+    };
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -117,30 +209,46 @@ class _CronTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    job.name,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: job.enabled ? Colors.white : Colors.white54,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        job.name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              job.enabled ? Colors.white : Colors.white54,
+                        ),
+                      ),
+                      if (job.description != null &&
+                          job.description!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            job.description!,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                Switch(
-                  value: job.enabled,
-                  onChanged: onToggle,
-                ),
+                Switch(value: job.enabled, onChanged: onToggle),
               ],
             ),
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: PocketClawTheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                job.schedule,
+                job.scheduleLabel,
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 12,
                   color: PocketClawTheme.electricTeal,
@@ -150,9 +258,50 @@ class _CronTile extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                _InfoChip(label: 'Last', value: job.lastRun ?? 'Never'),
+                _InfoChip(
+                  label: 'Last',
+                  value:
+                      job.lastRunAt?.timeAgo ?? 'Never',
+                  valueColor: statusColor,
+                ),
                 const SizedBox(width: 16),
-                _InfoChip(label: 'Next', value: job.nextRun ?? 'N/A'),
+                _InfoChip(
+                  label: 'Next',
+                  value: job.nextRunAt?.timeAgo ?? '—',
+                ),
+              ],
+            ),
+            if (job.lastError != null && job.lastError!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                job.lastError!,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: PocketClawTheme.lobsterRed,
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: onRunNow,
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: const Text('Run now'),
+                ),
+                TextButton.icon(
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete_outline,
+                      size: 16, color: PocketClawTheme.lobsterRed),
+                  label: Text(
+                    'Delete',
+                    style: TextStyle(color: PocketClawTheme.lobsterRed),
+                  ),
+                ),
               ],
             ),
           ],
@@ -165,8 +314,13 @@ class _CronTile extends StatelessWidget {
 class _InfoChip extends StatelessWidget {
   final String label;
   final String value;
+  final Color? valueColor;
 
-  const _InfoChip({required this.label, required this.value});
+  const _InfoChip({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +335,7 @@ class _InfoChip extends StatelessWidget {
           value,
           style: GoogleFonts.jetBrainsMono(
             fontSize: 11,
-            color: Colors.white60,
+            color: valueColor ?? Colors.white60,
           ),
         ),
       ],

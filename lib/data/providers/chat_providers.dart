@@ -2,9 +2,12 @@
 library;
 
 import 'dart:async';
-
+import 'dart:convert';
+import 'dart:io' as io;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../core/chat/chat_mode.dart';
@@ -59,6 +62,12 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
   }
 
   void clear() => state = [];
+
+  /// Replace the in-memory thread wholesale — used when loading server-side
+  /// history to reconcile against the source of truth.
+  void replaceAll(List<ChatMessage> messages) {
+    state = List<ChatMessage>.unmodifiable(messages);
+  }
 }
 
 final messagesProvider =
@@ -81,25 +90,141 @@ final isProcessingProvider = StateProvider<bool>((_) => false);
 
 // ── OpenClaw session key (one "conversation") ──
 //
-// A fresh UUID is generated per device launch and whenever the user taps
-// "New chat". The agent keeps conversation state keyed by this on the server
-// side, so mutating it starts a new thread.
-final sessionKeyProvider = StateProvider<String>((_) =>
-    'pocket-claw-${_uuid.v4()}');
+// Persisted in SharedPreferences so chat history survives relaunches — the
+// gateway keys session state (and chat.history output) by this. Generated
+// on first run and whenever the user taps "New chat".
+const String _kSessionKeyPref = 'openclaw_session_key';
+final sessionKeyProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  final existing = prefs.getString(_kSessionKeyPref);
+  if (existing != null && existing.isNotEmpty) return existing;
+  final fresh = 'pocket-claw-${_uuid.v4()}';
+  // ignore: unawaited_futures
+  prefs.setString(_kSessionKeyPref, fresh);
+  return fresh;
+});
 
 /// The runId of the currently-streaming server reply, or null if idle.
 /// Used by the Stop button to call chat.abort against the right run.
 final currentRunIdProvider = StateProvider<String?>((_) => null);
 
-/// Start a new conversation: fresh sessionKey + empty thread.
+/// Start a new conversation: fresh sessionKey + empty thread. Persists the
+/// new key so relaunches continue in the new session.
 final resetChatProvider = Provider<void Function()>((ref) {
   return () {
-    ref.read(sessionKeyProvider.notifier).state = 'pocket-claw-${_uuid.v4()}';
+    final prefs = ref.read(sharedPrefsProvider);
+    final fresh = 'pocket-claw-${_uuid.v4()}';
+    // ignore: unawaited_futures
+    prefs.setString(_kSessionKeyPref, fresh);
+    ref.read(sessionKeyProvider.notifier).state = fresh;
     ref.read(messagesProvider.notifier).clear();
     ref.read(currentRunIdProvider.notifier).state = null;
     ref.read(isProcessingProvider.notifier).state = false;
   };
 });
+
+/// Load past turns for the current session from the gateway. Safe to call
+/// multiple times — the caller is expected to gate on sessionKey changes.
+/// Clears the current in-memory thread and replaces it with server truth.
+final loadChatHistoryProvider = Provider<Future<void> Function()>((ref) {
+  return () async {
+    final client = ref.read(gatewayClientProvider);
+    if (client == null) return;
+    final state = ref.read(gatewayStateProvider);
+    if (state != GatewayState.connected) return;
+    final sessionKey = ref.read(sessionKeyProvider);
+    try {
+      final result = await client.request(
+        'chat.history',
+        {'sessionKey': sessionKey, 'limit': 200},
+      );
+      if (result is! Map) return;
+      final raw = result['messages'];
+      if (raw is! List) return;
+      final parsed = <ChatMessage>[];
+      for (final item in raw) {
+        if (item is! Map<String, dynamic>) continue;
+        final msg = _parseHistoryTurn(item);
+        if (msg != null) parsed.add(msg);
+      }
+      // Only replace if there IS history — otherwise keep any unsent
+      // draft-state the local thread already has.
+      if (parsed.isNotEmpty) {
+        ref.read(messagesProvider.notifier).replaceAll(parsed);
+      }
+    } catch (_) {
+      // Silent — history is a "nice to have", not a blocker.
+    }
+  };
+});
+
+/// Convert a chat.history `messages[i]` entry to a ChatMessage, or null if
+/// we intentionally skip it (tool / system rows, empty entries). See the
+/// gateway spec in memory/gateway_protocol_reference.md for the full shape.
+ChatMessage? _parseHistoryTurn(Map<String, dynamic> raw) {
+  final roleStr = raw['role'] as String?;
+  MessageRole role;
+  switch (roleStr) {
+    case 'user':
+      role = MessageRole.user;
+      break;
+    case 'assistant':
+      role = MessageRole.assistant;
+      break;
+    default:
+      // Skip tool / toolResult / system rows in v1 — UI isn't wired for them.
+      return null;
+  }
+
+  final content = _extractHistoryText(raw['content']);
+  if (content.isEmpty) return null;
+
+  // Timestamp: ms-int is the common case; string is legacy/tolerance.
+  DateTime ts = DateTime.now();
+  final tsRaw = raw['timestamp'];
+  if (tsRaw is int) {
+    ts = DateTime.fromMillisecondsSinceEpoch(tsRaw);
+  } else if (tsRaw is String) {
+    ts = DateTime.tryParse(tsRaw) ?? DateTime.now();
+  }
+
+  return ChatMessage(
+    id: _uuid.v4(),
+    role: role,
+    content: content,
+    source: role == MessageRole.assistant
+        ? MessageSource.server
+        : MessageSource.device,
+    timestamp: ts,
+  );
+}
+
+String _extractHistoryText(dynamic raw) {
+  if (raw == null) return '';
+  if (raw is String) return raw;
+  if (raw is! List) return '';
+  final buf = StringBuffer();
+  for (final block in raw) {
+    if (block is! Map) continue;
+    switch (block['type']) {
+      case 'text':
+        final t = block['text'];
+        if (t is String) buf.write(t);
+        break;
+      case 'image':
+        if (buf.isNotEmpty) buf.write('\n');
+        buf.write('_[image]_');
+        break;
+      case 'tool_use':
+        final name = block['name'] as String? ?? 'tool';
+        if (buf.isNotEmpty) buf.write('\n');
+        buf.write('_[called $name]_');
+        break;
+      // tool_result, canvas: skip
+    }
+  }
+  return buf.toString();
+}
 
 /// Abort the in-flight streaming reply (best-effort).
 final abortChatProvider = Provider<Future<void> Function()>((ref) {
@@ -163,11 +288,10 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
           await _processCloud(ref, cleanText);
           break;
         case ChatMode.openclaw:
-          if (imageUrl != null) {
-            await _processBridge(ref, cleanText, imageUrl: imageUrl);
-          } else {
-            await _processServer(ref, cleanText);
-          }
+          // Server mode handles images natively via chat.send.attachments —
+          // no local preprocessing required. _processBridge (if retained)
+          // is for a future "use local VLM to describe first" feature.
+          await _processServer(ref, cleanText, imagePath: imageUrl);
           break;
       }
     } catch (e) {
@@ -340,7 +464,11 @@ Future<void> _processCloud(Ref ref, String text) async {
   }
 }
 
-Future<void> _processServer(Ref ref, String text) async {
+Future<void> _processServer(
+  Ref ref,
+  String text, {
+  String? imagePath,
+}) async {
   final client = ref.read(gatewayClientProvider);
   final messages = ref.read(messagesProvider.notifier);
   final sessionKey = ref.read(sessionKeyProvider);
@@ -403,6 +531,24 @@ Future<void> _processServer(Ref ref, String text) async {
     return;
   }
 
+  // Build attachments from an optional image path (chat.send expects
+  // base64 per element; 5 MB per attachment max, images only).
+  List<Map<String, dynamic>>? attachments;
+  if (imagePath != null) {
+    try {
+      attachments = [await _encodeImageAttachment(imagePath)];
+    } catch (e) {
+      messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content: 'Attachment error: $e',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+      return;
+    }
+  }
+
   // Add streaming placeholder (we'll attach the runId to it once the server
   // acks the send, so the Stop button knows which run to abort).
   final placeholderId = _uuid.v4();
@@ -419,7 +565,11 @@ Future<void> _processServer(Ref ref, String text) async {
   // Send and await the ack so we know the runId.
   String? runId;
   try {
-    runId = await client.sendMessage(text, sessionKey: sessionKey);
+    runId = await client.sendMessage(
+      text,
+      sessionKey: sessionKey,
+      attachments: attachments,
+    );
   } catch (e) {
     messages.updateById(placeholderId, (m) => m.copyWith(
           content: 'Send failed: $e',
@@ -625,3 +775,29 @@ final sessionListAutoProvider = FutureProvider<List<SessionInfo>>((ref) async {
   final history = SessionHistory();
   return history.listSessions(mode: mode.name);
 });
+
+/// Encode a local image file as a `chat.send` attachment element.
+/// Enforces the 5 MB per-attachment cap and rejects non-image MIMEs —
+/// matches the server-side guardrails in
+/// `parseMessageWithAttachments` (attachment-normalize-fsjzmyqL.js).
+Future<Map<String, dynamic>> _encodeImageAttachment(String path) async {
+  final file = io.File(path);
+  final bytes = await file.readAsBytes();
+  const maxBytes = 5 * 1024 * 1024;
+  if (bytes.length > maxBytes) {
+    final mb = (bytes.length / (1024 * 1024)).toStringAsFixed(1);
+    throw "Image is ${mb} MB, over the 5 MB attachment limit.";
+  }
+  final fileName = p.basename(path);
+  final mime = lookupMimeType(path, headerBytes: bytes.take(16).toList()) ??
+      "application/octet-stream";
+  if (!mime.startsWith("image/")) {
+    throw "Only image attachments are supported (got $mime).";
+  }
+  return {
+    "type": "image",
+    "mimeType": mime,
+    "fileName": fileName,
+    "content": base64Encode(bytes),
+  };
+}

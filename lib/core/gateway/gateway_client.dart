@@ -169,7 +169,16 @@ class GatewayClient {
   /// Send a user message. Returns the server-assigned runId (also equal to
   /// our idempotencyKey) — callers use it to abort mid-stream and to
   /// correlate incoming streaming events to this specific turn.
-  Future<String?> sendMessage(String message, {String? sessionKey}) async {
+  ///
+  /// [attachments] follows the gateway's chat.send schema: each entry is
+  /// `{type, mimeType, fileName, content}` with `content` as a base64
+  /// string. 5 MB per attachment; images only (jpeg/png/webp/gif/heic/heif
+  /// round-trip, bmp/tiff inline only).
+  Future<String?> sendMessage(
+    String message, {
+    String? sessionKey,
+    List<Map<String, dynamic>>? attachments,
+  }) async {
     final id = _nextId();
     final idempotencyKey = _uuid.v4();
     _inFlightRunIds.add(idempotencyKey);
@@ -177,17 +186,28 @@ class GatewayClient {
     final completer = Completer<dynamic>();
     _pending[id] = completer;
 
+    final params = <String, dynamic>{
+      'sessionKey': sessionKey ?? 'pocket-claw-main',
+      'message': message,
+      'idempotencyKey': idempotencyKey,
+      if (attachments != null && attachments.isNotEmpty)
+        'attachments': attachments,
+    };
     final frame = jsonEncode({
       'type': 'req',
       'id': id,
       'method': 'chat.send',
-      'params': {
-        'sessionKey': sessionKey ?? 'pocket-claw-main',
-        'message': message,
-        'idempotencyKey': idempotencyKey,
-      },
+      'params': params,
     });
-    FileLogger.instance.log(_tag, 'SEND -> $frame');
+    // Log WITHOUT the base64 body — attachments can be huge and
+    // unintelligible in a text log.
+    final logPayload = {
+      ...params,
+      if (attachments != null && attachments.isNotEmpty)
+        'attachments': '<${attachments.length}>',
+    };
+    FileLogger.instance
+        .log(_tag, 'SEND -> chat.send id=$id params=${jsonEncode(logPayload)}');
     _channel?.sink.add(frame);
 
     try {

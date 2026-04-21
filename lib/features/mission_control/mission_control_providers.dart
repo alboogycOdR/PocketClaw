@@ -81,16 +81,127 @@ final mcHealthProvider = StreamProvider<SystemHealth>((ref) async* {
 });
 
 // ── Cron Jobs ──
+//
+// Driven by the WS `cron.list` RPC — the REST `/api/cron` path doesn't
+// exist on this gateway (falls through to SPA index HTML like /api/memory
+// did). Each entry we expose is the richer cron.list shape; the screen
+// can ignore fields it doesn't render yet.
 
-final mcCronJobsProvider = FutureProvider<List<CronJob>>((ref) async {
-  final client = ref.watch(gatewayRestClientProvider);
+class CronJobEntry {
+  final String id;
+  final String name;
+  final String? description;
+  final bool enabled;
+  final String scheduleLabel;
+  final DateTime? nextRunAt;
+  final DateTime? lastRunAt;
+  final String? lastStatus;
+  final String? lastError;
+  final Map<String, dynamic> raw;
+
+  const CronJobEntry({
+    required this.id,
+    required this.name,
+    required this.enabled,
+    required this.scheduleLabel,
+    required this.raw,
+    this.description,
+    this.nextRunAt,
+    this.lastRunAt,
+    this.lastStatus,
+    this.lastError,
+  });
+}
+
+String _formatCronSchedule(dynamic schedule) {
+  if (schedule is! Map) return '—';
+  final kind = schedule['kind'];
+  switch (kind) {
+    case 'cron':
+      final expr = schedule['expr'] as String? ?? '?';
+      final tz = schedule['tz'];
+      return tz is String ? '$expr ($tz)' : expr;
+    case 'every':
+      final ms = schedule['everyMs'];
+      if (ms is! num) return 'every ?';
+      final d = Duration(milliseconds: ms.toInt());
+      if (d.inHours >= 1) return 'every ${d.inHours}h';
+      if (d.inMinutes >= 1) return 'every ${d.inMinutes}m';
+      return 'every ${d.inSeconds}s';
+    case 'at':
+      final at = schedule['at'] as String? ?? '';
+      return 'once at $at';
+  }
+  return '—';
+}
+
+final mcCronJobsProvider = FutureProvider<List<CronJobEntry>>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
   if (client == null) return [];
   try {
-    return await client.getCronJobs();
+    final result = await client.request(
+      'cron.list',
+      {'includeDisabled': true, 'sortBy': 'nextRunAtMs', 'sortDir': 'asc'},
+    );
+    if (result is! Map) return [];
+    final jobs = result['jobs'];
+    if (jobs is! List) return [];
+    return [
+      for (final j in jobs)
+        if (j is Map<String, dynamic>)
+          CronJobEntry(
+            id: j['id'] as String? ?? '',
+            name: j['name'] as String? ?? '(unnamed)',
+            description: j['description'] as String?,
+            enabled: j['enabled'] == true,
+            scheduleLabel: _formatCronSchedule(j['schedule']),
+            nextRunAt: _msToDate((j['state'] as Map?)?['nextRunAtMs']),
+            lastRunAt: _msToDate((j['state'] as Map?)?['lastRunAtMs']),
+            lastStatus: (j['state'] as Map?)?['lastRunStatus'] as String?,
+            lastError: (j['state'] as Map?)?['lastError'] as String?,
+            raw: j,
+          ),
+    ];
   } catch (_) {
     return [];
   }
 });
+
+DateTime? _msToDate(dynamic ms) {
+  if (ms is! num) return null;
+  return DateTime.fromMillisecondsSinceEpoch(ms.toInt());
+}
+
+/// Toggle a cron job's `enabled` flag via `cron.update`. Admin scope.
+Future<void> setCronEnabled(
+  WidgetRef ref,
+  String jobId,
+  bool enabled,
+) async {
+  final client = ref.read(gatewayClientProvider);
+  if (client == null) return;
+  await client.request(
+    'cron.update',
+    {'id': jobId, 'patch': {'enabled': enabled}},
+  );
+}
+
+/// Fire a cron job immediately, bypassing its schedule. Admin scope.
+Future<void> runCronNow(WidgetRef ref, String jobId) async {
+  final client = ref.read(gatewayClientProvider);
+  if (client == null) return;
+  await client.request(
+    'cron.run',
+    {'id': jobId, 'mode': 'force'},
+  );
+}
+
+/// Delete a cron job. Admin scope, destructive.
+Future<void> removeCronJob(WidgetRef ref, String jobId) async {
+  final client = ref.read(gatewayClientProvider);
+  if (client == null) return;
+  await client.request('cron.remove', {'id': jobId});
+}
 
 // ── Activity (live WebSocket events converted to ActivityEvent list) ──
 

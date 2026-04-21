@@ -13,6 +13,7 @@ import '../../app/theme.dart';
 
 import '../../core/local_agent/llm_engine.dart';
 import '../../data/models/chat_message.dart';
+import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
@@ -46,6 +47,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _pendingImageUrl;
   bool _isVoiceRecording = false;
   String _draftText = '';
+
+  // Tracks which sessionKey we've already attempted to load history for —
+  // guards against re-fetching on every rebuild. Reset when the user starts
+  // a new session (sessionKey changes), so we try once against the new key.
+  String? _historyLoadedForKey;
 
   @override
   void initState() {
@@ -431,6 +437,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 3A: Model indicator
     final engine = ref.watch(llmEngineProvider);
     final modelConfig = engine.config;
+
+    // Trigger chat history load once per sessionKey once the real gateway
+    // state flips to connected. `connectionStateProvider` above is a local
+    // stub — use the live mirror instead.
+    final liveState = ref.watch(gatewayStateProvider);
+    final sessionKey = ref.watch(sessionKeyProvider);
+    if (liveState == GatewayState.connected &&
+        _historyLoadedForKey != sessionKey) {
+      _historyLoadedForKey = sessionKey;
+      Future.microtask(() {
+        if (!mounted) return;
+        // ignore: unawaited_futures
+        ref.read(loadChatHistoryProvider)();
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
