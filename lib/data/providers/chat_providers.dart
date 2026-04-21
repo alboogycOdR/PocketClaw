@@ -588,21 +588,11 @@ Future<void> _processServer(
   late StreamSubscription<ServerResponse> sub;
 
   sub = client.responses.listen((response) {
-    // Proactive agent pushes (no runId match) surface as a fresh bubble
-    // so they don't overwrite the in-flight reply.
-    if (response.proactive && response.runId != runId) {
-      if (response.chunk.isNotEmpty) {
-        messages.add(ChatMessage(
-          id: _uuid.v4(),
-          role: MessageRole.assistant,
-          content: response.chunk,
-          source: MessageSource.server,
-          timestamp: DateTime.now(),
-          runId: response.runId,
-        ));
-      }
-      return;
-    }
+    // Proactive frames (server-initiated runIds) are handled by the
+    // always-on ProactiveNotifier at the app root — it owns chat-bubble
+    // insertion + notification firing. Skip them here so we don't
+    // double-insert or overwrite the user's in-flight placeholder.
+    if (response.proactive) return;
 
     // Only react to our own run.
     if (response.runId != null && response.runId != runId) return;

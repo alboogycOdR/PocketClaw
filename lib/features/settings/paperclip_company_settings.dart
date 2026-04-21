@@ -132,9 +132,10 @@ class _PaperclipCompanySettingsState
             controller: _baseUrl,
             decoration: const InputDecoration(
               labelText: 'Paperclip base URL',
-              hintText: 'http://100.x.x.x:3100/api',
+              hintText: 'http://100.x.x.x:3100',
               border: OutlineInputBorder(),
-              helperText: 'Include the /api suffix',
+              helperText:
+                  'Dashboard URL — /api suffix added automatically if missing',
             ),
             style: GoogleFonts.jetBrainsMono(fontSize: 13),
           ),

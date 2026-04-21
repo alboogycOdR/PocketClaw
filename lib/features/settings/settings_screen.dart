@@ -11,6 +11,7 @@ import '../../core/llm/model_registry.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
+import 'device_identity_settings.dart';
 import 'gateway_config.dart';
 import 'model_config.dart';
 import 'paperclip_company_settings.dart';
@@ -76,6 +77,26 @@ class SettingsScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const GatewayConfig(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.vpn_key_outlined),
+                  title: const Text('Device Identity'),
+                  subtitle: const Text(
+                    'Ed25519 pairing key · view / reset',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DeviceIdentitySettings(),
                       ),
                     );
                   },

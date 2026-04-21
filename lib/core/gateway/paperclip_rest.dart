@@ -16,10 +16,25 @@ class PaperclipRestClient {
   final http.Client _http;
 
   PaperclipRestClient({
-    required this.baseUrl,
+    required String baseUrl,
     required this.apiKey,
     http.Client? httpClient,
-  }) : _http = httpClient ?? http.Client();
+  })  : baseUrl = _normaliseBaseUrl(baseUrl),
+        _http = httpClient ?? http.Client();
+
+  /// Users often paste the dashboard URL (`http://host:3100`) without the
+  /// `/api` prefix. Paperclip answers `/health` on both paths (that's why
+  /// Test-connection passes), but the rest of the surface lives under
+  /// `/api`. Normalise here so the user doesn't have to think about it.
+  static String _normaliseBaseUrl(String raw) {
+    var url = raw.trim();
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (url.isEmpty) return url;
+    if (!url.endsWith('/api')) url = '$url/api';
+    return url;
+  }
 
   Map<String, String> get _headers => {
         'Authorization': 'Bearer $apiKey',
