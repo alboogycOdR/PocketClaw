@@ -74,7 +74,7 @@ class DashboardScreen extends ConsumerWidget {
                         value: '${agents.length}',
                         subtitle: '$active active',
                         iconColor: const Color(0xFF4CAF50),
-                        onTap: () => context.go('/company/agents'),
+                        onTap: () => context.go('/control/agents'),
                       );
                     },
                     loading: () => const _ShimmerCard(),
@@ -84,7 +84,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '--',
                       subtitle: 'error',
                       iconColor: const Color(0xFFE53935),
-                      onTap: () => context.go('/company/agents'),
+                      onTap: () => context.go('/control/agents'),
                     ),
                   ),
                 ),
@@ -97,7 +97,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '$count',
                       subtitle: 'recent',
                       iconColor: PocketClawTheme.electricTeal,
-                      onTap: () => context.go('/company/tasks'),
+                      onTap: () => context.go('/control/tasks'),
                     ),
                     loading: () => const _ShimmerCard(),
                     error: (_, __) => StatCard(
@@ -106,7 +106,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '--',
                       subtitle: 'error',
                       iconColor: const Color(0xFFE53935),
-                      onTap: () => context.go('/company/tasks'),
+                      onTap: () => context.go('/control/tasks'),
                     ),
                   ),
                 ),
@@ -119,7 +119,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: usage.costToday.asCurrency,
                       subtitle: '${usage.costMonth.asCurrency}/mo',
                       iconColor: const Color(0xFFFFB74D),
-                      onTap: () => context.go('/company/cost'),
+                      onTap: () => context.go('/control/cost'),
                     ),
                     loading: () => const _ShimmerCard(),
                     error: (_, __) => StatCard(
@@ -128,7 +128,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '--',
                       subtitle: 'error',
                       iconColor: const Color(0xFFE53935),
-                      onTap: () => context.go('/company/cost'),
+                      onTap: () => context.go('/control/cost'),
                     ),
                   ),
                 ),
@@ -162,7 +162,7 @@ class DashboardScreen extends ConsumerWidget {
             // Recent Activity (from WebSocket stream)
             _SectionHeader(
               title: 'Recent Activity',
-              onViewAll: () => context.go('/company/activity'),
+              onViewAll: () => context.go('/control/activity'),
             ),
             const SizedBox(height: 8),
             _buildRecentActivity(ref),
@@ -172,7 +172,7 @@ class DashboardScreen extends ConsumerWidget {
             // Next Cron Jobs
             _SectionHeader(
               title: 'Upcoming Jobs',
-              onViewAll: () => context.go('/company/cron'),
+              onViewAll: () => context.go('/control/cron'),
             ),
             const SizedBox(height: 8),
             cronsAsync.when(

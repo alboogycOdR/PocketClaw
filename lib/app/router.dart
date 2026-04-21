@@ -7,8 +7,10 @@ import '../features/chat/chat_screen.dart';
 import '../features/company/company_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
+import '../features/mission_control/activity_screen.dart';
 import '../features/mission_control/agents_screen.dart';
 import '../features/mission_control/cost_screen.dart';
+import '../features/mission_control/cron_screen.dart';
 import '../features/mission_control/dashboard_screen.dart';
 import '../features/mission_control/tasks_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
@@ -86,6 +88,14 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'cost',
                   builder: (context, state) => const CostScreen(),
+                ),
+                GoRoute(
+                  path: 'cron',
+                  builder: (context, state) => const CronScreen(),
+                ),
+                GoRoute(
+                  path: 'activity',
+                  builder: (context, state) => const ActivityScreen(),
                 ),
               ],
             ),

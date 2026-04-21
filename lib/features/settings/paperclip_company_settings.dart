@@ -1,10 +1,13 @@
-/// Paperclip Company URLs and tokens (spec §6.4, §6.7).
+/// Paperclip connection settings — base URL + agent API key.
+/// Paperclip is a standalone REST service on the VPS (port 3100). See
+/// `docs/PocketClaw-Paperclip-Architecture-v2.0.md`.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../core/gateway/paperclip_rest.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/paperclip_provider.dart';
 
@@ -18,51 +21,43 @@ class PaperclipCompanySettings extends ConsumerStatefulWidget {
 
 class _PaperclipCompanySettingsState
     extends ConsumerState<PaperclipCompanySettings> {
-  late final TextEditingController _rest;
-  late final TextEditingController _ws;
-  late final TextEditingController _token;
-  late final TextEditingController _company;
-  late final TextEditingController _mission;
+  late final TextEditingController _baseUrl;
+  late final TextEditingController _apiKey;
+  bool _testing = false;
+  String? _testResult;
+  bool _testOk = false;
 
   @override
   void initState() {
     super.initState();
     final prefs = ref.read(sharedPrefsProvider);
-    _rest = TextEditingController(
-      text: prefs.getString('paperclip_rest_url') ?? '',
+    _baseUrl = TextEditingController(
+      text: prefs.getString('paperclip_base_url') ?? '',
     );
-    _ws = TextEditingController(
-      text: prefs.getString('paperclip_ws_url') ?? '',
+    _apiKey = TextEditingController(
+      text: prefs.getString('paperclip_api_key') ?? '',
     );
-    _token = TextEditingController(
-      text: prefs.getString('paperclip_token') ?? '',
-    );
-    _company = TextEditingController();
-    _mission = TextEditingController();
-    final pc = ref.read(paperclipProvider);
-    _company.text = pc.overview?.name ?? '';
-    _mission.text = pc.overview?.description ?? '';
   }
 
   @override
   void dispose() {
-    _rest.dispose();
-    _ws.dispose();
-    _token.dispose();
-    _company.dispose();
-    _mission.dispose();
+    _baseUrl.dispose();
+    _apiKey.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final prefs = ref.read(sharedPrefsProvider);
-    await prefs.setString('paperclip_rest_url', _rest.text.trim());
-    await prefs.setString('paperclip_ws_url', _ws.text.trim());
-    await prefs.setString('paperclip_token', _token.text.trim());
+    final url = _baseUrl.text.trim();
+    final key = _apiKey.text.trim();
+    await prefs.setString('paperclip_base_url', url);
+    await prefs.setString('paperclip_api_key', key);
 
-    ref.read(paperclipRestUrlProvider.notifier).state = _rest.text.trim();
-    ref.read(paperclipWsUrlProvider.notifier).state = _ws.text.trim();
-    ref.read(paperclipTokenProvider.notifier).state = _token.text.trim();
+    ref.read(paperclipBaseUrlProvider.notifier).state = url;
+    ref.read(paperclipApiKeyProvider.notifier).state = key;
+
+    // Re-run the AsyncNotifier build against the new values.
+    ref.read(paperclipProvider.notifier).refresh();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,9 +66,49 @@ class _PaperclipCompanySettingsState
     }
   }
 
+  Future<void> _test() async {
+    setState(() {
+      _testing = true;
+      _testResult = null;
+    });
+    final url = _baseUrl.text.trim();
+    final key = _apiKey.text.trim();
+    if (url.isEmpty || key.isEmpty) {
+      setState(() {
+        _testing = false;
+        _testResult = 'Fill in both fields first.';
+        _testOk = false;
+      });
+      return;
+    }
+    final probe = PaperclipRestClient(baseUrl: url, apiKey: key);
+    try {
+      final ok = await probe.isReachable();
+      setState(() {
+        _testing = false;
+        _testOk = ok;
+        _testResult = ok ? 'Reachable' : 'Unreachable or HTTP error';
+      });
+    } catch (e) {
+      setState(() {
+        _testing = false;
+        _testOk = false;
+        _testResult = '$e';
+      });
+    } finally {
+      probe.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pc = ref.watch(paperclipProvider);
+    final async = ref.watch(paperclipProvider);
+    final connectedLabel = async.when(
+      loading: () => 'Connecting…',
+      error: (e, _) => friendlyPaperclipError(e),
+      data: (s) => s.configured ? 'Connected' : 'Not connected',
+    );
+    final connectedOk = async.valueOrNull?.configured == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Paperclip Company')),
@@ -82,68 +117,107 @@ class _PaperclipCompanySettingsState
         children: [
           ListTile(
             leading: Icon(
-              pc.isConnected ? Icons.check_circle : Icons.cloud_off,
-              color: pc.isConnected ? Colors.greenAccent : Colors.white54,
+              connectedOk ? Icons.check_circle : Icons.cloud_off,
+              color: connectedOk ? Colors.greenAccent : Colors.white54,
             ),
-            title: Text(pc.isConnected ? 'Connected' : 'Not connected'),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _company,
-            decoration: const InputDecoration(
-              labelText: 'Company name',
-              border: OutlineInputBorder(),
+            title: Text(connectedLabel),
+            subtitle: const Text(
+              'Paperclip runs as its own service (port 3100) separate from '
+              'OpenClaw. Auth is a long-lived agent API key.',
+              style: TextStyle(fontSize: 11),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: _mission,
-            maxLines: 2,
+            controller: _baseUrl,
             decoration: const InputDecoration(
-              labelText: 'Mission',
+              labelText: 'Paperclip base URL',
+              hintText: 'http://100.x.x.x:3100/api',
               border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'URLs (Tailscale only in production — no public ports).',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Colors.white60,
-                ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _rest,
-            decoration: const InputDecoration(
-              labelText: 'Paperclip REST base URL',
-              hintText: 'http://100.x.x.x:3100',
-              border: OutlineInputBorder(),
+              helperText: 'Include the /api suffix',
             ),
             style: GoogleFonts.jetBrainsMono(fontSize: 13),
           ),
           const SizedBox(height: 12),
           TextField(
-            controller: _ws,
-            decoration: const InputDecoration(
-              labelText: 'Paperclip WebSocket URL',
-              hintText: 'ws://100.x.x.x:3100/ws',
-              border: OutlineInputBorder(),
-            ),
-            style: GoogleFonts.jetBrainsMono(fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _token,
+            controller: _apiKey,
             obscureText: true,
             decoration: const InputDecoration(
-              labelText: 'Bearer token',
+              labelText: 'Agent API key',
+              hintText: 'Generated in Paperclip dashboard → Agent → API Keys',
               border: OutlineInputBorder(),
             ),
+            style: GoogleFonts.jetBrainsMono(fontSize: 13),
+          ),
+          if (_testResult != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: (_testOk ? Colors.green : Colors.red).withAlpha(25),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _testOk ? Icons.check_circle : Icons.error_outline,
+                    size: 16,
+                    color: _testOk ? Colors.greenAccent : Colors.redAccent,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _testResult!,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12,
+                        color: _testOk ? Colors.greenAccent : Colors.redAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _testing ? null : _test,
+                  icon: _testing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_tethering, size: 16),
+                  label: const Text('Test connection'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _save,
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _save,
-            child: const Text('Save & reconnect'),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white10,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              'First-time setup:\n'
+              '1. SSH the VPS and run: npx paperclipai onboard --yes --bind tailnet\n'
+              '2. Visit http://100.78.70.2:3100 in a browser, create a company\n'
+              '3. Connect OpenClaw via the invite-prompt flow\n'
+              '4. Create an agent called "Pocket Claw Mobile" and copy its API key',
+              style: TextStyle(fontSize: 11, color: Colors.white60, height: 1.5),
+            ),
           ),
         ],
       ),

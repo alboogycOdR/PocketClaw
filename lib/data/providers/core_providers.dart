@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/gateway/gateway_client.dart';
 import '../../core/gateway/gateway_rest.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/gateway/paperclip_rest.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/engines/llm_engine_factory.dart';
 import '../../core/llm/model_registry.dart';
@@ -173,6 +174,36 @@ final gatewayRestClientProvider = Provider<GatewayRestClient?>((ref) {
 
   final client = GatewayRestClient(baseUrl: restUrl, authToken: token);
   ref.onDispose(() => client.dispose());
+  return client;
+});
+
+// ── Paperclip REST client (standalone service, not OpenClaw) ──
+//
+// Paperclip is a separate Node+PostgreSQL service the user runs on the same
+// VPS at a different port (default 3100). Auth is an agent API key issued
+// from the Paperclip dashboard, not the OpenClaw gateway token. See
+// docs/PocketClaw-Paperclip-Architecture-v2.0.md for full contract.
+
+/// Expected format: `http://<host>:3100/api` (base URL includes the `/api`
+/// prefix). Empty string ⇒ Paperclip not configured.
+final paperclipBaseUrlProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('paperclip_base_url') ?? '';
+});
+
+/// Paperclip agent API key (long-lived). Distinct from the OpenClaw bearer
+/// token, and cannot be derived from it.
+final paperclipApiKeyProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('paperclip_api_key') ?? '';
+});
+
+final paperclipRestClientProvider = Provider<PaperclipRestClient?>((ref) {
+  final baseUrl = ref.watch(paperclipBaseUrlProvider);
+  final apiKey = ref.watch(paperclipApiKeyProvider);
+  if (baseUrl.isEmpty || apiKey.isEmpty) return null;
+  final client = PaperclipRestClient(baseUrl: baseUrl, apiKey: apiKey);
+  ref.onDispose(client.dispose);
   return client;
 });
 

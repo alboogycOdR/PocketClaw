@@ -1,124 +1,130 @@
-/// Paperclip state provider — manages company data received via WebSocket
+/// Paperclip state & per-tab data providers.
+///
+/// Paperclip is a standalone REST service (NOT push-based). See
+/// `docs/PocketClaw-Paperclip-Architecture-v2.0.md`. This file replaces
+/// the legacy WebSocket push-event notifier; every tab now pulls via
+/// `PaperclipRestClient` through the AsyncNotifier below or one of the
+/// per-tab FutureProviders.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/paperclip_state.dart';
+import '../../core/gateway/paperclip_rest.dart';
+import 'core_providers.dart';
 
-class PaperclipNotifier extends StateNotifier<PaperclipState> {
-  PaperclipNotifier() : super(const PaperclipState());
+/// Lightweight state: the resolved company + its dashboard snapshot.
+/// Per-tab detail lists (issues, goals, approvals, activity) live in their
+/// own FutureProviders so each tab can refresh independently.
+class PaperclipState {
+  final String? companyId;
+  final PaperclipCompany? company;
+  final PaperclipDashboard? dashboard;
 
-  void updateConnection(bool connected) {
-    state = state.copyWith(isConnected: connected);
-  }
+  const PaperclipState({this.companyId, this.company, this.dashboard});
 
-  void handleWebSocketEvent(Map<String, dynamic> data) {
-    final type = data['type'] as String?;
-    if (type == null) return;
+  bool get configured => companyId != null;
+}
 
-    switch (type) {
-      case 'overview':
-        state = state.copyWith(
-          overview: CompanyOverview.fromJson(
-            data['payload'] as Map<String, dynamic>? ?? data,
-          ),
-        );
+class PaperclipNotifier extends AsyncNotifier<PaperclipState> {
+  @override
+  Future<PaperclipState> build() async {
+    final client = ref.watch(paperclipRestClientProvider);
+    if (client == null) return const PaperclipState();
 
-      case 'orgChart':
-        final list = data['payload'] as List<dynamic>? ?? [];
-        state = state.copyWith(
-          orgChart: list
-              .map((e) => OrgMember.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
+    final companies = await client.getCompanies();
+    if (companies.isEmpty) return const PaperclipState();
 
-      case 'goals':
-        final list = data['payload'] as List<dynamic>? ?? [];
-        state = state.copyWith(
-          goals: list
-              .map((e) => CompanyGoal.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
-
-      case 'budget':
-        state = state.copyWith(
-          budget: BudgetInfo.fromJson(
-            data['payload'] as Map<String, dynamic>? ?? data,
-          ),
-        );
-
-      case 'tickets':
-        final list = data['payload'] as List<dynamic>? ?? [];
-        state = state.copyWith(
-          tickets: list
-              .map((e) => CompanyTicket.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
-
-      case 'governance':
-        final list = data['payload'] as List<dynamic>? ?? [];
-        state = state.copyWith(
-          governanceDrafts: list
-              .map(
-                  (e) => GovernanceDraft.fromJson(e as Map<String, dynamic>))
-              .toList(),
-        );
-
-      case 'security':
-        state = state.copyWith(
-          security: SecurityDashboard.fromJson(
-            data['payload'] as Map<String, dynamic>? ?? data,
-          ),
-        );
-
-      case 'full_sync':
-        // A full state sync from the server
-        final payload = data['payload'] as Map<String, dynamic>? ?? {};
-        _handleFullSync(payload);
+    final company = companies.first;
+    PaperclipDashboard? dashboard;
+    try {
+      dashboard = await client.getDashboard(company.id);
+    } catch (_) {
+      dashboard = null;
     }
+    return PaperclipState(
+      companyId: company.id,
+      company: company,
+      dashboard: dashboard,
+    );
   }
 
-  void _handleFullSync(Map<String, dynamic> payload) {
-    state = state.copyWith(
-      overview: payload['overview'] != null
-          ? CompanyOverview.fromJson(
-              payload['overview'] as Map<String, dynamic>)
-          : state.overview,
-      orgChart: payload['orgChart'] != null
-          ? (payload['orgChart'] as List<dynamic>)
-              .map((e) => OrgMember.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : state.orgChart,
-      goals: payload['goals'] != null
-          ? (payload['goals'] as List<dynamic>)
-              .map((e) => CompanyGoal.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : state.goals,
-      budget: payload['budget'] != null
-          ? BudgetInfo.fromJson(
-              payload['budget'] as Map<String, dynamic>)
-          : state.budget,
-      tickets: payload['tickets'] != null
-          ? (payload['tickets'] as List<dynamic>)
-              .map(
-                  (e) => CompanyTicket.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : state.tickets,
-      governanceDrafts: payload['governance'] != null
-          ? (payload['governance'] as List<dynamic>)
-              .map((e) =>
-                  GovernanceDraft.fromJson(e as Map<String, dynamic>))
-              .toList()
-          : state.governanceDrafts,
-      security: payload['security'] != null
-          ? SecurityDashboard.fromJson(
-              payload['security'] as Map<String, dynamic>)
-          : state.security,
-    );
+  Future<void> refresh() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(build);
   }
 }
 
 final paperclipProvider =
-    StateNotifierProvider<PaperclipNotifier, PaperclipState>((ref) {
-  return PaperclipNotifier();
+    AsyncNotifierProvider<PaperclipNotifier, PaperclipState>(
+  PaperclipNotifier.new,
+);
+
+/// Resolve the active company id — any tab wanting more data uses this.
+final paperclipCompanyIdProvider = Provider<String?>((ref) {
+  return ref.watch(paperclipProvider).value?.companyId;
+});
+
+// ── Per-tab pull providers ────────────────────────────────────────────────
+
+final paperclipAgentsProvider =
+    FutureProvider<List<PaperclipAgent>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getAgents(companyId);
+});
+
+final paperclipOrgChartProvider = FutureProvider<dynamic>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return null;
+  return client.getOrgChart(companyId);
+});
+
+final paperclipIssuesProvider =
+    FutureProvider<List<PaperclipIssue>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getIssues(companyId);
+});
+
+final paperclipGoalsProvider =
+    FutureProvider<List<PaperclipGoal>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getGoals(companyId);
+});
+
+final paperclipCostSummaryProvider =
+    FutureProvider<PaperclipCostSummary?>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return null;
+  return client.getCostSummary(companyId);
+});
+
+final paperclipCostByAgentProvider =
+    FutureProvider<List<PaperclipAgentCost>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getCostByAgent(companyId);
+});
+
+final paperclipApprovalsProvider =
+    FutureProvider<List<PaperclipApproval>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getApprovals(companyId, status: 'pending');
+});
+
+final paperclipActivityProvider =
+    FutureProvider<List<PaperclipActivityEntry>>((ref) async {
+  final client = ref.watch(paperclipRestClientProvider);
+  final companyId = ref.watch(paperclipCompanyIdProvider);
+  if (client == null || companyId == null) return const [];
+  return client.getActivity(companyId);
 });

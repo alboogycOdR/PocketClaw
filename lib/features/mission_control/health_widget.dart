@@ -1,9 +1,11 @@
-/// Reusable system health bars (CPU, RAM, Disk)
+/// System-health card driven by the gateway's live `event:"health"` pings.
 library;
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/models/usage_stats.dart';
+import '../../shared/extensions.dart';
 import '../../shared/widgets/health_bar.dart';
 
 class HealthWidget extends StatelessWidget {
@@ -13,6 +15,10 @@ class HealthWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasResourceMetrics = health.cpuPercent > 0 ||
+        health.ramPercent > 0 ||
+        health.diskPercent > 0;
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -23,9 +29,7 @@ class HealthWidget extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  health.gatewayRunning
-                      ? Icons.dns
-                      : Icons.dns_outlined,
+                  health.gatewayRunning ? Icons.dns : Icons.dns_outlined,
                   size: 16,
                   color: health.gatewayRunning
                       ? const Color(0xFF4CAF50)
@@ -38,8 +42,8 @@ class HealthWidget extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: health.gatewayRunning
                         ? const Color(0xFF4CAF50).withAlpha(25)
@@ -59,24 +63,46 @@ class HealthWidget extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            HealthBar(
-              label: 'CPU',
-              percentage: health.cpuPercent,
-              icon: Icons.memory,
-            ),
             const SizedBox(height: 12),
-            HealthBar(
-              label: 'RAM',
-              percentage: health.ramPercent,
-              icon: Icons.storage,
+            Row(
+              children: [
+                const Icon(Icons.favorite_outline,
+                    size: 12, color: Colors.white38),
+                const SizedBox(width: 6),
+                Text(
+                  'Last heartbeat ',
+                  style:
+                      const TextStyle(fontSize: 11, color: Colors.white38),
+                ),
+                Text(
+                  health.lastHeartbeat.timeAgo,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            HealthBar(
-              label: 'Disk',
-              percentage: health.diskPercent,
-              icon: Icons.disc_full_outlined,
-            ),
+            if (hasResourceMetrics) ...[
+              const SizedBox(height: 16),
+              HealthBar(
+                label: 'CPU',
+                percentage: health.cpuPercent,
+                icon: Icons.memory,
+              ),
+              const SizedBox(height: 12),
+              HealthBar(
+                label: 'RAM',
+                percentage: health.ramPercent,
+                icon: Icons.storage,
+              ),
+              const SizedBox(height: 12),
+              HealthBar(
+                label: 'Disk',
+                percentage: health.diskPercent,
+                icon: Icons.disc_full_outlined,
+              ),
+            ],
           ],
         ),
       ),

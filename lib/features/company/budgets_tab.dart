@@ -1,4 +1,4 @@
-/// Budgets tab — spend vs limit with progress bar from Paperclip
+/// Budgets tab — `GET /costs/summary` + `GET /costs/by-agent`.
 library;
 
 import 'package:flutter/material.dart';
@@ -6,137 +6,244 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/gateway/paperclip_rest.dart';
+import '../../data/providers/core_providers.dart';
 import '../../data/providers/paperclip_provider.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/health_bar.dart';
 
 class BudgetsTab extends ConsumerWidget {
   const BudgetsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(paperclipProvider);
+    final client = ref.watch(paperclipRestClientProvider);
+    final summaryAsync = ref.watch(paperclipCostSummaryProvider);
+    final byAgentAsync = ref.watch(paperclipCostByAgentProvider);
 
-    if (!state.isConnected) {
+    if (client == null) {
       return const EmptyState(
         icon: Icons.cloud_off,
-        message: 'Not connected to Paperclip.',
+        message: 'Paperclip not configured.',
       );
     }
 
-    final budget = state.budget;
-    if (budget == null) {
-      return const EmptyState(
-        icon: Icons.account_balance_wallet_outlined,
-        message: 'No budget data available.',
-      );
-    }
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(paperclipCostSummaryProvider);
+        ref.invalidate(paperclipCostByAgentProvider);
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          summaryAsync.when(
+            loading: () => const Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+            error: (e, _) => Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  friendlyPaperclipError(e),
+                  style: const TextStyle(color: Colors.white60),
+                ),
+              ),
+            ),
+            data: (summary) {
+              if (summary == null) {
+                return const EmptyState(
+                  icon: Icons.attach_money,
+                  message: 'No cost data yet.',
+                );
+              }
+              return _SummaryCard(summary: summary);
+            },
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'By agent',
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          byAgentAsync.when(
+            loading: () => const SizedBox(
+              height: 80,
+              child: Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (e, _) => Text(
+              friendlyPaperclipError(e),
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+            data: (agents) {
+              if (agents.isEmpty) {
+                return Card(
+                  margin: EdgeInsets.zero,
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(
+                      child: Text(
+                        'No per-agent spend yet.',
+                        style: TextStyle(color: Colors.white38),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return Card(
+                margin: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    for (final a in agents) _AgentRow(row: a),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+}
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Total budget summary card
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+class _SummaryCard extends StatelessWidget {
+  final PaperclipCostSummary summary;
+
+  const _SummaryCard({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (summary.utilisation * 100).clamp(0, 100).toInt();
+    final hot = pct >= 80;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
                 Text(
-                  'Budget Overview',
+                  'Monthly spend',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(color: Colors.white70),
+                ),
+                const Spacer(),
+                Text(
+                  '$pct%',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    color: hot
+                        ? PocketClawTheme.lobsterRed
+                        : const Color(0xFFFFB74D),
                   ),
-                ),
-                const SizedBox(height: 16),
-                HealthBar(
-                  label: 'Spent / Total',
-                  percentage: budget.usagePercent,
-                  icon: Icons.account_balance_wallet_outlined,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _budgetFigure(
-                      'Total',
-                      budget.totalBudget,
-                      Colors.white70,
-                    ),
-                    _budgetFigure(
-                      'Spent',
-                      budget.spent,
-                      PocketClawTheme.lobsterRed,
-                    ),
-                    _budgetFigure(
-                      'Remaining',
-                      budget.remaining,
-                      PocketClawTheme.electricTeal,
-                    ),
-                  ],
                 ),
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Category breakdown
-        if (budget.categoryBreakdown.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'By Category',
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
-              ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: summary.utilisation.clamp(0, 1).toDouble(),
+              backgroundColor: Colors.white10,
+              color: hot
+                  ? PocketClawTheme.lobsterRed
+                  : const Color(0xFFFFB74D),
+              minHeight: 6,
             ),
-          ),
-          ...budget.categoryBreakdown.entries.map((entry) {
-            final pct = budget.totalBudget > 0
-                ? (entry.value / budget.totalBudget * 100)
-                : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: HealthBar(
-                    label: entry.key,
-                    percentage: pct,
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Spent',
+                  style: const TextStyle(
+                      fontSize: 11, color: Colors.white54),
+                ),
+                Text(
+                  '\$${summary.spentDollars.toStringAsFixed(2)}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    color: Colors.white,
                   ),
                 ),
-              ),
-            );
-          }),
-        ],
-      ],
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Budget',
+                  style: const TextStyle(
+                      fontSize: 11, color: Colors.white54),
+                ),
+                Text(
+                  '\$${summary.budgetDollars.toStringAsFixed(2)}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Remaining',
+                  style: const TextStyle(
+                      fontSize: 11, color: Colors.white54),
+                ),
+                Text(
+                  '\$${summary.remainingDollars.toStringAsFixed(2)}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 13,
+                    color: const Color(0xFF4CAF50),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
 
-  Widget _budgetFigure(String label, double amount, Color color) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white38, fontSize: 11),
+class _AgentRow extends StatelessWidget {
+  final PaperclipAgentCost row;
+
+  const _AgentRow({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final hot = row.budgetCents > 0 &&
+        (row.spentCents / row.budgetCents) >= 0.8;
+    return ListTile(
+      dense: true,
+      title: Text(
+        row.agentName ?? row.agentId,
+        style: const TextStyle(fontSize: 13, color: Colors.white),
+      ),
+      trailing: Text(
+        '\$${row.spentDollars.toStringAsFixed(2)}'
+        '${row.budgetCents > 0 ? ' / \$${row.budgetDollars.toStringAsFixed(2)}' : ''}',
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 11,
+          color: hot ? PocketClawTheme.lobsterRed : Colors.white70,
         ),
-        const SizedBox(height: 4),
-        Text(
-          '\$${amount.toStringAsFixed(2)}',
-          style: GoogleFonts.jetBrainsMono(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

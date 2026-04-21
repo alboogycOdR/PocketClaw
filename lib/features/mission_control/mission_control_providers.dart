@@ -108,12 +108,27 @@ final mcHealthProvider = StreamProvider<SystemHealth>((ref) async* {
   );
   await for (final payload in client.healthStream) {
     final tsMs = payload['ts'];
-    final lastHeartbeat = tsMs is int
-        ? DateTime.fromMillisecondsSinceEpoch(tsMs)
+    final lastHeartbeat = tsMs is num
+        ? DateTime.fromMillisecondsSinceEpoch(tsMs.toInt())
         : DateTime.now();
+
+    // Opportunistically pick up CPU/RAM/Disk if the gateway ever includes
+    // them in the health frame. Different server versions have used
+    // different key names — try the common ones before giving up.
+    double pick(List<String> keys) {
+      for (final k in keys) {
+        final v = payload[k];
+        if (v is num) return v.toDouble();
+      }
+      return 0;
+    }
+
     yield SystemHealth(
       gatewayRunning: payload['ok'] == true,
       lastHeartbeat: lastHeartbeat,
+      cpuPercent: pick(['cpu', 'cpuPercent', 'cpuUsage']),
+      ramPercent: pick(['ram', 'ramPercent', 'memory', 'memoryPercent']),
+      diskPercent: pick(['disk', 'diskPercent', 'diskUsage']),
     );
   }
 });
