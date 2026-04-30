@@ -32,7 +32,10 @@ class LlamaCppEngine implements AbstractLLMEngine {
           emitLoadProgress: false,
         );
         if (result != null) {
-          _contextId = result['contextId'] as double?;
+          // Fllama returns contextId as `num` over the platform channel —
+          // sometimes int when the handle is a small whole number, sometimes
+          // double. Coerce via `num` to avoid `int → double?` cast failure.
+          _contextId = (result['contextId'] as num?)?.toDouble();
           if (_contextId != null) {
             _isReady = true;
             _loadedModelId = _config.id;
