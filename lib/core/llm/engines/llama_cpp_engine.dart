@@ -74,17 +74,26 @@ class LlamaCppEngine implements AbstractLLMEngine {
       throw StateError('LlamaCppEngine: model not loaded');
     }
 
-    // Format messages using fllama's chat template
-    final messages = <RoleContent>[
-      if (systemPrompt != null)
-        RoleContent(role: 'system', content: systemPrompt),
-      RoleContent(role: 'user', content: prompt),
-    ];
-
-    final formattedPrompt = await _fllama!.getFormattedChat(
-      _contextId!,
-      messages: messages,
-    );
+    // fllama's `getFormattedChat` does a `(HashMap[]) ArrayList` cast on
+    // its Java side that crashes with `ClassCastException` on current
+    // builds. Format the prompt in Dart instead — ChatML is the chat
+    // template for Qwen 2.x / DeepSeek / Yi / many recent open models.
+    // Fall back to fllama if it's available and works (best-effort).
+    String? formattedPrompt;
+    try {
+      final messages = <RoleContent>[
+        if (systemPrompt != null)
+          RoleContent(role: 'system', content: systemPrompt),
+        RoleContent(role: 'user', content: prompt),
+      ];
+      formattedPrompt = await _fllama!.getFormattedChat(
+        _contextId!,
+        messages: messages,
+      );
+    } catch (_) {
+      // fall through to manual ChatML
+    }
+    formattedPrompt ??= _formatChatML(systemPrompt: systemPrompt, user: prompt);
 
     // Set up token stream listener
     final controller = StreamController<String>();
@@ -105,11 +114,11 @@ class LlamaCppEngine implements AbstractLLMEngine {
     // Start completion
     _fllama!.completion(
       _contextId!,
-      prompt: formattedPrompt ?? prompt,
+      prompt: formattedPrompt,
       nPredict: maxTokens,
       temperature: temperature,
       topP: 0.95,
-      stop: ['<|endoftext|>', '<|end|>', '</s>'],
+      stop: ['<|im_end|>', '<|endoftext|>', '<|end|>', '</s>'],
     ).then((_) {
       controller.close();
     }).catchError((Object e) {
@@ -120,6 +129,23 @@ class LlamaCppEngine implements AbstractLLMEngine {
     yield* controller.stream;
 
     await subscription?.cancel();
+  }
+
+  /// ChatML template — `<|im_start|>role\ncontent<|im_end|>` with a trailing
+  /// `assistant` open turn so the model continues from there. Used by Qwen
+  /// 2.x, DeepSeek, Yi, and several other recent open models.
+  static String _formatChatML({String? systemPrompt, required String user}) {
+    final b = StringBuffer();
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      b.write('<|im_start|>system\n');
+      b.write(systemPrompt);
+      b.write('<|im_end|>\n');
+    }
+    b.write('<|im_start|>user\n');
+    b.write(user);
+    b.write('<|im_end|>\n');
+    b.write('<|im_start|>assistant\n');
+    return b.toString();
   }
 
   @override
