@@ -95,9 +95,12 @@ class LlamaCppEngine implements AbstractLLMEngine {
     }
     formattedPrompt ??= _formatChatML(systemPrompt: systemPrompt, user: prompt);
 
-    // Set up token stream listener
+    // Set up token stream listener. fllama only emits per-token events when
+    // `emitRealtimeCompletion: true` is passed to completion() — otherwise
+    // the listener fires zero times and the bubble stays empty.
     final controller = StreamController<String>();
     StreamSubscription<Map<Object?, dynamic>>? subscription;
+    final streamedSoFar = StringBuffer();
 
     subscription = _fllama!.onTokenStream?.listen((data) {
       if (data['function'] == 'completion') {
@@ -105,13 +108,16 @@ class LlamaCppEngine implements AbstractLLMEngine {
         if (result != null) {
           final token = result['token'] as String?;
           if (token != null && token.isNotEmpty) {
+            streamedSoFar.write(token);
             controller.add(token);
           }
         }
       }
     });
 
-    // Start completion
+    // Start completion. The Future also resolves with the full text — used
+    // as a safety net if the streaming channel emits nothing (some plugin
+    // builds drop events on certain ABIs).
     _fllama!.completion(
       _contextId!,
       prompt: formattedPrompt,
@@ -119,7 +125,17 @@ class LlamaCppEngine implements AbstractLLMEngine {
       temperature: temperature,
       topP: 0.95,
       stop: ['<|im_end|>', '<|endoftext|>', '<|end|>', '</s>'],
-    ).then((_) {
+      emitRealtimeCompletion: true,
+    ).then((result) {
+      // Fallback: emit whatever the future returned, minus what we already
+      // streamed, so the user gets text even if the stream was empty.
+      if (streamedSoFar.isEmpty && result is Map) {
+        final text = (result['text'] ?? result['content'] ?? result['response'])
+            as String?;
+        if (text != null && text.isNotEmpty) {
+          controller.add(text);
+        }
+      }
       controller.close();
     }).catchError((Object e) {
       controller.addError(e);
