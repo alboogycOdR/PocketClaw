@@ -156,13 +156,17 @@ Future<bool> _sendTelegram({
   required String text,
 }) async {
   try {
+    // Plain text — no parse_mode. Telegram's legacy Markdown does not
+    // support backslash escapes (only MarkdownV2 does), and any unmatched
+    // `_` / `*` / backtick / bracket in commit messages breaks parsing.
+    // URLs are still auto-linked by Telegram in plain text, so the
+    // recipient experience is identical for the download-link case.
     final resp = await http.post(
       Uri.parse('https://api.telegram.org/bot$token/sendMessage'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'chat_id': chatId,
         'text': text,
-        'parse_mode': 'Markdown',
         'disable_web_page_preview': false,
       }),
     ).timeout(const Duration(seconds: 30));
@@ -187,20 +191,18 @@ String _buildMessage({
   required String? commitMsg,
 }) {
   final buf = StringBuffer();
-  buf.writeln('\u{1F980} *Pocket Claw build ready*');
+  buf.writeln('\u{1F980} Pocket Claw build ready');
   buf.writeln();
   if (commitMsg != null && commitMsg.isNotEmpty) {
-    // Escape underscores and brackets for Markdown safety
-    final safe = commitMsg.replaceAll('_', r'\_').replaceAll('*', r'\*');
-    buf.writeln('_${safe}_');
+    buf.writeln(commitMsg);
     buf.writeln();
   }
   buf.writeln('Size: $sizeMb MB');
-  if (commitHash != null) buf.writeln('Commit: `$commitHash`');
+  if (commitHash != null) buf.writeln('Commit: $commitHash');
   buf.writeln();
-  buf.writeln('[Download APK]($downloadPage)');
+  buf.writeln(downloadPage);
   buf.writeln();
-  buf.writeln('_Link expires in approx 10 days._');
+  buf.writeln('Link expires in approx 10 days.');
   return buf.toString();
 }
 
