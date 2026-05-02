@@ -238,6 +238,31 @@ class DashboardScreen extends ConsumerWidget {
               ),
             ),
 
+            const SizedBox(height: 16),
+
+            // Quick links row
+            Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(Icons.podcasts_outlined,
+                          size: 18, color: PocketClawTheme.electricTeal),
+                      title: const Text(
+                        'Channels',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      trailing: const Icon(Icons.chevron_right,
+                          size: 16, color: Colors.white38),
+                      onTap: () => context.go('/control/channels'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
             const SizedBox(height: 24),
           ],
         ),

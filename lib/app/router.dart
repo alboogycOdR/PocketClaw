@@ -9,6 +9,7 @@ import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
 import '../features/mission_control/activity_screen.dart';
 import '../features/mission_control/agents_screen.dart';
+import '../features/mission_control/channels_screen.dart';
 import '../features/mission_control/cost_screen.dart';
 import '../features/mission_control/cron_screen.dart';
 import '../features/mission_control/dashboard_screen.dart';
@@ -96,6 +97,10 @@ final GoRouter appRouter = GoRouter(
                 GoRoute(
                   path: 'activity',
                   builder: (context, state) => const ActivityScreen(),
+                ),
+                GoRoute(
+                  path: 'channels',
+                  builder: (context, state) => const ChannelsScreen(),
                 ),
               ],
             ),
