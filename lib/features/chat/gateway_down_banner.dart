@@ -6,7 +6,6 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/theme.dart';
 import '../../core/chat/chat_mode.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_mode_providers.dart';

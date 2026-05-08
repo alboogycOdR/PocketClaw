@@ -15,7 +15,6 @@ import '../../core/gateway/offline_queue.dart';
 import '../../core/hermes/hermes_client.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
-import '../../core/router/smart_router.dart';
 import '../../core/session/session_history.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
@@ -714,116 +713,6 @@ Future<void> _processServer(
   }
 }
 
-Future<void> _processBridge(Ref ref, String text, {String? imageUrl}) async {
-  final agent = ref.read(localAgentProvider);
-  final client = ref.read(gatewayClientProvider);
-  final messages = ref.read(messagesProvider.notifier);
-
-  // Phase 1: Local preprocessing
-  messages.add(ChatMessage(
-    id: _uuid.v4(),
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.local,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-  ));
-
-  String localSummary = '';
-
-  if (agent.isModelLoaded) {
-    // Run local LLM to summarise / extract key info from the query
-    await for (final response in agent.process(
-      'Briefly summarise this request for a more powerful server model. '
-      'Extract key details, entities, and intent:\n\n$text',
-      imageUrl: imageUrl,
-    )) {
-      if (response.isDone) break;
-      if (response.text.isNotEmpty) {
-        localSummary += response.text;
-        messages.appendToLast(response.text);
-      }
-    }
-  } else {
-    localSummary = text;
-  }
-
-  // Phase 2: Send enriched context to server
-  if (client == null) {
-    messages.updateLast((m) => m.copyWith(
-          content: '${m.content}\n\n[No server connection — showing local result only]',
-          isStreaming: false,
-        ));
-    return;
-  }
-
-  messages.updateLast((m) => m.copyWith(isStreaming: false));
-
-  // Add server response placeholder
-  messages.add(ChatMessage(
-    id: _uuid.v4(),
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-  ));
-
-  // Send enriched prompt to server
-  final enrichedPrompt = localSummary.isNotEmpty
-      ? 'User query: $text\n\nLocal analysis: $localSummary'
-      : text;
-  await client.sendMessage(enrichedPrompt);
-
-  // Stream server response
-  final completer = Completer<void>();
-  late StreamSubscription<ServerResponse> sub;
-
-  sub = client.responses.listen((response) {
-    messages.appendToLast(response.chunk);
-    if (response.done) {
-      messages.updateLast((m) => m.copyWith(isStreaming: false));
-      sub.cancel();
-      if (!completer.isCompleted) completer.complete();
-    }
-  });
-
-  await completer.future.timeout(
-    const Duration(seconds: 60),
-    onTimeout: () {
-      sub.cancel();
-      messages.updateLast(
-        (m) => m.copyWith(
-          content: '${m.content}\n\n[Response timed out]',
-          isStreaming: false,
-        ),
-      );
-    },
-  );
-}
-
-void _processDevice(Ref ref, String text) {
-  final messages = ref.read(messagesProvider.notifier);
-  messages.add(ChatMessage(
-    id: _uuid.v4(),
-    role: MessageRole.assistant,
-    content: 'Device action triggered: $text',
-    source: MessageSource.device,
-    timestamp: DateTime.now(),
-  ));
-}
-
-void _processMissionControl(Ref ref, String text) {
-  final messages = ref.read(messagesProvider.notifier);
-  messages.add(ChatMessage(
-    id: _uuid.v4(),
-    role: MessageRole.assistant,
-    content:
-        'Check the Control tab for live Mission Control data. Tap "Control" in the bottom nav.',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-  ));
-}
 
 // ── Session Management ──
 

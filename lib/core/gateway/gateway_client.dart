@@ -628,8 +628,7 @@ class GatewayClient {
     _channel?.sink.add(frame);
 
     try {
-      final result =
-          await completer.future.timeout(const Duration(seconds: 10));
+      await completer.future.timeout(const Duration(seconds: 10));
       FileLogger.instance.log(_tag, 'helloOk received');
       _connectionState.value = GatewayState.connected;
     } catch (e) {
