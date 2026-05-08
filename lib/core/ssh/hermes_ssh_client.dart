@@ -122,6 +122,16 @@ class HermesSshClient {
         .transform(const LineSplitter());
   }
 
+  /// Open a bidirectional remote process. Caller writes UTF-8 lines to
+  /// [SshProcess.stdin] and reads them from [SshProcess.stdout]. Used by
+  /// the ACP client to talk JSON-RPC stdio with a `hermes acp` subprocess.
+  /// SPEC-ACPWireProtocol §Transport Rules.
+  Future<SshProcess> executeInteractive(String command) async {
+    await _ensureConnected();
+    final session = await _client!.execute(command);
+    return SshProcess._(session);
+  }
+
   // ── SFTP ──────────────────────────────────────────────────────────────
 
   Future<String> readFile(String remotePath) async {
@@ -186,6 +196,42 @@ class HermesSshClient {
     if (!path.startsWith('~/')) return path;
     return '/home/$username/${path.substring(2)}';
   }
+}
+
+/// Bidirectional view onto a remote SSH-exec'd process — caller can
+/// write UTF-8 strings to [stdin] and listen to [stdout] / [stderr] as
+/// line streams. Closing [stdin] tells the remote side EOF; calling
+/// [close] tears down the SSH session.
+class SshProcess {
+  final SSHSession _session;
+  SshProcess._(this._session);
+
+  Stream<String> get stdout => _session.stdout
+      .cast<List<int>>()
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
+
+  Stream<String> get stderr => _session.stderr
+      .cast<List<int>>()
+      .transform(utf8.decoder)
+      .transform(const LineSplitter());
+
+  /// Send a UTF-8 line. Newline is appended only if the caller didn't
+  /// already include one — keeps the JSON-RPC framing rule (one object
+  /// per `\n`-terminated line) simple to follow.
+  void writeLine(String line) {
+    final framed = line.endsWith('\n') ? line : '$line\n';
+    _session.write(Uint8List.fromList(utf8.encode(framed)));
+  }
+
+  /// Tell the remote side stdin is finished.
+  Future<void> closeStdin() async {
+    await _session.stdin.close();
+  }
+
+  Future<int?> get exitCode async => _session.exitCode;
+
+  void close() => _session.close();
 }
 
 class SshCommandException implements Exception {
