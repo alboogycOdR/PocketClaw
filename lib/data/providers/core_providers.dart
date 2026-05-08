@@ -51,20 +51,15 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 
 // ── Settings (reactive) ──
 
-// DEBUG BUILD: URL hardcoded alongside token to eliminate UI-entry variables.
-const String _kDebugHardcodedGatewayUrl = 'ws://100.78.70.2:18789';
-
+// Gateway URL + token come from SharedPreferences (written by
+// GatewayConfig settings screen). Empty string means "not configured" —
+// the dashboard renders the configure-me empty state in that case.
 final gatewayUrlProvider = StateProvider<String>((ref) {
-  return _kDebugHardcodedGatewayUrl;
+  return ref.watch(sharedPrefsProvider).getString('gateway_url') ?? '';
 });
 
-// DEBUG BUILD: token hardcoded to rule out paste artifacts in the UI field.
-// Remove this override and restore prefs-based read before shipping.
-const String _kDebugHardcodedGatewayToken =
-    'da860812aa80a7dcb254b611e041b8f4f6f9f704903e925c';
-
 final gatewayTokenProvider = StateProvider<String>((ref) {
-  return _kDebugHardcodedGatewayToken;
+  return ref.watch(sharedPrefsProvider).getString('gateway_token') ?? '';
 });
 
 /// Active project for Memory Router context (spec §5.4). Persisted via [setActiveProjectId].
