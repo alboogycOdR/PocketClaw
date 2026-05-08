@@ -11,6 +11,7 @@ import '../../core/llm/model_registry.dart';
 import '../../data/models/openclaw_models.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/ssh_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'device_identity_settings.dart';
@@ -22,6 +23,7 @@ import 'models_screen.dart';
 import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
 import 'security_settings.dart';
+import 'ssh_settings.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -289,6 +291,65 @@ class SettingsScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const ModelsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.terminal),
+                  title: const Text('Server SSH'),
+                  subtitle: Consumer(
+                    builder: (_, ref, __) {
+                      final host = ref.watch(sshHostProvider);
+                      final user = ref.watch(sshUsernameProvider);
+                      if (host.isEmpty || user.isEmpty) {
+                        return const Text(
+                          'Not configured',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        );
+                      }
+                      final reachable = ref.watch(sshReachableProvider);
+                      return reachable.when(
+                        data: (ok) => Text(
+                          ok
+                              ? '$user@$host · connected'
+                              : '$user@$host · unreachable',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: ok
+                                ? Colors.tealAccent
+                                : const Color(0xFFFFB74D),
+                          ),
+                        ),
+                        loading: () => Text(
+                          '$user@$host · checking…',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        error: (_, __) => Text(
+                          '$user@$host · error',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SshSettings(),
                       ),
                     );
                   },
