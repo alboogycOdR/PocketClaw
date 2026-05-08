@@ -67,3 +67,27 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Gofile + Telegram delivery — reuses scripts/release_remote.dart so the
+      # CI message format matches local releases. Skips silently if the
+      # repo secrets are not configured (e.g. forks, PR builds).
+      - name: Upload APK to Gofile + notify Telegram
+        if: github.event_name == 'push'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::notice::Telegram secrets not set — skipping Gofile/Telegram delivery."
+            echo "Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID under repo Settings → Secrets → Actions to enable."
+            exit 0
+          fi
+
+          # release_remote.dart reads creds from .env at the project root.
+          # Write it just for this step and remove it before the job exits.
+          umask 077
+          printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\n' \
+            "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_CHAT_ID" > .env
+          trap 'rm -f .env' EXIT
+
+          dart scripts/release_remote.dart
