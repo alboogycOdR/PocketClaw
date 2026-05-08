@@ -8,6 +8,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../core/openclaw/openclaw_ssh_service.dart';
 import '../../core/ssh/hermes_ssh_client.dart';
 import 'core_providers.dart';
 
@@ -86,4 +87,21 @@ final sshReachableProvider = FutureProvider<bool>((ref) async {
   final client = await ref.watch(sshClientProvider.future);
   if (client == null) return false;
   return client.isReachable();
+});
+
+// ── OpenClaw diagnostics service (Sprint 4 / §6) ─────────────────────────
+// Reuses the same SSH client as Hermes; it's a thin wrapper that owns
+// the openclaw-specific journal/doctor/restart commands.
+
+final openClawSshServiceProvider =
+    FutureProvider<OpenClawSshService?>((ref) async {
+  final ssh = await ref.watch(sshClientProvider.future);
+  if (ssh == null) return null;
+  return OpenClawSshService(ssh: ssh);
+});
+
+final openClawLogsProvider = FutureProvider<List<String>>((ref) async {
+  final svc = await ref.watch(openClawSshServiceProvider.future);
+  if (svc == null) return const [];
+  return svc.getLogs();
 });

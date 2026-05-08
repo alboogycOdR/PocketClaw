@@ -5,9 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../core/gateway/gateway_client.dart';
+import '../../core/openclaw/openclaw_ssh_service.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/ssh_providers.dart';
+import 'gateway_logs_screen.dart';
 
 class GatewayConfig extends ConsumerStatefulWidget {
   const GatewayConfig({super.key});
@@ -216,7 +220,201 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
               child: const Text('Save Configuration'),
             ),
           ),
+
+          const SizedBox(height: 32),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+
+          // Diagnostics section (Sprint 4 / SPEC-OpenClaw-Improvements §6).
+          // Greyed out when SSH isn't configured — same SSH transport used
+          // by Hermes management.
+          Text(
+            'Diagnostics',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Requires SSH (Settings → Server SSH).',
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 11,
+              color: Colors.white54,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          Consumer(builder: (_, ref, __) {
+            final sshAsync = ref.watch(openClawSshServiceProvider);
+            final svc = sshAsync.maybeWhen(
+              data: (s) => s,
+              orElse: () => null,
+            );
+            final ready = svc != null;
+            return Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: ready
+                        ? () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const GatewayLogsScreen(),
+                              ),
+                            );
+                          }
+                        : null,
+                    icon: const Icon(Icons.terminal, size: 18),
+                    label: const Text('View Gateway Logs'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: ready ? () => _runDoctor(svc) : null,
+                    icon: const Icon(Icons.healing, size: 18),
+                    label: const Text('Run openclaw doctor'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: ready ? () => _restartGateway(svc) : null,
+                    icon: const Icon(Icons.restart_alt, size: 18),
+                    label: const Text('Restart Gateway'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: PocketClawTheme.lobsterRed,
+                      side: const BorderSide(
+                        color: PocketClawTheme.lobsterRed,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Future<void> _runDoctor(OpenClawSshService svc) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 16),
+              Text('Running openclaw doctor…'),
+            ],
+          ),
+        ),
+      ),
+    );
+    String output;
+    try {
+      output = await svc.runDoctor();
+    } catch (e) {
+      output = 'doctor failed: $e';
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss spinner
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('openclaw doctor'),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              output,
+              style: GoogleFonts.jetBrainsMono(fontSize: 11),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _restartGateway(OpenClawSshService svc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restart gateway?'),
+        content: const Text(
+          'This will disconnect all active sessions on the gateway. '
+          'Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: PocketClawTheme.lobsterRed,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restart'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 16),
+              Text('Restarting gateway…'),
+            ],
+          ),
+        ),
+      ),
+    );
+    String? error;
+    try {
+      await svc.restartGateway();
+    } catch (e) {
+      error = '$e';
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop(); // dismiss spinner
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error == null
+              ? 'Gateway restart issued — WebSocket will reconnect.'
+              : 'Restart failed: $error',
+        ),
       ),
     );
   }
