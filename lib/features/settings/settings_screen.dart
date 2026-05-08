@@ -8,15 +8,17 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
 import '../../core/llm/model_registry.dart';
+import '../../data/models/openclaw_models.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/hermes_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
-import '../../data/providers/hermes_providers.dart';
 import 'device_identity_settings.dart';
 import 'devices_screen.dart';
 import 'gateway_config.dart';
 import 'hermes_settings.dart';
 import 'model_config.dart';
+import 'models_screen.dart';
 import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
 import 'security_settings.dart';
@@ -218,6 +220,75 @@ class SettingsScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const DevicesScreen(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.memory_outlined),
+                  title: const Text('OpenClaw Models'),
+                  subtitle: Consumer(
+                    builder: (_, ref, __) {
+                      final modelsAsync =
+                          ref.watch(openClawModelsProvider);
+                      return modelsAsync.when(
+                        data: (status) {
+                          if (status.isEmpty) {
+                            return const Text(
+                              'No data — gateway offline?',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white54,
+                              ),
+                            );
+                          }
+                          final defaultEntry =
+                              status.configured.firstWhere(
+                            (m) => m.id == status.defaultModel,
+                            orElse: () => OpenClawModelEntry(
+                              id: status.defaultModel ?? '',
+                            ),
+                          );
+                          final ok = defaultEntry.isHealthy;
+                          final label = status.alias?.isNotEmpty == true
+                              ? status.alias!
+                              : (status.defaultModel ?? 'unknown');
+                          return Text(
+                            ok ? '$label · healthy' : '$label · unhealthy',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: ok
+                                  ? Colors.tealAccent
+                                  : const Color(0xFFFFB74D),
+                            ),
+                          );
+                        },
+                        loading: () => const Text(
+                          'Loading…',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        error: (_, __) => const Text(
+                          'Unavailable',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ModelsScreen(),
                       ),
                     );
                   },
