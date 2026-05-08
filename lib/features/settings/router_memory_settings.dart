@@ -21,6 +21,13 @@ class RouterMemorySettings extends ConsumerStatefulWidget {
       _RouterMemorySettingsState();
 }
 
+/// Default execution path tracker. `auto` means SmartRouter / chat-mode
+/// auto-detect chooses; specific values pin behaviour to one endpoint.
+final defaultExecutionPathProvider = StateProvider<String>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  return prefs.getString('default_execution_path') ?? 'auto';
+});
+
 class _RouterMemorySettingsState extends ConsumerState<RouterMemorySettings> {
   late final TextEditingController _budgetController;
 
@@ -61,11 +68,19 @@ class _RouterMemorySettingsState extends ConsumerState<RouterMemorySettings> {
     ref.read(activeProjectIdProvider.notifier).state = id;
   }
 
+  Future<void> _setDefaultPath(String? value) async {
+    if (value == null) return;
+    final prefs = ref.read(sharedPrefsProvider);
+    await prefs.setString('default_execution_path', value);
+    ref.read(defaultExecutionPathProvider.notifier).state = value;
+  }
+
   @override
   Widget build(BuildContext context) {
     final projectsAsync = ref.watch(projectsListProvider);
     final activeId = ref.watch(activeProjectIdProvider);
     final threshold = ref.watch(tokenBudgetThresholdProvider);
+    final defaultPath = ref.watch(defaultExecutionPathProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Smart Router & Memory')),
@@ -79,6 +94,63 @@ class _RouterMemorySettingsState extends ConsumerState<RouterMemorySettings> {
                 ),
           ),
           const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Default execution path',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                RadioListTile<String>(
+                  title: const Text('Auto'),
+                  subtitle: const Text(
+                    'SmartRouter / chat-mode autodetect picks.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: 'auto',
+                  groupValue: defaultPath,
+                  onChanged: _setDefaultPath,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Local'),
+                  subtitle: const Text(
+                    'On-device LLM only.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: 'local',
+                  groupValue: defaultPath,
+                  onChanged: _setDefaultPath,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Server (OpenClaw)'),
+                  subtitle: const Text(
+                    'Full agent team via OpenClaw gateway.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: 'server',
+                  groupValue: defaultPath,
+                  onChanged: _setDefaultPath,
+                ),
+                RadioListTile<String>(
+                  title: const Text('Hermes'),
+                  subtitle: const Text(
+                    'Nous Research agent on your VPS.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: 'hermes',
+                  groupValue: defaultPath,
+                  onChanged: _setDefaultPath,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           Card(
             child: ListTile(
               title: const Text('Memory token budget'),

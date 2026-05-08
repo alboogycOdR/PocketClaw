@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
 
-/// The three distinct chat modes. Each has an isolated message history
-/// and never shares context with the others.
+/// The distinct chat modes. Each has an isolated message history and
+/// never shares context with the others.
 enum ChatMode {
   /// On-device inference via the selected local model (Gemma .task).
   /// Messages NEVER leave the device.
@@ -20,6 +20,10 @@ enum ChatMode {
   /// Full agentic session via OpenClaw gateway.
   /// Includes Paperclip governance, tools, agent team, project memory.
   openclaw,
+
+  /// Hermes Agent (Nous Research) \u2014 REST chat against the user's
+  /// self-hosted Hermes gateway. Carries Hermes' own toolset + memory.
+  hermes,
 }
 
 extension ChatModeLabel on ChatMode {
@@ -27,24 +31,28 @@ extension ChatModeLabel on ChatMode {
     ChatMode.local    => 'Local',
     ChatMode.cloud    => 'Cloud',
     ChatMode.openclaw => 'OpenClaw',
+    ChatMode.hermes   => 'Hermes',
   };
 
   String get tagline => switch (this) {
     ChatMode.local    => 'Offline \u00b7 Private',
     ChatMode.cloud    => 'Direct to your API key',
     ChatMode.openclaw => 'Full agent team',
+    ChatMode.hermes   => 'Nous Research agent',
   };
 
   IconData get icon => switch (this) {
     ChatMode.local    => Icons.phone_android,
     ChatMode.cloud    => Icons.cloud_outlined,
     ChatMode.openclaw => Icons.hub_outlined,
+    ChatMode.hermes   => Icons.psychology_outlined,
   };
 
   Color get color => switch (this) {
     ChatMode.local    => PocketClawTheme.electricTeal,
     ChatMode.cloud    => const Color(0xFFD4A574), // Anthropic-ish amber
     ChatMode.openclaw => PocketClawTheme.lobsterRed,
+    ChatMode.hermes   => const Color(0xFF7C3AED),
   };
 
   String get storageKey => 'chat_mode_session_${name}';

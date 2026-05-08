@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/chat/chat_mode.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/hermes/hermes_client.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/router/smart_router.dart';
@@ -21,6 +22,7 @@ import '../../data/models/gateway_event.dart';
 import '../../shared/widgets/execution_path_chip.dart';
 import 'chat_mode_providers.dart';
 import 'core_providers.dart';
+import 'hermes_providers.dart';
 
 const _uuid = Uuid();
 
@@ -276,6 +278,7 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
       ChatMode.local    => ExecutionPath.local,
       ChatMode.cloud    => ExecutionPath.server,
       ChatMode.openclaw => ExecutionPath.server,
+      ChatMode.hermes   => ExecutionPath.hermes,
     };
     ref.read(executionPathProvider.notifier).state = executionPath;
 
@@ -292,6 +295,9 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
           // no local preprocessing required. _processBridge (if retained)
           // is for a future "use local VLM to describe first" feature.
           await _processServer(ref, cleanText, imagePath: imageUrl);
+          break;
+        case ChatMode.hermes:
+          await _processHermes(ref, cleanText);
           break;
       }
     } catch (e) {
@@ -460,6 +466,87 @@ Future<void> _processCloud(Ref ref, String text) async {
               ? 'Cloud API error: $e'
               : '${m.content}\n\n[Error: $e]',
           isStreaming: false,
+        ));
+  }
+}
+
+Future<void> _processHermes(Ref ref, String text) async {
+  final messages = ref.read(messagesProvider.notifier);
+  final client = ref.read(hermesClientProvider);
+
+  if (client == null) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content:
+          'Hermes is not configured. Open Settings → Hermes Agent and set '
+          'the base URL + API key, then try again.',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
+  }
+
+  // Build history from non-streaming, non-system turns. Hermes wants the
+  // OpenAI-compatible {role, content} shape.
+  final history = ref
+      .read(messagesProvider)
+      .where((m) => m.role != MessageRole.system && !m.isStreaming)
+      // Drop the just-added user message; we re-add it as the prompt below.
+      .where((m) => m.content.trim().isNotEmpty)
+      .map((m) => {
+            'role': switch (m.role) {
+              MessageRole.user => 'user',
+              MessageRole.assistant => 'assistant',
+              MessageRole.system => 'system',
+            },
+            'content': m.content,
+          })
+      .toList();
+  // Drop the last user turn (current prompt) — chatStream re-appends it.
+  if (history.isNotEmpty && history.last['role'] == 'user') {
+    history.removeLast();
+  }
+
+  final placeholderId = _uuid.v4();
+  messages.add(ChatMessage(
+    id: placeholderId,
+    role: MessageRole.assistant,
+    content: '',
+    source: MessageSource.server,
+    timestamp: DateTime.now(),
+    isStreaming: true,
+    statusText: 'Hermes is thinking…',
+  ));
+
+  final buffer = StringBuffer();
+  try {
+    await for (final token in client.chatStream(text, history: history)) {
+      buffer.write(token);
+      messages.updateById(placeholderId, (m) => m.copyWith(
+            content: buffer.toString(),
+            clearStatusText: true,
+          ));
+    }
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+  } on HermesApiException catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: e.isAuthError
+              ? 'Hermes auth failed (${e.statusCode}). Check the API key.'
+              : 'Hermes error (${e.statusCode}): ${e.message}',
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+  } catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: buffer.isEmpty
+              ? 'Hermes request failed: $e'
+              : '$buffer\n\n[Stream interrupted: $e]',
+          isStreaming: false,
+          clearStatusText: true,
         ));
   }
 }

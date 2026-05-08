@@ -8,7 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 
 /// Which execution path the last message was routed through.
-enum ExecutionPath { local, server, bridge }
+enum ExecutionPath { local, server, bridge, hermes }
 
 /// Tracks the execution path chosen by SmartRouter for the most recent message.
 final executionPathProvider = StateProvider<ExecutionPath?>((ref) => null);
@@ -31,6 +31,7 @@ class ExecutionPathChip extends ConsumerWidget {
       ExecutionPath.local => ('LOCAL', PocketClawTheme.electricTeal, Icons.phone_android),
       ExecutionPath.server => ('SERVER', PocketClawTheme.lobsterRed, Icons.cloud_outlined),
       ExecutionPath.bridge => ('BRIDGE', const Color(0xFFFFB74D), Icons.sync_alt),
+      ExecutionPath.hermes => ('HERMES', const Color(0xFF7C3AED), Icons.psychology_outlined),
     };
 
     return GestureDetector(
@@ -148,6 +149,21 @@ class ExecutionPathChip extends ConsumerWidget {
                   onTap: () {
                     ref.read(executionPathOverrideProvider.notifier).state =
                         ExecutionPath.bridge;
+                    Navigator.pop(ctx);
+                  },
+                ),
+                ListTile(
+                  leading: Icon(
+                    Icons.psychology_outlined,
+                    color: current == ExecutionPath.hermes
+                        ? const Color(0xFF7C3AED)
+                        : Colors.white54,
+                  ),
+                  title: const Text('Hermes (Nous Research agent)'),
+                  selected: current == ExecutionPath.hermes,
+                  onTap: () {
+                    ref.read(executionPathOverrideProvider.notifier).state =
+                        ExecutionPath.hermes;
                     Navigator.pop(ctx);
                   },
                 ),

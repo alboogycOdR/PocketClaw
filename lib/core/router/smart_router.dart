@@ -6,7 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../data/models/skill.dart';
 import '../skills/skill_registry.dart';
 
-enum RouteTarget { local, server, bridge, device, missionControl }
+enum RouteTarget { local, server, bridge, device, missionControl, hermes }
 
 /// Consolidated context passed to the router for each routing decision.
 class SmartRouterContext {
@@ -17,6 +17,16 @@ class SmartRouterContext {
   final int? estimatedTokens;
   final bool isLocalModelAvailable;
 
+  /// If set, the user has chosen this path as their default. The router
+  /// will honour it whenever the corresponding endpoint is reachable.
+  /// Mirrors the `default_execution_path` SharedPreferences value.
+  final RouteTarget? defaultPath;
+
+  /// Whether the Hermes Agent gateway is configured + reachable. Required
+  /// when [defaultPath] is [RouteTarget.hermes] so the router can fall
+  /// back instead of routing into a dead endpoint.
+  final bool isHermesAvailable;
+
   const SmartRouterContext({
     this.activeProjectId,
     this.isNearBudgetLimit = false,
@@ -24,6 +34,8 @@ class SmartRouterContext {
     this.overridePath,
     this.estimatedTokens,
     this.isLocalModelAvailable = false,
+    this.defaultPath,
+    this.isHermesAvailable = false,
   });
 }
 
@@ -82,6 +94,17 @@ class SmartRouter {
       return RoutingDecision(
         target: context.overridePath!,
         reason: 'User override via context',
+      );
+    }
+
+    // 0a. User-chosen default execution path (e.g. "always use Hermes").
+    // Only honour it when the underlying endpoint is reachable so we don't
+    // route into a dead service.
+    if (context.defaultPath == RouteTarget.hermes &&
+        context.isHermesAvailable) {
+      return const RoutingDecision(
+        target: RouteTarget.hermes,
+        reason: 'User default — Hermes Agent',
       );
     }
 

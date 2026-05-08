@@ -10,6 +10,7 @@ import '../../core/llm/models/local_model_config.dart' as llm;
 import '../../core/llm/models/model_format.dart';
 import '../../core/llm/services/api_key_service.dart';
 import 'core_providers.dart';
+import 'hermes_providers.dart';
 
 /// Current active chat mode. Persisted in SharedPreferences.
 /// Defaults to whichever mode is first-available on launch.
@@ -22,6 +23,14 @@ final chatModeProvider = StateProvider<ChatMode>((ref) {
     } catch (_) {
       // Fall through to auto-detect
     }
+  }
+
+  // User-set default execution path takes precedence over autodetect.
+  final preferred = prefs.getString('default_execution_path');
+  if (preferred == 'hermes') {
+    final url = ref.read(hermesBaseUrlProvider);
+    final key = ref.read(hermesApiKeyProvider);
+    if (url.isNotEmpty && key.isNotEmpty) return ChatMode.hermes;
   }
 
   // Auto-detect based on what is configured
@@ -67,6 +76,7 @@ final modeAvailabilityProvider =
     ChatMode.local    => _localAvailable(ref),
     ChatMode.cloud    => _cloudAvailable(ref),
     ChatMode.openclaw => _openclawAvailable(ref),
+    ChatMode.hermes   => _hermesAvailable(ref),
   };
 });
 
@@ -145,6 +155,28 @@ ModeAvailability _openclawAvailable(Ref ref) {
     );
   } catch (_) {
     return ModeAvailability.unavailable('Configure OpenClaw in Settings.');
+  }
+}
+
+ModeAvailability _hermesAvailable(Ref ref) {
+  try {
+    final url = ref.watch(hermesBaseUrlProvider);
+    final key = ref.watch(hermesApiKeyProvider);
+    if (url.isEmpty) {
+      return ModeAvailability.unavailable(
+        'Hermes not configured. Set base URL in Settings → Hermes Agent.',
+      );
+    }
+    if (key.isEmpty) {
+      return ModeAvailability.unavailable(
+        'Hermes API key missing. Set it in Settings → Hermes Agent.',
+      );
+    }
+    return const ModeAvailability.available(
+      subtitle: 'Hermes toolset · streaming',
+    );
+  } catch (_) {
+    return ModeAvailability.unavailable('Configure Hermes in Settings.');
   }
 }
 

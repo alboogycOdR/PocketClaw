@@ -11,8 +11,10 @@ import '../../core/llm/model_registry.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
+import '../../data/providers/hermes_providers.dart';
 import 'device_identity_settings.dart';
 import 'gateway_config.dart';
+import 'hermes_settings.dart';
 import 'model_config.dart';
 import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
@@ -77,6 +79,62 @@ class SettingsScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const GatewayConfig(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(
+                    Icons.psychology_outlined,
+                    color: Color(0xFF7C3AED),
+                  ),
+                  title: const Text('Hermes Agent'),
+                  subtitle: Consumer(
+                    builder: (_, ref, __) {
+                      final reachable = ref.watch(hermesReachableProvider);
+                      final url = ref.watch(hermesBaseUrlProvider);
+                      final configured = url.isNotEmpty;
+                      return reachable.when(
+                        data: (ok) {
+                          final label = !configured
+                              ? 'Not configured'
+                              : ok
+                                  ? 'Connected'
+                                  : 'Unreachable';
+                          final color = ok
+                              ? Colors.tealAccent
+                              : Colors.white54;
+                          return Text(
+                            label,
+                            style: TextStyle(fontSize: 12, color: color),
+                          );
+                        },
+                        loading: () => const Text(
+                          'Checking…',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        error: (_, __) => const Text(
+                          'Unreachable',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HermesSettings(),
                       ),
                     );
                   },
