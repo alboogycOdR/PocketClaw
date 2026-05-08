@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/gateway/device_identity.dart';
 import '../../core/gateway/gateway_client.dart';
 import '../../core/gateway/gateway_rest.dart';
 import '../../core/gateway/offline_queue.dart';
@@ -19,6 +20,8 @@ import '../../core/llm/services/api_key_service.dart';
 import '../../core/llm/services/hf_token_service.dart';
 import '../../core/llm/services/license_service.dart';
 import '../../core/llm/services/model_download_manager.dart';
+import '../models/openclaw_device.dart';
+import '../models/openclaw_models.dart';
 import '../../core/local_agent/llm_engine.dart';
 import '../../core/local_agent/local_agent.dart';
 import '../../core/local_agent/model_selector.dart';
@@ -170,6 +173,42 @@ final gatewayRestClientProvider = Provider<GatewayRestClient?>((ref) {
   final client = GatewayRestClient(baseUrl: restUrl, authToken: token);
   ref.onDispose(() => client.dispose());
   return client;
+});
+
+// ── OpenClaw devices (paired + pending) ──
+// SPEC-OpenClaw-Improvements §4. Drives the Devices settings screen and
+// the pending-approval count badge on the Settings tile.
+
+final openClawDevicesProvider =
+    FutureProvider<List<OpenClawDevice>>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return const [];
+  try {
+    final devices = await client.listDevices();
+    final me = await DeviceIdentity.current();
+    if (me == null) return devices;
+    return [
+      for (final d in devices)
+        d.copyWith(isCurrentDevice: d.id == me.deviceId),
+    ];
+  } catch (_) {
+    return const [];
+  }
+});
+
+// ── OpenClaw models status ──
+// SPEC-OpenClaw-Improvements §5. Default model, alias, fallbacks,
+// per-model health.
+
+final openClawModelsProvider =
+    FutureProvider<OpenClawModelsStatus>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return const OpenClawModelsStatus();
+  try {
+    return await client.getModelsStatus();
+  } catch (_) {
+    return const OpenClawModelsStatus();
+  }
 });
 
 // ── Paperclip REST client (standalone service, not OpenClaw) ──

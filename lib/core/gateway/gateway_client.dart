@@ -12,6 +12,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/models/gateway_event.dart';
+import '../../data/models/openclaw_device.dart';
+import '../../data/models/openclaw_models.dart';
 import 'device_identity.dart';
 import 'file_logger.dart';
 
@@ -283,6 +285,44 @@ class GatewayClient {
         'data': data,
       },
     }));
+  }
+
+  // ── Devices RPCs ────────────────────────────────────────────────────────
+  // SPEC-OpenClaw-Improvements §4. Wraps the gateway's devices.* methods
+  // so the UI can list, approve, and revoke paired/pending devices without
+  // dropping back to the `openclaw devices …` CLI on the VPS.
+
+  /// List all known devices (paired + pending + revoked).
+  Future<List<OpenClawDevice>> listDevices() async {
+    final result = await request('devices.list', {});
+    if (result is! Map) return const [];
+    final devices = result['devices'];
+    if (devices is! List) return const [];
+    return [
+      for (final d in devices)
+        if (d is Map<String, dynamic>) OpenClawDevice.fromJson(d),
+    ];
+  }
+
+  /// Approve a pending device by its device ID.
+  Future<void> approveDevice(String deviceId) =>
+      request('devices.approve', {'deviceId': deviceId});
+
+  /// Revoke a paired device by its device ID.
+  Future<void> revokeDevice(String deviceId) =>
+      request('devices.revoke', {'deviceId': deviceId});
+
+  // ── Models RPC ──────────────────────────────────────────────────────────
+  // SPEC-OpenClaw-Improvements §5. Mirrors the `openclaw models status`
+  // CLI surface — default model, alias, fallbacks, image model, per-model
+  // health.
+
+  Future<OpenClawModelsStatus> getModelsStatus() async {
+    final result = await request('models.status', {});
+    if (result is! Map<String, dynamic>) {
+      return const OpenClawModelsStatus();
+    }
+    return OpenClawModelsStatus.fromJson(result);
   }
 
   Future<void> query(String resource) async {

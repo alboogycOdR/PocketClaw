@@ -13,6 +13,7 @@ import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import '../../data/providers/hermes_providers.dart';
 import 'device_identity_settings.dart';
+import 'devices_screen.dart';
 import 'gateway_config.dart';
 import 'hermes_settings.dart';
 import 'model_config.dart';
@@ -155,6 +156,68 @@ class SettingsScreen extends ConsumerWidget {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const DeviceIdentitySettings(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(Icons.devices_other),
+                  title: const Text('Paired Devices'),
+                  subtitle: Consumer(
+                    builder: (_, ref, __) {
+                      final devicesAsync =
+                          ref.watch(openClawDevicesProvider);
+                      return devicesAsync.when(
+                        data: (devices) {
+                          final pending =
+                              devices.where((d) => d.isPending).length;
+                          if (pending > 0) {
+                            return Text(
+                              '$pending pending approval',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                              ),
+                            );
+                          }
+                          final paired =
+                              devices.where((d) => d.isPaired).length;
+                          return Text(
+                            paired == 0
+                                ? 'Manage paired devices'
+                                : '$paired paired',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white54,
+                            ),
+                          );
+                        },
+                        loading: () => const Text(
+                          'Loading…',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        error: (_, __) => const Text(
+                          'Manage paired devices',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DevicesScreen(),
                       ),
                     );
                   },
