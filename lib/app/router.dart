@@ -13,7 +13,7 @@ import '../features/mission_control/channels_screen.dart';
 import '../features/mission_control/cost_screen.dart';
 import '../features/mission_control/cron_screen.dart';
 import '../features/mission_control/dashboard_screen.dart';
-import '../features/mission_control/tasks_screen.dart';
+import '../features/mission_control/sessions_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/skills/clawhub_browser.dart';
@@ -83,8 +83,8 @@ final GoRouter appRouter = GoRouter(
                   builder: (context, state) => const AgentsScreen(),
                 ),
                 GoRoute(
-                  path: 'tasks',
-                  builder: (context, state) => const TasksScreen(),
+                  path: 'sessions',
+                  builder: (context, state) => const SessionsScreen(),
                 ),
                 GoRoute(
                   path: 'cost',

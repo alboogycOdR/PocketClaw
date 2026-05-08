@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/agent.dart';
 import '../../data/models/gateway_event.dart';
-import '../../data/models/task.dart';
+import '../../data/models/openclaw_session.dart';
 import '../../data/models/usage_stats.dart';
 import '../../data/providers/core_providers.dart';
 
@@ -38,13 +38,33 @@ final mcAgentsProvider = FutureProvider<List<Agent>>((ref) async {
   }
 });
 
-// ── Tasks ──
-// The gateway has no `tasks.*` RPC surface — confirmed via 2026-04-21 recon.
-// We keep the provider around so existing callers (TasksScreen kanban,
-// Dashboard legacy card) don't crash, but it always returns an empty list.
-// The Dashboard now shows Sessions instead; see mcSessionsCountProvider.
+// ── Sessions ──
+// OpenClaw exposes `sessions.usage` (no separate sessions.list yet); the
+// response carries the session metadata we need for a browsable history.
+// The previous mcTasksProvider was a stub against a non-existent
+// `tasks.*` RPC — replaced by this real session list per
+// SPEC-OpenClaw-Improvements §3.
 
-final mcTasksProvider = FutureProvider<List<Task>>((_) async => const []);
+final mcSessionsProvider = FutureProvider<List<OpenClawSession>>((ref) async {
+  final client = ref.watch(gatewayClientProvider);
+  if (client == null) return [];
+  try {
+    final result = await client.request('sessions.usage', {
+      'limit': 50,
+      'sortBy': 'startedAt',
+      'sortDir': 'desc',
+    });
+    if (result is! Map) return [];
+    final sessions = result['sessions'];
+    if (sessions is! List) return [];
+    return [
+      for (final s in sessions)
+        if (s is Map<String, dynamic>) OpenClawSession.fromJson(s),
+    ];
+  } catch (_) {
+    return [];
+  }
+});
 
 // ── Sessions count ──
 // Derived from `sessions.usage` — used on the Dashboard as a live-activity

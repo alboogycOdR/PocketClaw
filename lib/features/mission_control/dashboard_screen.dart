@@ -97,7 +97,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '$count',
                       subtitle: 'recent',
                       iconColor: PocketClawTheme.electricTeal,
-                      onTap: () => context.go('/control/tasks'),
+                      onTap: () => context.go('/control/sessions'),
                     ),
                     loading: () => const _ShimmerCard(),
                     error: (_, __) => StatCard(
@@ -106,7 +106,7 @@ class DashboardScreen extends ConsumerWidget {
                       value: '--',
                       subtitle: 'error',
                       iconColor: const Color(0xFFE53935),
-                      onTap: () => context.go('/control/tasks'),
+                      onTap: () => context.go('/control/sessions'),
                     ),
                   ),
                 ),
