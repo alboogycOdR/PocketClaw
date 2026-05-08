@@ -344,8 +344,15 @@ class GatewayClient {
   // dropping back to the `openclaw devices …` CLI on the VPS.
 
   /// List all known devices (paired + pending + revoked).
+  /// Short timeout — if the gateway version doesn't expose `devices.*`
+  /// the request hangs forever instead of erroring (silent drop), so
+  /// we fail fast and let the caller fall back to SSH.
   Future<List<OpenClawDevice>> listDevices() async {
-    final result = await request('devices.list', {});
+    final result = await request(
+      'devices.list',
+      {},
+      timeout: const Duration(seconds: 5),
+    );
     if (result is! Map) return const [];
     final devices = result['devices'];
     if (devices is! List) return const [];

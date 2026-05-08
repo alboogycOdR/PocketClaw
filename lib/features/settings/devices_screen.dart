@@ -8,8 +8,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/gateway/gateway_client.dart';
+import '../../core/openclaw/openclaw_ssh_service.dart';
 import '../../data/models/openclaw_device.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/ssh_providers.dart';
 import '../../shared/widgets/empty_state.dart';
 
 class DevicesScreen extends ConsumerWidget {
@@ -151,10 +154,12 @@ class DevicesScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final client = ref.read(gatewayClientProvider);
-    if (client == null) return;
     try {
-      await client.approveDevice(device.id);
+      await _runWsThenSsh(
+        ref,
+        ws: (c) => c.approveDevice(device.id),
+        ssh: (s) => s.approveDevice(device.id),
+      );
       ref.invalidate(openClawDevicesProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -199,10 +204,12 @@ class DevicesScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final client = ref.read(gatewayClientProvider);
-    if (client == null) return;
     try {
-      await client.revokeDevice(device.id);
+      await _runWsThenSsh(
+        ref,
+        ws: (c) => c.revokeDevice(device.id),
+        ssh: (s) => s.revokeDevice(device.id),
+      );
       ref.invalidate(openClawDevicesProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -216,6 +223,33 @@ class DevicesScreen extends ConsumerWidget {
         );
       }
     }
+  }
+
+  /// Run a device mutation through WS first; if the gateway version
+  /// doesn't expose `devices.*` (silent timeout) fall back to the
+  /// SSH-exec'd CLI. Either path acks success the same way.
+  Future<void> _runWsThenSsh(
+    WidgetRef ref, {
+    required Future<void> Function(GatewayClient) ws,
+    required Future<void> Function(OpenClawSshService) ssh,
+  }) async {
+    final client = ref.read(gatewayClientProvider);
+    if (client != null) {
+      try {
+        await ws(client).timeout(const Duration(seconds: 5));
+        return;
+      } catch (_) {
+        // fall through to SSH
+      }
+    }
+    final svc = await ref.read(openClawSshServiceProvider.future);
+    if (svc == null) {
+      throw Exception(
+        'Gateway WS rejected the operation and SSH is not configured. '
+        'Settings → Connection → Server SSH.',
+      );
+    }
+    await ssh(svc);
   }
 }
 

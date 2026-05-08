@@ -1,8 +1,13 @@
 /// OpenClaw diagnostics over SSH — log tail (`journalctl`),
-/// `openclaw doctor`, and gateway restart. Reuses the SSH transport
-/// from Sprint 3. SPEC-OpenClaw-Improvements §6.
+/// `openclaw doctor`, gateway restart, and device list / approve /
+/// revoke. Reuses the SSH transport from Sprint 3.
+/// SPEC-OpenClaw-Improvements §6 + devices fallback (the WS
+/// `devices.*` namespace doesn't exist on the user's gateway version).
 library;
 
+import 'dart:convert';
+
+import '../../data/models/openclaw_device.dart';
 import '../ssh/hermes_ssh_client.dart';
 
 class OpenClawSshService {
@@ -68,5 +73,105 @@ class OpenClawSshService {
     // client retries — this just keeps the UX sane, the actual reconnect
     // is driven by GatewayClient's exponential-backoff loop.
     await Future<void>.delayed(const Duration(seconds: 5));
+  }
+
+  // ── Devices fallback (SSH CLI when WS RPC is absent) ──────────────────
+  //
+  // The user's gateway build doesn't expose `devices.list / approve /
+  // revoke` over WebSocket — the request silently drops. The CLI
+  // (`openclaw devices ...`) reads `~/.openclaw/devices.json` directly
+  // and works fine. These wrappers run the CLI over SSH and parse the
+  // output so the in-app Devices screen has feature parity with the
+  // SSH terminal.
+
+  Future<List<OpenClawDevice>> listDevices() async {
+    // Try JSON first — modern CLIs typically expose --json. If that
+    // fails (older flag set), fall back to parsing the ASCII table.
+    try {
+      final out = await _ssh.exec('$_pathPrefix openclaw devices --json 2>&1');
+      return _parseDevicesJson(out);
+    } on SshCommandException {
+      // Either --json isn't supported or the binary isn't found. Try
+      // the ASCII table form — same CLI, default output.
+    }
+    final out = await _ssh.exec('$_pathPrefix openclaw devices 2>&1');
+    return _parseDevicesAscii(out);
+  }
+
+  Future<void> approveDevice(String deviceId) async {
+    await _ssh.exec('$_pathPrefix openclaw devices approve $deviceId 2>&1');
+  }
+
+  Future<void> revokeDevice(String deviceId) async {
+    await _ssh.exec('$_pathPrefix openclaw devices revoke $deviceId 2>&1');
+  }
+
+  // ── Output parsers ────────────────────────────────────────────────────
+
+  static List<OpenClawDevice> _parseDevicesJson(String raw) {
+    try {
+      final json = jsonDecode(raw.trim());
+      // Expected shapes: `{devices:[...]}` or a raw array.
+      final list = json is Map ? json['devices'] : json;
+      if (list is! List) return const [];
+      return [
+        for (final d in list)
+          if (d is Map<String, dynamic>) OpenClawDevice.fromJson(d),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Parse the ASCII table output of `openclaw devices`. Format observed
+  /// in production:
+  ///
+  ///   Pending (n)
+  ///   Request                                Device      Requested   Approved Age   Status
+  ///   <uuid>                                 Pocket Claw roles: ... none     2m ago new pairing
+  ///
+  ///   Paired (m)
+  ///   Device                                 Roles      Scopes                Tokens   IP
+  ///   <hex or name>                          operator   operator.admin, ...   operator 100.x.x.x
+  ///
+  /// We split on the section headers and consume any row whose first
+  /// column looks like a UUID (pending: requestId) or a 64-char hex /
+  /// "Pocket Claw" / arbitrary name (paired). Best-effort — a hard
+  /// regex match would be too brittle across CLI versions.
+  static List<OpenClawDevice> _parseDevicesAscii(String raw) {
+    final out = <OpenClawDevice>[];
+    final lines = raw.split('\n');
+    var section = ''; // 'pending' | 'paired' | 'revoked'
+
+    final headerRe = RegExp(r'^(Pending|Paired|Revoked)\s*\(\d+\)', caseSensitive: false);
+
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+
+      final hdr = headerRe.firstMatch(trimmed);
+      if (hdr != null) {
+        section = hdr.group(1)!.toLowerCase();
+        continue;
+      }
+      // Skip column header line (starts with one of the known column names).
+      if (trimmed.startsWith('Request') ||
+          trimmed.startsWith('Device') ||
+          trimmed.startsWith('---')) {
+        continue;
+      }
+      if (section.isEmpty) continue;
+
+      // Take the first whitespace-separated token as the row's id.
+      final firstToken = trimmed.split(RegExp(r'\s{2,}|\t')).first.trim();
+      if (firstToken.isEmpty) continue;
+
+      out.add(OpenClawDevice(
+        id: firstToken,
+        name: section == 'pending' ? null : firstToken,
+        status: section,
+      ));
+    }
+    return out;
   }
 }

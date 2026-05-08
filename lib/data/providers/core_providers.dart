@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/gateway/device_identity.dart';
+import 'ssh_providers.dart';
 import '../../core/gateway/gateway_client.dart';
 import '../../core/gateway/gateway_rest.dart';
 import '../../core/gateway/offline_queue.dart';
@@ -182,13 +183,36 @@ final gatewayRestClientProvider = Provider<GatewayRestClient?>((ref) {
 final openClawDevicesProvider =
     FutureProvider<List<OpenClawDevice>>((ref) async {
   final client = ref.watch(gatewayClientProvider);
-  if (client == null) return const [];
-  // Let RPC errors propagate so the Devices screen renders them via
-  // AsyncValue.error instead of showing the same empty state for both
-  // "RPC failed" and "gateway genuinely has zero devices". The previous
-  // silent catch made server-side method-name / scope failures look
-  // identical to a fresh-install no-data condition.
-  final devices = await client.listDevices();
+  final sshSvc = await ref.watch(openClawSshServiceProvider.future);
+
+  // Try the WS RPC first — fast path when the gateway version supports
+  // `devices.*`. listDevices() has a 5s timeout so this fails fast on
+  // gateway builds where the namespace silently drops.
+  List<OpenClawDevice>? devices;
+  Object? wsError;
+  if (client != null) {
+    try {
+      devices = await client.listDevices();
+    } catch (e) {
+      wsError = e;
+    }
+  }
+
+  // Fall back to SSH-exec'd `openclaw devices [--json]` when the WS
+  // path failed or returned empty. The CLI reads ~/.openclaw/devices.json
+  // directly, so it works on every gateway version.
+  if ((devices == null || devices.isEmpty) && sshSvc != null) {
+    try {
+      devices = await sshSvc.listDevices();
+    } catch (e) {
+      // If SSH also fails AND we had no WS data, surface the WS error
+      // (more diagnostic) — otherwise the empty list flows through.
+      if (devices == null) throw wsError ?? e;
+    }
+  }
+
+  devices ??= const [];
+
   final me = await DeviceIdentity.current();
   if (me == null) return devices;
   return [
