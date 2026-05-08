@@ -10,6 +10,14 @@ class OpenClawSshService {
 
   OpenClawSshService({required HermesSshClient ssh}) : _ssh = ssh;
 
+  /// Augment $PATH with the common locations npm-installed binaries land
+  /// in. Non-interactive non-login SSH sessions don't source `.bashrc`,
+  /// so `openclaw` (typically at `~/.npm-global/bin/openclaw`) isn't
+  /// found by name. Prefixing PATH per-command is faster and more
+  /// portable than `bash -lic`.
+  static const _pathPrefix =
+      r'PATH="$HOME/.npm-global/bin:$HOME/.local/bin:/usr/local/bin:$PATH"';
+
   /// Tail the systemd journal for the openclaw-gateway service.
   /// `--no-pager` and `--output=short` keep the output a flat plain text
   /// stream that's easy to render line-by-line. `2>&1` folds stderr into
@@ -38,7 +46,14 @@ class OpenClawSshService {
   /// useful output rather than throwing out of the SSH client.
   Future<String> runDoctor() async {
     try {
-      return await _ssh.exec('openclaw doctor 2>&1');
+      return await _ssh.exec('$_pathPrefix openclaw doctor 2>&1');
+    } on SshCommandException catch (e) {
+      if (e.exitCode == 127) {
+        return 'openclaw CLI not found on the gateway host.\n'
+            'Expected at ~/.npm-global/bin/openclaw — verify the install '
+            'with `which openclaw` after `ssh clawusr@<host>`.';
+      }
+      return 'doctor failed (exit ${e.exitCode}):\n${e.stderr}';
     } catch (e) {
       return 'doctor failed: $e';
     }

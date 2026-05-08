@@ -238,12 +238,22 @@ class GatewayClient {
     _channel?.sink.add(frame);
 
     try {
-      final ack = await completer.future.timeout(const Duration(seconds: 10));
+      // 30 s ack budget — the gateway's chat.send normally acks in ~1 s,
+      // but a previous run still streaming on the same session, model
+      // load, or a Tailscale 5G handoff can push it past the old 10 s
+      // limit. 30 s is enough for the legitimate slow cases without
+      // pinning the UI for too long when the gateway is genuinely dead.
+      final ack = await completer.future.timeout(const Duration(seconds: 30));
       // Server echoes our idempotencyKey as runId; prefer the server's value.
       if (ack is Map && ack['runId'] is String) {
         return ack['runId'] as String;
       }
       return idempotencyKey;
+    } on TimeoutException {
+      _inFlightRunIds.remove(idempotencyKey);
+      FileLogger.instance
+          .log(_tag, 'chat.send ack timed out after 30s id=$id');
+      throw const ChatSendTimeoutException();
     } catch (e) {
       _inFlightRunIds.remove(idempotencyKey);
       FileLogger.instance.log(_tag, 'chat.send ack failed: $e');
@@ -790,4 +800,18 @@ class GatewayClient {
     _health.close();
     _connectionState.dispose();
   }
+}
+
+/// The gateway didn't ack a `chat.send` within 30 s. Usually means a
+/// previous run is still streaming on the same session, the model is
+/// loading, or the Tailscale link blipped. UI should suggest tapping
+/// Stop on the prior message and retrying.
+class ChatSendTimeoutException implements Exception {
+  const ChatSendTimeoutException();
+
+  @override
+  String toString() =>
+      'Gateway did not acknowledge the message within 30 s. '
+      'A previous run may still be in flight — tap Stop on the last '
+      'reply, then resend.';
 }

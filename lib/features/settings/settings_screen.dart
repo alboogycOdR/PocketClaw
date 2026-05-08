@@ -1,4 +1,7 @@
-/// Settings screen with Gateway, Local Model, Security, and About sections
+/// Settings screen — four tabs: Connection · Models · Workspace · App.
+///
+/// Previously a 16-item flat ListView that scrolled ~4 600 px on a phone.
+/// Now grouped semantically so each tab fits a single phone screen.
 library;
 
 import 'package:flutter/material.dart';
@@ -30,627 +33,530 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              Tab(icon: Icon(Icons.cable_outlined, size: 18), text: 'Connection'),
+              Tab(icon: Icon(Icons.memory_outlined, size: 18), text: 'Models'),
+              Tab(icon: Icon(Icons.workspaces_outlined, size: 18), text: 'Workspace'),
+              Tab(icon: Icon(Icons.tune, size: 18), text: 'App'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _ConnectionTab(),
+            _ModelsTab(),
+            _WorkspaceTab(),
+            _AppTab(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Tab 1: Connection ────────────────────────────────────────────────────
+
+class _ConnectionTab extends ConsumerWidget {
+  const _ConnectionTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final gatewayState = ref.watch(gatewayStateProvider);
     final gatewayUrl = ref.watch(gatewayUrlProvider);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('OpenClaw Gateway'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(children: [ConnectionIndicator(state: gatewayState)]),
+                    const SizedBox(height: 4),
+                    Text(
+                      gatewayUrl.isEmpty ? 'Not configured' : gatewayUrl,
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 12,
+                        color: Colors.white54,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GatewayConfig()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(
+                  Icons.psychology_outlined,
+                  color: Color(0xFF7C3AED),
+                ),
+                title: const Text('Hermes Agent'),
+                subtitle: const _HermesStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HermesSettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.terminal),
+                title: const Text('Server SSH'),
+                subtitle: const _SshStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SshSettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.vpn_key_outlined),
+                title: const Text('Device Identity'),
+                subtitle: const Text(
+                  'Ed25519 pairing key · view / reset',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const DeviceIdentitySettings(),
+                  ),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.devices_other),
+                title: const Text('Paired Devices'),
+                subtitle: const _PairedDevicesStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DevicesScreen()),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Tab 2: Models ────────────────────────────────────────────────────────
+
+class _ModelsTab extends ConsumerWidget {
+  const _ModelsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final selectedId = ref.watch(selectedModelIdProvider);
     final hasToken = ref.watch(hasHFTokenProvider);
     final tokenAvailable = hasToken.whenOrNull(data: (v) => v) ?? false;
 
-    // Look up model display name from the registry
     final selectedModel = kAvailableModels.cast<dynamic>().firstWhere(
           (m) => m.id == selectedId,
           orElse: () => null,
         );
     final modelLabel = selectedModel?.displayName ?? selectedId;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Gateway Connection
-          _SectionTitle(title: 'Gateway Connection'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.cloud_outlined),
-                  title: const Text('OpenClaw Gateway'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(children: [
-                        ConnectionIndicator(state: gatewayState),
-                      ]),
-                      const SizedBox(height: 4),
-                      Text(
-                        gatewayUrl.isEmpty ? 'Not configured' : gatewayUrl,
-                        style: GoogleFonts.jetBrainsMono(
-                          fontSize: 12,
-                          color: Colors.white54,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const GatewayConfig(),
-                      ),
-                    );
-                  },
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.memory_outlined),
+                title: const Text('OpenClaw Models'),
+                subtitle: const _OpenClawModelsStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ModelsScreen()),
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(
-                    Icons.psychology_outlined,
-                    color: Color(0xFF7C3AED),
-                  ),
-                  title: const Text('Hermes Agent'),
-                  subtitle: Consumer(
-                    builder: (_, ref, __) {
-                      final reachable = ref.watch(hermesReachableProvider);
-                      final url = ref.watch(hermesBaseUrlProvider);
-                      final configured = url.isNotEmpty;
-                      return reachable.when(
-                        data: (ok) {
-                          final label = !configured
-                              ? 'Not configured'
-                              : ok
-                                  ? 'Connected'
-                                  : 'Unreachable';
-                          final color = ok
-                              ? Colors.tealAccent
-                              : Colors.white54;
-                          return Text(
-                            label,
-                            style: TextStyle(fontSize: 12, color: color),
-                          );
-                        },
-                        loading: () => const Text(
-                          'Checking…',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                        error: (_, __) => const Text(
-                          'Unreachable',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const HermesSettings(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.vpn_key_outlined),
-                  title: const Text('Device Identity'),
-                  subtitle: const Text(
-                    'Ed25519 pairing key · view / reset',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DeviceIdentitySettings(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.devices_other),
-                  title: const Text('Paired Devices'),
-                  subtitle: Consumer(
-                    builder: (_, ref, __) {
-                      final devicesAsync =
-                          ref.watch(openClawDevicesProvider);
-                      return devicesAsync.when(
-                        data: (devices) {
-                          final pending =
-                              devices.where((d) => d.isPending).length;
-                          if (pending > 0) {
-                            return Text(
-                              '$pending pending approval',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.orange,
-                              ),
-                            );
-                          }
-                          final paired =
-                              devices.where((d) => d.isPaired).length;
-                          return Text(
-                            paired == 0
-                                ? 'Manage paired devices'
-                                : '$paired paired',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white54,
-                            ),
-                          );
-                        },
-                        loading: () => const Text(
-                          'Loading…',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                        error: (_, __) => const Text(
-                          'Manage paired devices',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const DevicesScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.memory_outlined),
-                  title: const Text('OpenClaw Models'),
-                  subtitle: Consumer(
-                    builder: (_, ref, __) {
-                      final modelsAsync =
-                          ref.watch(openClawModelsProvider);
-                      return modelsAsync.when(
-                        data: (status) {
-                          if (status.isEmpty) {
-                            return const Text(
-                              'No data — gateway offline?',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.white54,
-                              ),
-                            );
-                          }
-                          final defaultEntry =
-                              status.configured.firstWhere(
-                            (m) => m.id == status.defaultModel,
-                            orElse: () => OpenClawModelEntry(
-                              id: status.defaultModel ?? '',
-                            ),
-                          );
-                          final ok = defaultEntry.isHealthy;
-                          final label = status.alias?.isNotEmpty == true
-                              ? status.alias!
-                              : (status.defaultModel ?? 'unknown');
-                          return Text(
-                            ok ? '$label · healthy' : '$label · unhealthy',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: ok
-                                  ? Colors.tealAccent
-                                  : const Color(0xFFFFB74D),
-                            ),
-                          );
-                        },
-                        loading: () => const Text(
-                          'Loading…',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                        error: (_, __) => const Text(
-                          'Unavailable',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ModelsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.terminal),
-                  title: const Text('Server SSH'),
-                  subtitle: Consumer(
-                    builder: (_, ref, __) {
-                      final host = ref.watch(sshHostProvider);
-                      final user = ref.watch(sshUsernameProvider);
-                      if (host.isEmpty || user.isEmpty) {
-                        return const Text(
-                          'Not configured',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        );
-                      }
-                      final reachable = ref.watch(sshReachableProvider);
-                      return reachable.when(
-                        data: (ok) => Text(
-                          ok
-                              ? '$user@$host · connected'
-                              : '$user@$host · unreachable',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: ok
-                                ? Colors.tealAccent
-                                : const Color(0xFFFFB74D),
-                          ),
-                        ),
-                        loading: () => Text(
-                          '$user@$host · checking…',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                        error: (_, __) => Text(
-                          '$user@$host · error',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SshSettings(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(
-                    Icons.psychology_outlined,
-                    color: Color(0xFF7C3AED),
-                  ),
-                  title: const Text('Hermes Management'),
-                  subtitle: const Text(
-                    'Sessions · Memory · Cron · Skills · Logs (via SSH)',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () => context.push('/hermes'),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Local Model
-          _SectionTitle(title: 'Local Model'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.memory,
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: Icon(Icons.memory, color: PocketClawTheme.electricTeal),
+                title: const Text('Local Model'),
+                subtitle: Text(
+                  '$modelLabel  ·  ${kAvailableModels.length} available',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
                     color: PocketClawTheme.electricTeal,
                   ),
-                  title: const Text('Current Model'),
-                  subtitle: Text(
-                    '$modelLabel  \u00b7  ${kAvailableModels.length} available',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
-                      color: PocketClawTheme.electricTeal,
-                    ),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const ModelConfig(),
-                      ),
-                    );
-                  },
                 ),
-              ],
-            ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ModelConfig()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: Icon(
+                  Icons.key_outlined,
+                  color: tokenAvailable
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFFFFB74D),
+                ),
+                title: const Text('HuggingFace Token'),
+                subtitle: Text(
+                  tokenAvailable
+                      ? 'Token configured (secure storage)'
+                      : 'Required for gated model downloads',
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => showHfTokenDialog(context, ref),
+              ),
+            ],
           ),
+        ),
+      ],
+    );
+  }
+}
 
-          const SizedBox(height: 24),
+// ── Tab 3: Workspace (Paperclip + Hermes Mgmt + Routing) ─────────────────
 
-          // Paperclip & routing
-          _SectionTitle(title: 'AI Company & routing'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: Icon(
-                    Icons.business_center,
-                    color: PocketClawTheme.electricTeal,
-                  ),
-                  title: const Text('Paperclip Company'),
-                  subtitle: const Text(
-                    'REST + WebSocket, mission, budgets',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PaperclipCompanySettings(),
-                      ),
-                    );
-                  },
+class _WorkspaceTab extends ConsumerWidget {
+  const _WorkspaceTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.business_center,
+                  color: PocketClawTheme.electricTeal,
                 ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.alt_route),
-                  title: const Text('Smart Router & Memory'),
-                  subtitle: const Text(
-                    'Token budget, active project',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const RouterMemorySettings(),
-                      ),
-                    );
-                  },
+                title: const Text('Paperclip Company'),
+                subtitle: const Text(
+                  'REST API · mission, budgets, tickets',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
                 ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // HuggingFace Token
-          _SectionTitle(title: 'HuggingFace Token'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: ListTile(
-              leading: Icon(
-                Icons.key_outlined,
-                color: tokenAvailable
-                    ? const Color(0xFF4CAF50)
-                    : const Color(0xFFFFB74D),
-              ),
-              title: const Text('API Token'),
-              subtitle: Text(
-                tokenAvailable
-                    ? 'Token configured (secure storage)'
-                    : 'Required for gated model downloads',
-                style: const TextStyle(fontSize: 12, color: Colors.white54),
-              ),
-              trailing: const Icon(
-                Icons.chevron_right,
-                color: Colors.white38,
-              ),
-              onTap: () => showHfTokenDialog(context, ref),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Vertical modes (preview)
-          _SectionTitle(title: 'Modes'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.school_outlined),
-                  title: const Text('Academy Mode'),
-                  subtitle: const Text(
-                    'Curriculum tutoring shell',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () => context.push('/academy'),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.self_improvement_outlined),
-                  title: const Text('Life Architect'),
-                  subtitle: const Text(
-                    'GROW + safety preview',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () => context.push('/life-architect'),
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                ListTile(
-                  leading: const Icon(Icons.rocket_launch_outlined),
-                  title: const Text('Commercial onboarding'),
-                  subtitle: const Text(
-                    'Gateway + Paperclip wizard',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () => context.push('/onboarding/commercial'),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Security
-          _SectionTitle(title: 'Security'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: ListTile(
-              leading: const Icon(Icons.security),
-              title: const Text('Security & Privacy'),
-              subtitle: const Text(
-                'Biometric lock, clear data',
-                style: TextStyle(fontSize: 12, color: Colors.white54),
-              ),
-              trailing: const Icon(
-                Icons.chevron_right,
-                color: Colors.white38,
-              ),
-              onTap: () {
-                Navigator.of(context).push(
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const SecuritySettings(),
+                    builder: (_) => const PaperclipCompanySettings(),
                   ),
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // About
-          _SectionTitle(title: 'About'),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Text(
-                    '\u{1F980}',
-                    style: const TextStyle(fontSize: 40),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppConstants.appName,
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'v${AppConstants.appVersion}',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 12,
-                      color: Colors.white38,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    AppConstants.orgName,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white38,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Your personal AI agent, always in your pocket.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.white54,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                ),
               ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(
+                  Icons.psychology_outlined,
+                  color: Color(0xFF7C3AED),
+                ),
+                title: const Text('Hermes Management'),
+                subtitle: const Text(
+                  'Sessions · Memory · Cron · Skills · Logs (via SSH)',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/hermes'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.alt_route),
+                title: const Text('Smart Router & Memory'),
+                subtitle: const Text(
+                  'Token budget, active project',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const RouterMemorySettings(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Tab 4: App (Modes · Security · About) ────────────────────────────────
+
+class _AppTab extends StatelessWidget {
+  const _AppTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.school_outlined),
+                title: const Text('Academy Mode'),
+                subtitle: const Text(
+                  'Curriculum tutoring shell',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/academy'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.self_improvement_outlined),
+                title: const Text('Life Architect'),
+                subtitle: const Text(
+                  'GROW + safety preview',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/life-architect'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.rocket_launch_outlined),
+                title: const Text('Commercial onboarding'),
+                subtitle: const Text(
+                  'Gateway + Paperclip wizard',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/onboarding/commercial'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.security),
+                title: const Text('Security & Privacy'),
+                subtitle: const Text(
+                  'Biometric lock, clear data',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SecuritySettings()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Text('\u{1F980}', style: TextStyle(fontSize: 40)),
+                const SizedBox(height: 8),
+                Text(
+                  AppConstants.appName,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'v${AppConstants.appVersion}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
+                    color: Colors.white38,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  AppConstants.orgName,
+                  style: const TextStyle(fontSize: 12, color: Colors.white38),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Your personal AI agent, always in your pocket.',
+                  style: TextStyle(fontSize: 13, color: Colors.white54),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
 
-          const SizedBox(height: 24),
-        ],
+// ── Reusable bits ────────────────────────────────────────────────────────
+
+class _Chevron extends StatelessWidget {
+  const _Chevron();
+  @override
+  Widget build(BuildContext context) =>
+      const Icon(Icons.chevron_right, color: Colors.white38);
+}
+
+class _ListDivider extends StatelessWidget {
+  const _ListDivider();
+  @override
+  Widget build(BuildContext context) =>
+      const Divider(height: 1, indent: 16, endIndent: 16);
+}
+
+class _HermesStatusLine extends ConsumerWidget {
+  const _HermesStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reachable = ref.watch(hermesReachableProvider);
+    final url = ref.watch(hermesBaseUrlProvider);
+    final configured = url.isNotEmpty;
+    return reachable.when(
+      data: (ok) {
+        final label =
+            !configured ? 'Not configured' : (ok ? 'Connected' : 'Unreachable');
+        final color = ok ? Colors.tealAccent : Colors.white54;
+        return Text(label, style: TextStyle(fontSize: 12, color: color));
+      },
+      loading: () => const Text(
+        'Checking…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Unreachable',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
       ),
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  final String title;
-
-  const _SectionTitle({required this.title});
+class _SshStatusLine extends ConsumerWidget {
+  const _SshStatusLine();
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: Colors.white60,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final host = ref.watch(sshHostProvider);
+    final user = ref.watch(sshUsernameProvider);
+    if (host.isEmpty || user.isEmpty) {
+      return const Text(
+        'Not configured',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    final reachable = ref.watch(sshReachableProvider);
+    return reachable.when(
+      data: (ok) => Text(
+        ok ? '$user@$host · connected' : '$user@$host · unreachable',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? Colors.tealAccent : const Color(0xFFFFB74D),
+        ),
+      ),
+      loading: () => Text(
+        '$user@$host · checking…',
+        style: const TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => Text(
+        '$user@$host · error',
+        style: const TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _PairedDevicesStatusLine extends ConsumerWidget {
+  const _PairedDevicesStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final devicesAsync = ref.watch(openClawDevicesProvider);
+    return devicesAsync.when(
+      data: (devices) {
+        final pending = devices.where((d) => d.isPending).length;
+        if (pending > 0) {
+          return Text(
+            '$pending pending approval',
+            style: const TextStyle(fontSize: 12, color: Colors.orange),
+          );
+        }
+        final paired = devices.where((d) => d.isPaired).length;
+        return Text(
+          paired == 0 ? 'Manage paired devices' : '$paired paired',
+          style: const TextStyle(fontSize: 12, color: Colors.white54),
+        );
+      },
+      loading: () => const Text(
+        'Loading…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Manage paired devices',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _OpenClawModelsStatusLine extends ConsumerWidget {
+  const _OpenClawModelsStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final modelsAsync = ref.watch(openClawModelsProvider);
+    return modelsAsync.when(
+      data: (status) {
+        if (status.isEmpty) {
+          return const Text(
+            'No data — gateway offline?',
+            style: TextStyle(fontSize: 12, color: Colors.white54),
+          );
+        }
+        final defaultEntry = status.configured.firstWhere(
+          (m) => m.id == status.defaultModel,
+          orElse: () => OpenClawModelEntry(id: status.defaultModel ?? ''),
+        );
+        final ok = defaultEntry.isHealthy;
+        final label = status.alias?.isNotEmpty == true
+            ? status.alias!
+            : (status.defaultModel ?? 'unknown');
+        return Text(
+          ok ? '$label · healthy' : '$label · unhealthy',
+          style: TextStyle(
+            fontSize: 12,
+            color: ok ? Colors.tealAccent : const Color(0xFFFFB74D),
           ),
+        );
+      },
+      loading: () => const Text(
+        'Loading…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Unavailable',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
     );
   }
 }
