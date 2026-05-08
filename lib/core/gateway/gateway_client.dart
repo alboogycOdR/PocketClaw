@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:web_socket_channel/io.dart';
@@ -46,6 +47,30 @@ class GatewayClient {
   int _connAttempt = 0;
   StreamSubscription<dynamic>? _streamSub;
   final Map<String, Completer<dynamic>> _pending = {};
+
+  // ── Exponential-backoff reconnect (SPEC-OpenClaw-Improvements §7) ──────
+  // Schedule: 2s → 4s → 8s → 16s → 32s → 60s (capped). Counter resets to
+  // zero whenever the helloOk handshake completes successfully, so a
+  // long-lived session that drops once doesn't sit at the 60s cap on the
+  // next blip.
+  static const Duration _minReconnectDelay = Duration(seconds: 2);
+  static const Duration _maxReconnectDelay = Duration(seconds: 60);
+  int _reconnectAttemptCount = 0;
+  final _backoffRandom = Random();
+
+  Duration get _nextReconnectDelay {
+    final shift = _reconnectAttemptCount.clamp(0, 5);
+    final baseMs = _minReconnectDelay.inMilliseconds * (1 << shift);
+    final cappedMs = baseMs.clamp(
+      _minReconnectDelay.inMilliseconds,
+      _maxReconnectDelay.inMilliseconds,
+    );
+    // ±15% jitter so multiple clients reconnecting at the same moment
+    // (e.g. after a Tailscale tunnel reset) don't dogpile the gateway.
+    final jitter = (cappedMs * (_backoffRandom.nextDouble() * 0.30 - 0.15))
+        .round();
+    return Duration(milliseconds: cappedMs + jitter);
+  }
 
   /// Run IDs the client has open chat.send calls for. Any incoming event
   /// whose runId isn't here is treated as a PROACTIVE agent push and
@@ -671,6 +696,9 @@ class GatewayClient {
       await completer.future.timeout(const Duration(seconds: 10));
       FileLogger.instance.log(_tag, 'helloOk received');
       _connectionState.value = GatewayState.connected;
+      // Reset backoff so the next blip starts fresh at 2s instead of
+      // sitting at the previous capped 60s. SPEC-OpenClaw-Improvements §7.
+      _reconnectAttemptCount = 0;
     } catch (e) {
       FileLogger.instance.log(_tag, 'connect request failed: $e');
       _pending.remove(id);
@@ -717,22 +745,33 @@ class GatewayClient {
       _pending.clear();
       _connectionState.value = GatewayState.reconnecting;
 
-      // Start with a longer first delay so a 503 burst from the gateway
-      // has a chance to cool off.
-      for (final delay in [5, 5, 10, 15, 30, 60]) {
-        if (_disposed) return;
-        await Future<void>.delayed(Duration(seconds: delay));
+      // Exponential backoff with jitter, no cap on attempt count
+      // (SPEC-OpenClaw-Improvements §7). Loop exits cleanly when the
+      // client is disposed, when pairing approval is required, or when
+      // the helloOk handshake completes (state flips to connected).
+      while (!_disposed) {
+        if (_pairingRequired) {
+          // Pairing flow owns the next connect attempt; bail.
+          return;
+        }
+        _reconnectAttemptCount++;
+        final delay = _nextReconnectDelay;
+        FileLogger.instance.log(
+          _tag,
+          'reconnect in ${delay.inSeconds}s '
+          '(attempt $_reconnectAttemptCount)',
+        );
+        await Future<void>.delayed(delay);
+        if (_disposed || _pairingRequired) return;
         try {
           await connect();
-          // Allow the handshake a moment to complete.
+          // Give the handshake a moment to complete.
           await Future<void>.delayed(const Duration(seconds: 3));
           if (_connectionState.value == GatewayState.connected) return;
         } catch (_) {
-          // Continue retry loop
+          // Connect failed — keep retrying with the next delay.
         }
       }
-
-      _connectionState.value = GatewayState.disconnected;
     } finally {
       _reconnecting = false;
     }
