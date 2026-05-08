@@ -5,11 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:  # Manual trigger from GitHub UI
 
+# Default GITHUB_TOKEN is read-only; the GitHub Release step needs
+# write access to create tags and upload assets.
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -94,10 +99,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Gofile + Telegram delivery — reuses scripts/release_remote.dart so the
-      # CI message format matches local releases. Skips silently if the
-      # repo secrets are not configured (e.g. forks, PR builds).
+      # CI message format matches local releases. Runs as long as the APK
+      # build succeeded, even if the (optional) GitHub Release step before
+      # it failed. Skips silently if the repo secrets are not configured.
       - name: Upload APK to Gofile + notify Telegram
-        if: github.event_name == 'push'
+        if: ${{ !cancelled() && github.event_name == 'push' && hashFiles('build/app/outputs/flutter-apk/app-release.apk') != '' }}
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
