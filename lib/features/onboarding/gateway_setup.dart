@@ -51,9 +51,22 @@ class _GatewaySetupState extends ConsumerState<GatewaySetup> {
       _testError = null;
     });
 
-    final restUrl = rawUrl
-        .replaceFirst('wss://', 'https://')
-        .replaceFirst('ws://', 'http://');
+    // The REST health probe lives at the host root, not under /ws. Users
+    // often paste either form (`ws://host:port` or `ws://host:port/ws`),
+    // both of which are valid for the WS connect (GatewayClient
+    // auto-appends /ws when it's missing). Strip the path here so the
+    // probe URL is always `http://host:port/__openclaw__/api/health`.
+    final parsed = Uri.tryParse(rawUrl);
+    final restUrl = parsed == null
+        ? rawUrl
+            .replaceFirst('wss://', 'https://')
+            .replaceFirst('ws://', 'http://')
+        : parsed
+            .replace(
+              scheme: parsed.scheme == 'wss' ? 'https' : 'http',
+              path: '',
+            )
+            .toString();
     final token = _tokenController.text.trim();
 
     final dio = Dio(BaseOptions(

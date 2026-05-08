@@ -94,9 +94,25 @@ class GatewayClient {
   bool get pairingRequired => _pairingRequired;
 
   GatewayClient({
-    required this.gatewayUrl,
+    required String gatewayUrl,
     required this.authToken,
-  });
+  }) : gatewayUrl = _normaliseUrl(gatewayUrl);
+
+  /// Users (and onboarding form auto-fill) keep typing
+  /// `ws://host:18789` without the `/ws` path. The gateway only
+  /// answers WebSocket upgrades on `/ws`, so the bare-host form fails
+  /// silently with "Connection failed". Append the path if it's
+  /// missing so either input works.
+  static String _normaliseUrl(String raw) {
+    var url = raw.trim();
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (url.isEmpty) return url;
+    final hasPath = Uri.tryParse(url)?.pathSegments.isNotEmpty ?? false;
+    if (!hasPath) url = '$url/ws';
+    return url;
+  }
 
   static const String _tag = '[gateway]';
 
