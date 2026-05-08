@@ -34,6 +34,12 @@ jobs:
       - name: Run analysis
         run: flutter analyze --no-fatal-infos
 
+      # Master-channel Flutter requests NDK 28.0.x, whose license isn't
+      # pre-accepted on the GitHub-hosted runner. Without this step the
+      # Gradle build fails with LicenceNotAcceptedException.
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+
       - name: Build APK
         run: flutter build apk --release
 
