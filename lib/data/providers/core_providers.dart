@@ -183,17 +183,18 @@ final openClawDevicesProvider =
     FutureProvider<List<OpenClawDevice>>((ref) async {
   final client = ref.watch(gatewayClientProvider);
   if (client == null) return const [];
-  try {
-    final devices = await client.listDevices();
-    final me = await DeviceIdentity.current();
-    if (me == null) return devices;
-    return [
-      for (final d in devices)
-        d.copyWith(isCurrentDevice: d.id == me.deviceId),
-    ];
-  } catch (_) {
-    return const [];
-  }
+  // Let RPC errors propagate so the Devices screen renders them via
+  // AsyncValue.error instead of showing the same empty state for both
+  // "RPC failed" and "gateway genuinely has zero devices". The previous
+  // silent catch made server-side method-name / scope failures look
+  // identical to a fresh-install no-data condition.
+  final devices = await client.listDevices();
+  final me = await DeviceIdentity.current();
+  if (me == null) return devices;
+  return [
+    for (final d in devices)
+      d.copyWith(isCurrentDevice: d.id == me.deviceId),
+  ];
 });
 
 // ── OpenClaw models status ──
