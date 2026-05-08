@@ -326,17 +326,22 @@ class _AppTab extends StatelessWidget {
               //   onTap: () => context.push('/life-architect'),
               // ),
               // const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.rocket_launch_outlined),
-                title: const Text('Commercial onboarding'),
-                subtitle: const Text(
-                  'Gateway + Paperclip wizard',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => context.push('/onboarding/commercial'),
-              ),
-              const _ListDivider(),
+              // Commercial onboarding wizard hidden 2026-05-08 — it
+              // configures Paperclip URL/WS/token alongside the gateway,
+              // which is dead surface while Paperclip is parked. Restore
+              // when Paperclip's tab is restored.
+              //
+              // ListTile(
+              //   leading: const Icon(Icons.rocket_launch_outlined),
+              //   title: const Text('Commercial onboarding'),
+              //   subtitle: const Text(
+              //     'Gateway + Paperclip wizard',
+              //     style: TextStyle(fontSize: 12, color: Colors.white54),
+              //   ),
+              //   trailing: const _Chevron(),
+              //   onTap: () => context.push('/onboarding/commercial'),
+              // ),
+              // const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.security),
                 title: const Text('Security & Privacy'),
