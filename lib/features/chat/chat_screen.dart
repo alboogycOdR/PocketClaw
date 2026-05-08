@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../app/theme.dart';
 
+import '../../core/hermes/acp/acp_models.dart';
 import '../../core/local_agent/llm_engine.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
@@ -126,6 +127,86 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       selection: TextSelection.collapsed(offset: caret),
     );
     _focusNode.requestFocus();
+  }
+
+  /// Show a Hermes ACP permission ask. The agent is blocked until we
+  /// route the user's choice back via [acpPermissionResponderProvider].
+  Future<void> _showAcpPermissionDialog(
+    AcpPermissionRequestEvent event,
+  ) async {
+    if (!mounted) return;
+    final responder = ref.read(acpPermissionResponderProvider);
+    final colour = const {
+      'read': Color(0xFF60A5FA),
+      'edit': Color(0xFFFBBF24),
+      'execute': Color(0xFF34D399),
+      'fetch': Color(0xFFA78BFA),
+      'search': Color(0xFF38BDF8),
+      'think': Color(0xFFF472B6),
+      'other': Color(0xFF9CA3AF),
+    }[event.toolCallKind] ??
+        const Color(0xFF9CA3AF);
+
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.security, size: 18, color: colour),
+            const SizedBox(width: 8),
+            const Text('Tool permission'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The agent is asking to run:',
+              style: TextStyle(fontSize: 13, color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colour.withAlpha(25),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: colour.withAlpha(80)),
+              ),
+              child: Text(
+                event.toolCallTitle.isEmpty
+                    ? '(no title)'
+                    : event.toolCallTitle,
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 12,
+                  color: colour,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          for (final opt in event.options)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(opt.optionId),
+              style: TextButton.styleFrom(
+                foregroundColor: opt.optionId == 'deny'
+                    ? PocketClawTheme.lobsterRed
+                    : null,
+              ),
+              child: Text(opt.name),
+            ),
+        ],
+      ),
+    );
+    if (choice != null) {
+      responder(choice);
+    } else {
+      // User dismissed the dialog without choosing — default to deny so
+      // the agent doesn't sit waiting forever.
+      responder('deny');
+    }
   }
 
   Future<void> _openCommandPalette() async {
@@ -437,6 +518,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 3A: Model indicator
     final engine = ref.watch(llmEngineProvider);
     final modelConfig = engine.config;
+
+    // ACP permission gate — when the agent asks for permission to run a
+    // tool (e.g. terminal: rm -rf …), pop a dialog and route the user's
+    // choice back into the active ACP client.
+    ref.listen<AcpPermissionRequestEvent?>(
+      pendingAcpPermissionProvider,
+      (_, next) {
+        if (next == null || !mounted) return;
+        _showAcpPermissionDialog(next);
+      },
+    );
 
     // Trigger chat history load once per sessionKey once the real gateway
     // state flips to connected. `connectionStateProvider` above is a local

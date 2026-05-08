@@ -12,7 +12,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/chat/chat_mode.dart';
 import '../../core/gateway/offline_queue.dart';
+import '../../core/hermes/acp/acp_models.dart';
+import '../../core/hermes/acp/hermes_acp_client.dart';
 import '../../core/hermes/hermes_client.dart';
+import '../../core/ssh/hermes_ssh_client.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/session/session_history.dart';
@@ -22,6 +25,7 @@ import '../../shared/widgets/execution_path_chip.dart';
 import 'chat_mode_providers.dart';
 import 'core_providers.dart';
 import 'hermes_providers.dart';
+import 'ssh_providers.dart';
 
 const _uuid = Uuid();
 
@@ -62,6 +66,39 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
     ];
   }
 
+  /// Append (or replace, if [toolCallId] already exists) a tool call on
+  /// the message with [messageId]. Used by the Hermes ACP send path to
+  /// surface live tool-call cards inline below the streaming text.
+  void addToolCall(String messageId, ChatAcpToolCall call) {
+    updateById(messageId, (m) {
+      final next = [
+        for (final c in m.acpToolCalls)
+          if (c.toolCallId != call.toolCallId) c,
+        call,
+      ];
+      return m.copyWith(acpToolCalls: next);
+    });
+  }
+
+  /// Update an existing tool call's status and/or content in place.
+  void updateToolCall(
+    String messageId,
+    String toolCallId, {
+    String? status,
+    String? content,
+  }) {
+    updateById(messageId, (m) {
+      final next = [
+        for (final c in m.acpToolCalls)
+          if (c.toolCallId == toolCallId)
+            c.copyWith(status: status, content: content)
+          else
+            c,
+      ];
+      return m.copyWith(acpToolCalls: next);
+    });
+  }
+
   void clear() => state = [];
 
   /// Replace the in-memory thread wholesale — used when loading server-side
@@ -88,6 +125,37 @@ final connectionStateProvider = StateProvider<GatewayState>((ref) {
 // ── Is Processing ──
 
 final isProcessingProvider = StateProvider<bool>((_) => false);
+
+// ── ACP permission gate ──
+//
+// When the agent asks for permission to run a tool, the ACP client
+// emits an AcpPermissionRequestEvent. The chat provider can't show a
+// dialog itself (no BuildContext), so it parks the event here; the
+// chat screen watches this provider, presents a dialog, and routes the
+// user's choice back into ACP via [acpPermissionResponderProvider].
+
+final pendingAcpPermissionProvider =
+    StateProvider<AcpPermissionRequestEvent?>((_) => null);
+
+/// The active ACP client for the current chat turn — exposed so the chat
+/// screen can deliver the user's permission decision. Null when no ACP
+/// turn is in flight.
+final activeAcpClientProvider = StateProvider<HermesAcpClient?>((_) => null);
+
+/// Resolve a pending permission request with the chosen optionId.
+final acpPermissionResponderProvider =
+    Provider<void Function(String optionId)>((ref) {
+  return (String optionId) {
+    final pending = ref.read(pendingAcpPermissionProvider);
+    final client = ref.read(activeAcpClientProvider);
+    if (pending == null || client == null) return;
+    client.respondToPermission(
+      requestId: pending.requestId,
+      optionId: optionId,
+    );
+    ref.read(pendingAcpPermissionProvider.notifier).state = null;
+  };
+});
 
 // ── OpenClaw session key (one "conversation") ──
 //
@@ -469,8 +537,163 @@ Future<void> _processCloud(Ref ref, String text) async {
   }
 }
 
+/// Run a Hermes turn over ACP (SSH-exec'd `hermes acp` JSON-RPC).
+///
+/// Returns true if the turn ran (whether it ended in success or an
+/// error that was surfaced to the user). Returns false only when the
+/// ACP client failed to start before any output appeared, so the
+/// caller can fall through to REST.
+Future<bool> _processHermesAcp(
+  Ref ref,
+  String text,
+  HermesSshClient ssh,
+) async {
+  final messages = ref.read(messagesProvider.notifier);
+  final placeholderId = _uuid.v4();
+  messages.add(ChatMessage(
+    id: placeholderId,
+    role: MessageRole.assistant,
+    content: '',
+    source: MessageSource.server,
+    timestamp: DateTime.now(),
+    isStreaming: true,
+    statusText: 'Hermes is starting…',
+  ));
+
+  final acp = HermesAcpClient(ssh: ssh);
+  ref.read(activeAcpClientProvider.notifier).state = acp;
+
+  try {
+    await acp.start();
+  } catch (e) {
+    // Couldn't even start the subprocess. Drop the placeholder and let
+    // the REST path try.
+    messages.removeById(placeholderId);
+    ref.read(activeAcpClientProvider.notifier).state = null;
+    await acp.stop();
+    return false;
+  }
+
+  // Subscribe to event stream. The subscription is cancelled in the
+  // finally block once the prompt completes.
+  final buffer = StringBuffer();
+  final sub = acp.events.listen((event) {
+    switch (event) {
+      case AcpMessageChunkEvent(:final text):
+        buffer.write(text);
+        messages.updateById(placeholderId, (m) => m.copyWith(
+              content: buffer.toString(),
+              clearStatusText: true,
+            ));
+      case AcpThoughtChunkEvent(:final text):
+        // Thought chunks aren't surfaced inline — keep them in statusText
+        // as a low-key indicator that the agent is reasoning.
+        messages.updateById(placeholderId, (m) => m.copyWith(
+              statusText: text.length > 64
+                  ? '${text.substring(0, 64)}…'
+                  : text,
+            ));
+      case AcpToolCallStartEvent():
+        messages.addToolCall(
+          placeholderId,
+          ChatAcpToolCall(
+            toolCallId: event.toolCallId,
+            title: event.title,
+            kind: event.kind,
+            status: event.status,
+            rawInput: event.rawInput,
+          ),
+        );
+      case AcpToolCallUpdateEvent():
+        messages.updateToolCall(
+          placeholderId,
+          event.toolCallId,
+          status: event.status,
+          content: event.content,
+        );
+      case AcpPermissionRequestEvent():
+        // Park the request so the chat screen can show a dialog.
+        ref.read(pendingAcpPermissionProvider.notifier).state = event;
+      case AcpPromptCompleteEvent():
+        // Final completion is handled by sendPrompt's await; we don't
+        // need to do anything here. (Notifications can also arrive
+        // out-of-band so the case is kept exhaustive.)
+        break;
+      case AcpDisconnectedEvent():
+        // Stream surfaces in the prompt's error path below; nothing
+        // extra to update from here.
+        break;
+      case AcpUnknownEvent():
+        break;
+    }
+  });
+
+  String? sessionId;
+  try {
+    sessionId = await acp.newSession();
+    final result = await acp.sendPrompt(sessionId: sessionId, text: text);
+    final usageNote = result.totalTokens > 0
+        ? '${result.inputTokens}→${result.outputTokens} tok'
+        : null;
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          isStreaming: false,
+          clearStatusText: true,
+          // If the agent ended without ever streaming content (rare),
+          // surface the stop reason so the bubble isn't empty.
+          content: buffer.isEmpty
+              ? '_(no response — stopReason: ${result.stopReason}'
+                  '${usageNote != null ? ', $usageNote' : ''})_'
+              : m.content,
+        ));
+  } on AcpException catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: buffer.isEmpty
+              ? 'Hermes ACP error: $e'
+              : '$buffer\n\n[ACP error: $e]',
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+  } on TimeoutException catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: buffer.isEmpty
+              ? 'Hermes ACP timed out: $e'
+              : '$buffer\n\n[Timed out: $e]',
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+  } catch (e) {
+    messages.updateById(placeholderId, (m) => m.copyWith(
+          content: buffer.isEmpty
+              ? 'Hermes ACP failed: $e'
+              : '$buffer\n\n[Error: $e]',
+          isStreaming: false,
+          clearStatusText: true,
+        ));
+  } finally {
+    await sub.cancel();
+    ref.read(activeAcpClientProvider.notifier).state = null;
+    ref.read(pendingAcpPermissionProvider.notifier).state = null;
+    await acp.stop();
+  }
+
+  return true;
+}
+
 Future<void> _processHermes(Ref ref, String text) async {
   final messages = ref.read(messagesProvider.notifier);
+
+  // Prefer ACP over SSH when SSH is configured — it streams tool calls
+  // and thoughts in real time, which the REST path can't do. Fall back to
+  // REST when SSH isn't configured or the client errors out before the
+  // first response.
+  final ssh = await ref.read(sshClientProvider.future);
+  if (ssh != null) {
+    final used = await _processHermesAcp(ref, text, ssh);
+    if (used) return;
+    // ACP failed before any output — fall through to REST so the user
+    // still gets a reply.
+  }
+
   final client = ref.read(hermesClientProvider);
 
   if (client == null) {

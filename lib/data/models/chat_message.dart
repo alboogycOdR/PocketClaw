@@ -7,6 +7,48 @@ enum MessageSource { local, server, bridge, device }
 
 enum ActionType { email, calendar, message, reminder, generic }
 
+/// A tool call observed during a Hermes ACP turn. Carried by the chat
+/// bubble so the UI can render an inline status card per call.
+/// `kind` is the raw ACP kind string ('read'|'edit'|'execute'|'fetch'|
+/// 'search'|'think'|'other'); `status` is 'pending'|'completed'|'failed'.
+class ChatAcpToolCall {
+  final String toolCallId;
+  final String title; // raw "functionName: summary" or just "functionName"
+  final String kind;
+  final String status;
+  final String content; // result text once completed
+  final Map<String, dynamic>? rawInput;
+
+  const ChatAcpToolCall({
+    required this.toolCallId,
+    required this.title,
+    required this.kind,
+    required this.status,
+    this.content = '',
+    this.rawInput,
+  });
+
+  String get functionName =>
+      title.contains(':') ? title.split(':').first.trim() : title;
+  String get summary => title.contains(':')
+      ? title.substring(title.indexOf(':') + 1).trim()
+      : '';
+
+  bool get isPending => status == 'pending';
+  bool get isCompleted => status == 'completed';
+  bool get isFailed => status == 'failed';
+
+  ChatAcpToolCall copyWith({String? status, String? content}) =>
+      ChatAcpToolCall(
+        toolCallId: toolCallId,
+        title: title,
+        kind: kind,
+        status: status ?? this.status,
+        content: content ?? this.content,
+        rawInput: rawInput,
+      );
+}
+
 class ChatMessage {
   final String id;
   final MessageRole role;
@@ -27,6 +69,11 @@ class ChatMessage {
   /// OpenClaw run identifier this message is tied to (for abort/correlation).
   final String? runId;
 
+  /// Tool calls emitted during this message's ACP turn. Empty for non-ACP
+  /// paths and for user messages. Append-mutated via
+  /// MessagesNotifier.addToolCall/updateToolCall.
+  final List<ChatAcpToolCall> acpToolCalls;
+
   const ChatMessage({
     required this.id,
     required this.role,
@@ -40,6 +87,7 @@ class ChatMessage {
     this.memoryCitations = const [],
     this.statusText,
     this.runId,
+    this.acpToolCalls = const [],
   });
 
   ChatMessage copyWith({
@@ -51,6 +99,7 @@ class ChatMessage {
     String? statusText,
     bool clearStatusText = false,
     String? runId,
+    List<ChatAcpToolCall>? acpToolCalls,
   }) =>
       ChatMessage(
         id: id,
@@ -65,6 +114,7 @@ class ChatMessage {
         memoryCitations: memoryCitations ?? this.memoryCitations,
         statusText: clearStatusText ? null : (statusText ?? this.statusText),
         runId: runId ?? this.runId,
+        acpToolCalls: acpToolCalls ?? this.acpToolCalls,
       );
 
   Map<String, dynamic> toJson() => {

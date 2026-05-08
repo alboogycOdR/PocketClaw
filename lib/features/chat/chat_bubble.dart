@@ -80,6 +80,17 @@ class ChatBubble extends StatelessWidget {
                   else
                     _AssistantMarkdown(content: message.content),
 
+                  // ACP tool calls — one mini-card per call, in the order
+                  // they arrived. Stream live (pending → completed) and
+                  // remain visible after the turn ends.
+                  if (message.acpToolCalls.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    for (final c in message.acpToolCalls) ...[
+                      _AcpToolCallChip(call: c),
+                      const SizedBox(height: 4),
+                    ],
+                  ],
+
                   // Inline tool / lifecycle status while the agent is working
                   // (e.g. "Searching the web: 'ed25519 flutter'").
                   if (message.isStreaming && message.statusText != null) ...[
@@ -347,5 +358,121 @@ class _StreamingTextState extends State<_StreamingText>
         );
       },
     );
+  }
+}
+
+// ── ACP tool call chip ──────────────────────────────────────────────────
+//
+// Compact one-line summary of a tool call the agent fired during this
+// message's turn. Renders kind-coloured + status-aware (spinner while
+// pending, check when completed, X when failed). Tapping expands a tiny
+// detail panel below it.
+
+class _AcpToolCallChip extends StatefulWidget {
+  final ChatAcpToolCall call;
+  const _AcpToolCallChip({required this.call});
+
+  @override
+  State<_AcpToolCallChip> createState() => _AcpToolCallChipState();
+}
+
+class _AcpToolCallChipState extends State<_AcpToolCallChip> {
+  bool _expanded = false;
+
+  // Same colour map as ToolCallCard / SPEC-ACPWireProtocol — read=blue,
+  // edit=amber, execute=emerald, fetch=violet, search=sky, think=pink,
+  // other=gray.
+  static const _kindColours = <String, Color>{
+    'read': Color(0xFF60A5FA),
+    'edit': Color(0xFFFBBF24),
+    'execute': Color(0xFF34D399),
+    'fetch': Color(0xFFA78BFA),
+    'search': Color(0xFF38BDF8),
+    'think': Color(0xFFF472B6),
+    'other': Color(0xFF9CA3AF),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.call;
+    final colour = _kindColours[c.kind] ?? _kindColours['other']!;
+    return GestureDetector(
+      onTap: c.content.isEmpty
+          ? null
+          : () => setState(() => _expanded = !_expanded),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: colour.withAlpha(20),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colour.withAlpha(80), width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _StatusIcon(status: c.status, colour: colour),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    c.summary.isNotEmpty
+                        ? '${c.functionName}: ${c.summary}'
+                        : c.functionName,
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 11,
+                      color: colour,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (c.content.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 12,
+                    color: colour.withAlpha(180),
+                  ),
+                ],
+              ],
+            ),
+            if (_expanded && c.content.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              SelectableText(
+                c.content,
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 10.5,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusIcon extends StatelessWidget {
+  final String status;
+  final Color colour;
+  const _StatusIcon({required this.status, required this.colour});
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (status) {
+      'pending' => SizedBox(
+          width: 10,
+          height: 10,
+          child: CircularProgressIndicator(strokeWidth: 1.5, color: colour),
+        ),
+      'completed' =>
+        Icon(Icons.check_circle_outline, size: 12, color: colour),
+      'failed' =>
+        Icon(Icons.error_outline, size: 12, color: PocketClawTheme.lobsterRed),
+      _ => Icon(Icons.bolt, size: 12, color: colour),
+    };
   }
 }
