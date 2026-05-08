@@ -299,28 +299,33 @@ class _AppTab extends StatelessWidget {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.school_outlined),
-                title: const Text('Academy Mode'),
-                subtitle: const Text(
-                  'Curriculum tutoring shell',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => context.push('/academy'),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.self_improvement_outlined),
-                title: const Text('Life Architect'),
-                subtitle: const Text(
-                  'GROW + safety preview',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => context.push('/life-architect'),
-              ),
-              const _ListDivider(),
+              // Academy Mode + Life Architect Mode skeleton screens
+              // hidden 2026-05-08 — both flagged as "not wired to data
+              // providers" in upgrades-to-comms/ProjectProgress.md.
+              // Restore by uncommenting once the providers ship.
+              //
+              // ListTile(
+              //   leading: const Icon(Icons.school_outlined),
+              //   title: const Text('Academy Mode'),
+              //   subtitle: const Text(
+              //     'Curriculum tutoring shell',
+              //     style: TextStyle(fontSize: 12, color: Colors.white54),
+              //   ),
+              //   trailing: const _Chevron(),
+              //   onTap: () => context.push('/academy'),
+              // ),
+              // const _ListDivider(),
+              // ListTile(
+              //   leading: const Icon(Icons.self_improvement_outlined),
+              //   title: const Text('Life Architect'),
+              //   subtitle: const Text(
+              //     'GROW + safety preview',
+              //     style: TextStyle(fontSize: 12, color: Colors.white54),
+              //   ),
+              //   trailing: const _Chevron(),
+              //   onTap: () => context.push('/life-architect'),
+              // ),
+              // const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.rocket_launch_outlined),
                 title: const Text('Commercial onboarding'),
