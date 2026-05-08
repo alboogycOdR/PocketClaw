@@ -49,6 +49,16 @@ jobs:
             "ndk;28.0.12433566" \
             "cmake;3.31.0"
 
+      # Source icons + per-density launcher resources are NOT committed
+      # (they're generated). Run generate_icon.dart to make the 1024px
+      # source PNGs, then flutter_launcher_icons to fan them out into
+      # mipmap-*/ic_launcher.png + drawable/ic_launcher_foreground.png.
+      - name: Generate launcher icons
+        run: |
+          mkdir -p assets/icon
+          dart scripts/generate_icon.dart
+          flutter pub run flutter_launcher_icons
+
       - name: Build APK
         run: flutter build apk --release
 
