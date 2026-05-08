@@ -185,30 +185,20 @@ final openClawDevicesProvider =
   final client = ref.watch(gatewayClientProvider);
   final sshSvc = await ref.watch(openClawSshServiceProvider.future);
 
-  // Try the WS RPC first — fast path when the gateway version supports
-  // `devices.*`. listDevices() has a 5s timeout so this fails fast on
-  // gateway builds where the namespace silently drops.
+  // SSH is authoritative on the user's gateway version (the WS
+  // `devices.*` namespace doesn't exist — requests silently drop).
+  // When SSH is configured, prefer it. Fall back to WS only when SSH
+  // isn't available.
   List<OpenClawDevice>? devices;
-  Object? wsError;
-  if (client != null) {
-    try {
-      devices = await client.listDevices();
-    } catch (e) {
-      wsError = e;
-    }
-  }
 
-  // Fall back to SSH-exec'd `openclaw devices [--json]` when the WS
-  // path failed or returned empty. The CLI reads ~/.openclaw/devices.json
-  // directly, so it works on every gateway version.
-  if ((devices == null || devices.isEmpty) && sshSvc != null) {
-    try {
-      devices = await sshSvc.listDevices();
-    } catch (e) {
-      // If SSH also fails AND we had no WS data, surface the WS error
-      // (more diagnostic) — otherwise the empty list flows through.
-      if (devices == null) throw wsError ?? e;
-    }
+  if (sshSvc != null) {
+    // Surface SSH errors — they're the diagnostic path and the user
+    // needs to see them when the parser or CLI fails. Catching here
+    // would hide the truth and reproduce the original "empty state
+    // for both real-empty and CLI-broken" bug.
+    devices = await sshSvc.listDevices();
+  } else if (client != null) {
+    devices = await client.listDevices();
   }
 
   devices ??= const [];

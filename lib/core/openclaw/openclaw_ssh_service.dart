@@ -85,17 +85,32 @@ class OpenClawSshService {
   // SSH terminal.
 
   Future<List<OpenClawDevice>> listDevices() async {
-    // Try JSON first — modern CLIs typically expose --json. If that
-    // fails (older flag set), fall back to parsing the ASCII table.
+    // Try JSON first — modern CLIs typically expose --json. If JSON
+    // parses non-empty, use it. Otherwise fall through to ASCII (the
+    // CLI may have ignored --json silently and printed the table).
+    String rawJson = '';
     try {
-      final out = await _ssh.exec('$_pathPrefix openclaw devices --json 2>&1');
-      return _parseDevicesJson(out);
+      rawJson = await _ssh.exec('$_pathPrefix openclaw devices --json 2>&1');
+      final parsedJson = _parseDevicesJson(rawJson);
+      if (parsedJson.isNotEmpty) return parsedJson;
     } on SshCommandException {
-      // Either --json isn't supported or the binary isn't found. Try
-      // the ASCII table form — same CLI, default output.
+      // --json flag rejected; fall through to ASCII.
     }
+
+    // ASCII table form.
     final out = await _ssh.exec('$_pathPrefix openclaw devices 2>&1');
-    return _parseDevicesAscii(out);
+    final parsed = _parseDevicesAscii(out);
+    if (parsed.isNotEmpty) return parsed;
+
+    // Both forms parsed empty. If either output had content, the
+    // parser is the issue — surface the raw text so the caller can
+    // render it for debugging instead of pretending the gateway has
+    // no devices.
+    final raw = out.isNotEmpty ? out : rawJson;
+    if (raw.trim().isNotEmpty) {
+      throw OpenClawDevicesParseException(raw);
+    }
+    return const [];
   }
 
   Future<void> approveDevice(String deviceId) async {
@@ -173,5 +188,21 @@ class OpenClawSshService {
       ));
     }
     return out;
+  }
+}
+
+/// Thrown when both `openclaw devices --json` and the ASCII parser
+/// produce zero rows but the CLI returned non-empty text. Carries the
+/// raw output so the UI can render it for debugging.
+class OpenClawDevicesParseException implements Exception {
+  final String rawOutput;
+  const OpenClawDevicesParseException(this.rawOutput);
+
+  @override
+  String toString() {
+    final preview = rawOutput.length > 600
+        ? '${rawOutput.substring(0, 600)}\n…(truncated)'
+        : rawOutput;
+    return 'CLI output not understood. Raw response:\n\n$preview';
   }
 }
