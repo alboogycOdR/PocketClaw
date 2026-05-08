@@ -1,7 +1,10 @@
 /// Gateway URL + auth token input with test/persist and skip-for-offline.
 library;
 
-import 'package:dio/dio.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -41,6 +44,12 @@ class _GatewaySetupState extends ConsumerState<GatewaySetup> {
     super.dispose();
   }
 
+  /// Tests the gateway by doing what the actual app does: open a
+  /// WebSocket to the configured URL with the bearer auth header and
+  /// wait for the gateway's `connect.challenge` frame. The previous
+  /// implementation hit `/__openclaw__/api/health` over HTTP, which is
+  /// missing on some gateway versions and gave false-failure results
+  /// even when the WS endpoint was perfectly reachable.
   Future<void> _testConnection() async {
     final rawUrl = _urlController.text.trim();
     if (rawUrl.isEmpty) return;
@@ -51,68 +60,114 @@ class _GatewaySetupState extends ConsumerState<GatewaySetup> {
       _testError = null;
     });
 
-    // The REST health probe lives at the host root, not under /ws. Users
-    // often paste either form (`ws://host:port` or `ws://host:port/ws`),
-    // both of which are valid for the WS connect (GatewayClient
-    // auto-appends /ws when it's missing). Strip the path here so the
-    // probe URL is always `http://host:port/__openclaw__/api/health`.
-    final parsed = Uri.tryParse(rawUrl);
-    final restUrl = parsed == null
-        ? rawUrl
-            .replaceFirst('wss://', 'https://')
-            .replaceFirst('ws://', 'http://')
-        : parsed
-            .replace(
-              scheme: parsed.scheme == 'wss' ? 'https' : 'http',
-              path: '',
-            )
-            .toString();
+    final url = _normaliseWsUrl(rawUrl);
     final token = _tokenController.text.trim();
 
-    final dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-      headers: {
-        if (token.isNotEmpty) 'Authorization': 'Bearer $token',
-      },
-    ));
+    WebSocket? socket;
+    Timer? timeout;
+    final completer = Completer<String?>();
+
+    void finish(String? error) {
+      if (completer.isCompleted) return;
+      completer.complete(error);
+    }
 
     try {
-      final response = await dio.get<Map<String, dynamic>>(
-        '$restUrl/__openclaw__/api/health',
+      socket = await WebSocket.connect(
+        url,
+        headers: {
+          if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+        compression: CompressionOptions.compressionOff,
+      ).timeout(const Duration(seconds: 6));
+
+      timeout = Timer(const Duration(seconds: 6), () {
+        finish('No connect.challenge frame within 6 s');
+      });
+
+      socket.listen(
+        (raw) {
+          try {
+            final msg = jsonDecode(raw as String) as Map<String, dynamic>;
+            if (msg['type'] == 'event' &&
+                msg['event'] == 'connect.challenge') {
+              finish(null); // success
+            } else {
+              // Some other frame — still indicates a live gateway.
+              finish(null);
+            }
+          } catch (_) {
+            finish('Server sent unparseable frame');
+          }
+        },
+        onError: (e) =>
+            finish(e is WebSocketException ? e.message : e.toString()),
+        onDone: () {
+          if (socket?.closeCode != null && socket!.closeCode != 1000) {
+            finish('Closed: ${socket.closeReason ?? socket.closeCode}');
+          } else {
+            finish(null);
+          }
+        },
       );
+
+      final err = await completer.future;
 
       if (!mounted) return;
       setState(() {
         _testing = false;
-        _testSuccess = response.statusCode == 200;
-        if (!_testSuccess!) {
-          _testError = 'Server returned status ${response.statusCode}';
-        }
+        _testSuccess = err == null;
+        _testError = err;
       });
-    } on DioException catch (e) {
+    } on TimeoutException {
       if (!mounted) return;
       setState(() {
         _testing = false;
         _testSuccess = false;
-        _testError = switch (e.type) {
-          DioExceptionType.connectionTimeout => 'Connection timed out',
-          DioExceptionType.connectionError => 'Could not reach server',
-          DioExceptionType.badResponse =>
-            'Server returned HTTP ${e.response?.statusCode}',
-          _ => e.message ?? 'Connection failed',
-        };
+        _testError = 'Timed out connecting (6 s)';
+      });
+    } on WebSocketException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testing = false;
+        _testSuccess = false;
+        _testError = e.message;
+      });
+    } on SocketException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _testing = false;
+        _testSuccess = false;
+        _testError = 'Could not reach $url: ${e.message}';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _testing = false;
         _testSuccess = false;
-        _testError = 'Connection failed: $e';
+        _testError = '$e';
       });
     } finally {
-      dio.close();
+      timeout?.cancel();
+      try {
+        await socket?.close();
+      } catch (_) {}
     }
+  }
+
+  /// Mirrors GatewayClient._normaliseUrl: strip trailing slashes and
+  /// auto-append `/ws` when the user typed only host:port (or pasted a
+  /// dashboard URL without a path). The gateway WebSocket only answers
+  /// on `/ws`, never on `/__openclaw__/...` (that prefix is REST-only).
+  String _normaliseWsUrl(String raw) {
+    var url = raw.trim();
+    while (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (url.isEmpty) return url;
+    final hasPath = Uri.tryParse(url)?.pathSegments.isNotEmpty ?? false;
+    if (!hasPath) url = '$url/ws';
+    return url;
   }
 
   Future<void> _saveAndProceed() async {
