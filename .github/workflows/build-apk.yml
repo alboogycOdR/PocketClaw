@@ -40,6 +40,15 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
 
+      # fllama's CMake build expects 3.31.0 specifically (NDK 28 ships with
+      # this version). Install both explicitly so Gradle doesn't have to
+      # auto-resolve them mid-build.
+      - name: Install Android NDK 28 + CMake 3.31.0
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "ndk;28.0.12433566" \
+            "cmake;3.31.0"
+
       - name: Build APK
         run: flutter build apk --release
 
