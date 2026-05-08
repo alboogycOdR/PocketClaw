@@ -4,7 +4,10 @@ library;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/chat/chat_screen.dart';
-import '../features/company/company_screen.dart';
+// Paperclip "Company" tab hidden 2026-05-08 — keep import out of tree
+// while the surface is parked. Re-enable by restoring the branch +
+// nav destination below if Paperclip earns its slot back.
+// import '../features/company/company_screen.dart';
 import '../features/hermes/hermes_management_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
@@ -147,15 +150,18 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
 
-        // Company tab
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/company',
-              builder: (context, state) => const CompanyScreen(),
-            ),
-          ],
-        ),
+        // Company tab — HIDDEN 2026-05-08. Paperclip is parked while we
+        // focus on OpenClaw + Hermes polish. Restore by uncommenting
+        // both this branch and the matching NavigationDestination below.
+        //
+        // StatefulShellBranch(
+        //   routes: [
+        //     GoRoute(
+        //       path: '/company',
+        //       builder: (context, state) => const CompanyScreen(),
+        //     ),
+        //   ],
+        // ),
 
         // Settings tab
         StatefulShellBranch(
@@ -209,11 +215,11 @@ class _AppShell extends StatelessWidget {
             selectedIcon: Icon(Icons.extension),
             label: 'Skills',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.business_outlined),
-            selectedIcon: Icon(Icons.business),
-            label: 'Company',
-          ),
+          // NavigationDestination(
+          //   icon: Icon(Icons.business_outlined),
+          //   selectedIcon: Icon(Icons.business),
+          //   label: 'Company',
+          // ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),

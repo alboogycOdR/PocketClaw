@@ -23,7 +23,8 @@ import 'gateway_config.dart';
 import 'hermes_settings.dart';
 import 'model_config.dart';
 import 'models_screen.dart';
-import 'paperclip_company_settings.dart';
+// Paperclip Company settings hidden 2026-05-08 — surface parked.
+// import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
 import 'security_settings.dart';
 import 'ssh_settings.dart';
@@ -248,24 +249,6 @@ class _WorkspaceTab extends ConsumerWidget {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
-              ListTile(
-                leading: Icon(
-                  Icons.business_center,
-                  color: PocketClawTheme.electricTeal,
-                ),
-                title: const Text('Paperclip Company'),
-                subtitle: const Text(
-                  'REST API · mission, budgets, tickets',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const PaperclipCompanySettings(),
-                  ),
-                ),
-              ),
-              const _ListDivider(),
               ListTile(
                 leading: const Icon(
                   Icons.psychology_outlined,
