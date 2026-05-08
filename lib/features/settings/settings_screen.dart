@@ -354,6 +354,23 @@ class SettingsScreen extends ConsumerWidget {
                     );
                   },
                 ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                ListTile(
+                  leading: const Icon(
+                    Icons.psychology_outlined,
+                    color: Color(0xFF7C3AED),
+                  ),
+                  title: const Text('Hermes Management'),
+                  subtitle: const Text(
+                    'Sessions · Memory · Cron · Skills · Logs (via SSH)',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () => context.push('/hermes'),
+                ),
               ],
             ),
           ),

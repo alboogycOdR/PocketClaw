@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/company/company_screen.dart';
+import '../features/hermes/hermes_management_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
 import '../features/mission_control/activity_screen.dart';
@@ -53,6 +54,12 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => PackPickerScreen(
         onComplete: () => Navigator.of(context).pop(),
       ),
+    ),
+
+    // Hermes management (outside shell — modal full-screen with 5 tabs).
+    GoRoute(
+      path: '/hermes',
+      builder: (context, state) => const HermesManagementScreen(),
     ),
 
     // Main app shell with bottom navigation
