@@ -85,20 +85,21 @@ class OpenClawSshService {
   // SSH terminal.
 
   Future<List<OpenClawDevice>> listDevices() async {
-    // Try JSON first — modern CLIs typically expose --json. If JSON
-    // parses non-empty, use it. Otherwise fall through to ASCII (the
-    // CLI may have ignored --json silently and printed the table).
+    // The CLI requires the `list` subcommand — running `openclaw
+    // devices` alone prints the help screen (verified 2026-05-09).
+    // Try `list --json` first, then plain `list` (ASCII table) if
+    // --json isn't supported.
     String rawJson = '';
     try {
-      rawJson = await _ssh.exec('$_pathPrefix openclaw devices --json 2>&1');
+      rawJson =
+          await _ssh.exec('$_pathPrefix openclaw devices list --json 2>&1');
       final parsedJson = _parseDevicesJson(rawJson);
       if (parsedJson.isNotEmpty) return parsedJson;
     } on SshCommandException {
       // --json flag rejected; fall through to ASCII.
     }
 
-    // ASCII table form.
-    final out = await _ssh.exec('$_pathPrefix openclaw devices 2>&1');
+    final out = await _ssh.exec('$_pathPrefix openclaw devices list 2>&1');
     final parsed = _parseDevicesAscii(out);
     if (parsed.isNotEmpty) return parsed;
 
