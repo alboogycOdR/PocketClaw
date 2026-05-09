@@ -28,6 +28,7 @@ import 'models_screen.dart';
 // Paperclip Company settings hidden 2026-05-08 — surface parked.
 // import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
+import 'backup_restore_settings.dart';
 import 'security_settings.dart';
 import 'ssh_settings.dart';
 
@@ -344,6 +345,20 @@ class _AppTab extends StatelessWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SecuritySettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.save_alt_outlined),
+                title: const Text('Backup & Restore'),
+                subtitle: const Text(
+                  'Save settings to a file, reload on a fresh install',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const BackupRestoreSettings()),
                 ),
               ),
             ],
