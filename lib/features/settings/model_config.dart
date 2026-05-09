@@ -234,24 +234,24 @@ class _NoTokenBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFD21E).withAlpha(15),
+          color: PocketClawTheme.warning.withAlpha(15),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFFFD21E).withAlpha(60)),
+          border: Border.all(color: PocketClawTheme.warning.withAlpha(60)),
         ),
         child: Row(
           children: [
             const Icon(Icons.warning_amber_rounded,
-                size: 20, color: Color(0xFFFFD21E)),
+                size: 20, color: PocketClawTheme.warning),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'HuggingFace token required for model downloads. '
                 'Tap here to add your token.',
-                style: const TextStyle(fontSize: 12, color: Color(0xFFFFD21E)),
+                style: const TextStyle(fontSize: 12, color: PocketClawTheme.warning),
               ),
             ),
             const Icon(Icons.chevron_right,
-                size: 18, color: Color(0xFFFFD21E)),
+                size: 18, color: PocketClawTheme.warning),
           ],
         ),
       ),
@@ -312,7 +312,7 @@ class _MultiModelCard extends StatelessWidget {
                               : Icons.download_outlined,
                   size: 20,
                   color: isSelected && isDownloaded
-                      ? const Color(0xFF4CAF50)
+                      ? PocketClawTheme.success
                       : PocketClawTheme.electricTeal,
                 ),
                 const SizedBox(width: 10),
@@ -360,14 +360,14 @@ class _MultiModelCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             _StatusBadge(
                               label: 'ACTIVE',
-                              color: const Color(0xFF4CAF50),
+                              color: PocketClawTheme.success,
                             ),
                           ],
                           if (model.isBeta) ...[
                             const SizedBox(width: 6),
                             _StatusBadge(
                               label: 'BETA',
-                              color: const Color(0xFFFFB74D),
+                              color: PocketClawTheme.warning,
                             ),
                           ],
                         ],
@@ -444,7 +444,7 @@ class _MultiModelCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: downloadProgress > 0 ? downloadProgress : null,
-                  backgroundColor: const Color(0xFF2A2A40),
+                  backgroundColor: PocketClawTheme.surfaceContainerLow,
                   valueColor: const AlwaysStoppedAnimation<Color>(
                     PocketClawTheme.electricTeal,
                   ),
@@ -525,7 +525,7 @@ class _MultiModelCard extends StatelessWidget {
     }
 
     if (isSelected && isDownloaded) {
-      return Icon(Icons.check_circle, color: const Color(0xFF4CAF50), size: 24);
+      return Icon(Icons.check_circle, color: PocketClawTheme.success, size: 24);
     }
 
     // Cloud model without key
@@ -644,7 +644,7 @@ class _CapabilityChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A40),
+        color: PocketClawTheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -745,7 +745,7 @@ void showHfTokenDialog(BuildContext context, WidgetRef ref) {
                 style: TextStyle(
                   fontSize: 12,
                   color: validationResult.contains('Valid')
-                      ? const Color(0xFF4CAF50)
+                      ? PocketClawTheme.success
                       : PocketClawTheme.lobsterRed,
                 ),
               ),
@@ -881,7 +881,7 @@ void _showCloudApiKeyDialog(
                 style: TextStyle(
                   fontSize: 12,
                   color: validationResult.contains('Valid')
-                      ? const Color(0xFF4CAF50)
+                      ? PocketClawTheme.success
                       : PocketClawTheme.lobsterRed,
                 ),
               ),
@@ -981,7 +981,7 @@ void _showModelIdOverrideDialog(
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A40),
+              color: PocketClawTheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
@@ -1083,7 +1083,7 @@ Future<bool?> _showLicenseAcceptDialog(
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A40),
+                color: PocketClawTheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(

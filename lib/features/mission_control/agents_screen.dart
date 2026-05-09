@@ -77,10 +77,10 @@ class _AgentCard extends StatelessWidget {
   const _AgentCard({required this.agent});
 
   Color get _statusColor => switch (agent.status) {
-        AgentStatus.active => const Color(0xFF4CAF50),
-        AgentStatus.idle => const Color(0xFFFFB74D),
-        AgentStatus.error => const Color(0xFFE53935),
-        AgentStatus.paused => const Color(0xFF7A7A90),
+        AgentStatus.active => PocketClawTheme.success,
+        AgentStatus.idle => PocketClawTheme.warning,
+        AgentStatus.error => PocketClawTheme.lobsterRed,
+        AgentStatus.paused => PocketClawTheme.onSurfaceMuted,
       };
 
   String get _statusLabel => switch (agent.status) {
@@ -298,7 +298,7 @@ class _ActionButton extends StatelessWidget {
           color: PocketClawTheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: const Color(0xFF3A3A50).withAlpha(80),
+            color: const Color(0xFF3A2F26).withAlpha(80),
           ),
         ),
         child: Row(

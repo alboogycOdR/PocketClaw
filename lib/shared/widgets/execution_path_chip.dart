@@ -30,7 +30,7 @@ class ExecutionPathChip extends ConsumerWidget {
     final (label, color, icon) = switch (path) {
       ExecutionPath.local => ('LOCAL', PocketClawTheme.electricTeal, Icons.phone_android),
       ExecutionPath.server => ('SERVER', PocketClawTheme.lobsterRed, Icons.cloud_outlined),
-      ExecutionPath.bridge => ('BRIDGE', const Color(0xFFFFB74D), Icons.sync_alt),
+      ExecutionPath.bridge => ('BRIDGE', PocketClawTheme.warning, Icons.sync_alt),
       ExecutionPath.hermes => ('HERMES', const Color(0xFF7C3AED), Icons.psychology_outlined),
     };
 
@@ -141,7 +141,7 @@ class ExecutionPathChip extends ConsumerWidget {
                   leading: Icon(
                     Icons.sync_alt,
                     color: current == ExecutionPath.bridge
-                        ? const Color(0xFFFFB74D)
+                        ? PocketClawTheme.warning
                         : Colors.white54,
                   ),
                   title: const Text('Bridge (local + server)'),

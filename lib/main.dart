@@ -45,7 +45,7 @@ void main() {
           const SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.light,
-            systemNavigationBarColor: Color(0xFF121222),
+            systemNavigationBarColor: PocketClawTheme.deepCharcoal,
             systemNavigationBarIconBrightness: Brightness.light,
           ),
         );

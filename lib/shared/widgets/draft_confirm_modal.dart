@@ -30,9 +30,9 @@ class DraftConfirmModal extends StatelessWidget {
     required this.onCancel,
   });
 
-  static const _lowColor = Color(0xFF4CAF50);
-  static const _mediumColor = Color(0xFFFFB74D);
-  static const _highColor = Color(0xFFE53935);
+  static const _lowColor = PocketClawTheme.success;
+  static const _mediumColor = PocketClawTheme.warning;
+  static const _highColor = PocketClawTheme.lobsterRed;
 
   Color get _riskColor => switch (riskLevel) {
         RiskLevel.low => _lowColor,

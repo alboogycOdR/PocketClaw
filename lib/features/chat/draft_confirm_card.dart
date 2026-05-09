@@ -150,7 +150,7 @@ class DraftConfirmCard extends StatelessWidget {
                     label: const Text('Cancel'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white54,
-                      side: const BorderSide(color: Color(0xFF3A3A50)),
+                      side: const BorderSide(color: Color(0xFF3A2F26)),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),

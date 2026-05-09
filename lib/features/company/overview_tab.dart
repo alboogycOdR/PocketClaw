@@ -203,7 +203,7 @@ class _CostCard extends StatelessWidget {
                   size: 16,
                   color: isHot
                       ? PocketClawTheme.lobsterRed
-                      : const Color(0xFFFFB74D),
+                      : PocketClawTheme.warning,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -231,7 +231,7 @@ class _CostCard extends StatelessWidget {
               backgroundColor: Colors.white10,
               color: isHot
                   ? PocketClawTheme.lobsterRed
-                  : const Color(0xFFFFB74D),
+                  : PocketClawTheme.warning,
             ),
             const SizedBox(height: 6),
             Text(

@@ -197,9 +197,9 @@ class _ConfiguredChannelCardState
   String? _busyAccountId;
 
   Color _statusColor(ChannelStatus s) => switch (s) {
-        ChannelStatus.connected => const Color(0xFF4CAF50),
-        ChannelStatus.connecting => const Color(0xFFFFB74D),
-        ChannelStatus.degraded => const Color(0xFFFF9800),
+        ChannelStatus.connected => PocketClawTheme.success,
+        ChannelStatus.connecting => PocketClawTheme.warning,
+        ChannelStatus.degraded => PocketClawTheme.amber,
         ChannelStatus.error => PocketClawTheme.lobsterRed,
         ChannelStatus.disconnected => Colors.white38,
       };

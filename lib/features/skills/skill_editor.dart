@@ -255,7 +255,7 @@ class _SkillEditorState extends ConsumerState<SkillEditor> {
               final color = switch (r) {
                 'local' => PocketClawTheme.electricTeal,
                 'server' => PocketClawTheme.lobsterRed,
-                'bridge' => const Color(0xFFFFB74D),
+                'bridge' => PocketClawTheme.warning,
                 _ => Colors.white54,
               };
               return Expanded(

@@ -29,7 +29,7 @@ class ChatBubble extends StatelessWidget {
           if (!_isUser) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: const Color(0xFF1A1A2E),
+              backgroundColor: PocketClawTheme.surface,
               child: Text(
                 '🦀',
                 style: const TextStyle(fontSize: 14),
@@ -48,8 +48,8 @@ class ChatBubble extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 color: _isUser
-                    ? const Color(0xFFE53935)
-                    : const Color(0xFF1A1A2E),
+                    ? PocketClawTheme.bronze
+                    : PocketClawTheme.surface,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -59,7 +59,7 @@ class ChatBubble extends StatelessWidget {
                 border: _isUser
                     ? null
                     : Border.all(
-                        color: const Color(0xFF3A3A50).withAlpha(120),
+                        color: const Color(0xFF3A2F26).withAlpha(120),
                       ),
               ),
               child: Column(
@@ -149,7 +149,7 @@ class ChatBubble extends StatelessWidget {
                           fontSize: 9,
                           color: _isUser
                               ? Colors.white54
-                              : const Color(0xFF7A7A90),
+                              : PocketClawTheme.onSurfaceMuted,
                         ),
                       ),
                     ],
@@ -252,7 +252,7 @@ class _AssistantMarkdown extends StatelessWidget {
         ),
         tableBody: const TextStyle(color: Colors.white70),
         tableBorder: TableBorder.all(
-          color: const Color(0xFF3A3A50),
+          color: const Color(0xFF3A2F26),
           width: 0.5,
         ),
       ),

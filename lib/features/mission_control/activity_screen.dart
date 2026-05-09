@@ -44,7 +44,7 @@ class ActivityScreen extends ConsumerWidget {
                   width: 8,
                   height: 8,
                   decoration: const BoxDecoration(
-                    color: Color(0xFF4CAF50),
+                    color: PocketClawTheme.success,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -54,7 +54,7 @@ class ActivityScreen extends ConsumerWidget {
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF4CAF50),
+                    color: PocketClawTheme.success,
                   ),
                 ),
               ],

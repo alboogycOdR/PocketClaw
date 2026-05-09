@@ -146,10 +146,10 @@ class _AgentCard extends ConsumerWidget {
   const _AgentCard({required this.agent});
 
   Color get _statusColor => switch (agent.status) {
-        'running' || 'active' => const Color(0xFF4CAF50),
-        'paused' => const Color(0xFF7A7A90),
+        'running' || 'active' => PocketClawTheme.success,
+        'paused' => PocketClawTheme.onSurfaceMuted,
         'error' => PocketClawTheme.lobsterRed,
-        'idle' => const Color(0xFFFFB74D),
+        'idle' => PocketClawTheme.warning,
         _ => Colors.white38,
       };
 

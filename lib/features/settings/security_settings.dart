@@ -162,7 +162,7 @@ class _SecuritySettingsState extends ConsumerState<SecuritySettings> {
             child: ListTile(
               leading: const Icon(
                 Icons.delete_forever,
-                color: Color(0xFFE53935),
+                color: PocketClawTheme.lobsterRed,
               ),
               title: const Text('Clear All Data'),
               subtitle: const Text(

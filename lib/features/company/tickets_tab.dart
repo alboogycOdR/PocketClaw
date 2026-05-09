@@ -201,11 +201,11 @@ class _StatusHeader extends StatelessWidget {
   const _StatusHeader({required this.status, required this.count});
 
   Color get _color => switch (status) {
-        'done' => const Color(0xFF4CAF50),
-        'in_progress' => PocketClawTheme.electricTeal,
+        'done' => PocketClawTheme.success,
+        'in_progress' => PocketClawTheme.amber,
         'in_review' => const Color(0xFF9C27B0),
         'blocked' => PocketClawTheme.lobsterRed,
-        'todo' => const Color(0xFFFFB74D),
+        'todo' => PocketClawTheme.warning,
         'backlog' => Colors.white38,
         'cancelled' => Colors.white24,
         _ => Colors.white54,
@@ -252,8 +252,8 @@ class _IssueCard extends ConsumerWidget {
 
   Color get _priorityColor => switch (issue.priority) {
         'critical' => PocketClawTheme.lobsterRed,
-        'high' => const Color(0xFFFF9800),
-        'medium' => const Color(0xFFFFB74D),
+        'high' => PocketClawTheme.amber,
+        'medium' => PocketClawTheme.warning,
         'low' => Colors.white54,
         _ => Colors.white38,
       };

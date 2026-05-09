@@ -214,8 +214,8 @@ class _ModelsTab extends ConsumerWidget {
                 leading: Icon(
                   Icons.key_outlined,
                   color: tokenAvailable
-                      ? const Color(0xFF4CAF50)
-                      : const Color(0xFFFFB74D),
+                      ? PocketClawTheme.success
+                      : PocketClawTheme.warning,
                 ),
                 title: const Text('HuggingFace Token'),
                 subtitle: Text(
@@ -464,7 +464,7 @@ class _SshStatusLine extends ConsumerWidget {
         ok ? '$user@$host · connected' : '$user@$host · unreachable',
         style: TextStyle(
           fontSize: 12,
-          color: ok ? Colors.tealAccent : const Color(0xFFFFB74D),
+          color: ok ? PocketClawTheme.success : PocketClawTheme.warning,
         ),
       ),
       loading: () => Text(
@@ -538,7 +538,7 @@ class _OpenClawModelsStatusLine extends ConsumerWidget {
           ok ? '$label · healthy' : '$label · unhealthy',
           style: TextStyle(
             fontSize: 12,
-            color: ok ? Colors.tealAccent : const Color(0xFFFFB74D),
+            color: ok ? PocketClawTheme.success : PocketClawTheme.warning,
           ),
         );
       },

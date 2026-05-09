@@ -1,4 +1,6 @@
 /// Pocket Claw Material 3 Dark Theme
+///
+/// Bronze + Amber on warm near-black palette (AGENTIC OS-inspired refresh).
 library;
 
 import 'package:flutter/material.dart';
@@ -7,42 +9,58 @@ import 'package:google_fonts/google_fonts.dart';
 class PocketClawTheme {
   PocketClawTheme._();
 
-  // Brand colors
-  static const Color lobsterRed = Color(0xFFE53935);
-  static const Color deepCharcoal = Color(0xFF1A1A2E);
-  static const Color electricTeal = Color(0xFF00E5CC);
+  // Backgrounds — warm near-black, no blue tint.
+  static const Color deepCharcoal = Color(0xFF0A0805); // app scaffold
+  static const Color surface = Color(0xFF181410); // cards, modals
+  static const Color surfaceContainerLow = Color(0xFF241D17); // stat cards, inputs
 
-  // Surface variants
-  static const Color surfaceDim = Color(0xFF121222);
-  static const Color surfaceBright = Color(0xFF242438);
-  static const Color surfaceContainer = Color(0xFF1E1E32);
-  static const Color surfaceContainerHigh = Color(0xFF28283E);
-  static const Color surfaceContainerLow = Color(0xFF16162A);
+  // Accents.
+  static const Color bronze = Color(0xFFC76A2E); // primary action, progress fill
+  static const Color amber = Color(0xFFFF8B47); // highlights, hot states
+
+  // Backward-compat alias — many screens reference `electricTeal`. Same name,
+  // new colour. Kept rather than renamed to avoid sweep churn.
+  static const Color electricTeal = amber;
+
+  // Text.
+  static const Color onSurface = Color(0xFFEDE6DD); // body white
+  static const Color onSurfaceMuted = Color(0xFF7A6E62); // labels, helpers
+
+  // Status semantics — keep these distinguishable.
+  static const Color lobsterRed = Color(0xFFD33B1A); // destructive / errors only
+  static const Color success = Color(0xFF6FAE5C); // success indicators
+  static const Color warning = Color(0xFFE0A02E); // warnings (paired with bronze)
+
+  // Surface variants — derived from the new neutral ramp.
+  static const Color surfaceDim = deepCharcoal;
+  static const Color surfaceBright = Color(0xFF2E251D);
+  static const Color surfaceContainer = surface;
+  static const Color surfaceContainerHigh = Color(0xFF2A221B);
 
   static final ColorScheme colorScheme = ColorScheme(
     brightness: Brightness.dark,
-    primary: lobsterRed,
+    primary: bronze,
     onPrimary: Colors.white,
-    primaryContainer: lobsterRed.withAlpha(50),
-    onPrimaryContainer: lobsterRed.withAlpha(230),
-    secondary: electricTeal,
+    primaryContainer: bronze.withAlpha(50),
+    onPrimaryContainer: bronze.withAlpha(230),
+    secondary: amber,
     onSecondary: Colors.black,
-    secondaryContainer: electricTeal.withAlpha(50),
-    onSecondaryContainer: electricTeal.withAlpha(230),
-    tertiary: const Color(0xFFFFB74D),
+    secondaryContainer: amber.withAlpha(50),
+    onSecondaryContainer: amber.withAlpha(230),
+    tertiary: warning,
     onTertiary: Colors.black,
-    error: const Color(0xFFCF6679),
-    onError: Colors.black,
-    surface: deepCharcoal,
-    onSurface: Colors.white,
-    onSurfaceVariant: const Color(0xFFB0B0C0),
-    outline: const Color(0xFF3A3A50),
-    outlineVariant: const Color(0xFF2A2A40),
+    error: lobsterRed,
+    onError: Colors.white,
+    surface: surface,
+    onSurface: onSurface,
+    onSurfaceVariant: onSurfaceMuted,
+    outline: const Color(0xFF3A2F26),
+    outlineVariant: const Color(0xFF2A2018),
     shadow: Colors.black,
     scrim: Colors.black,
-    inverseSurface: Colors.white,
+    inverseSurface: onSurface,
     onInverseSurface: deepCharcoal,
-    inversePrimary: lobsterRed,
+    inversePrimary: bronze,
     surfaceContainerHighest: surfaceContainerHigh,
   );
 
@@ -72,17 +90,18 @@ class PocketClawTheme {
         fontSize: 18,
         fontWeight: FontWeight.w500,
       ),
-      titleLarge: const TextStyle(
+      titleLarge: GoogleFonts.jetBrainsMono(
         fontSize: 18,
         fontWeight: FontWeight.w600,
       ),
-      titleMedium: const TextStyle(
+      titleMedium: GoogleFonts.jetBrainsMono(
         fontSize: 16,
         fontWeight: FontWeight.w500,
       ),
-      titleSmall: const TextStyle(
+      titleSmall: GoogleFonts.jetBrainsMono(
         fontSize: 14,
         fontWeight: FontWeight.w500,
+        letterSpacing: 0.4,
       ),
       bodyLarge: const TextStyle(fontSize: 16),
       bodyMedium: const TextStyle(fontSize: 14),
@@ -90,22 +109,25 @@ class PocketClawTheme {
       labelLarge: GoogleFonts.jetBrainsMono(
         fontSize: 14,
         fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
       ),
       labelMedium: GoogleFonts.jetBrainsMono(
         fontSize: 12,
         fontWeight: FontWeight.w500,
+        letterSpacing: 0.6,
       ),
       labelSmall: GoogleFonts.jetBrainsMono(
         fontSize: 10,
         fontWeight: FontWeight.w400,
+        letterSpacing: 0.8,
       ),
     );
   }
 
   static ThemeData get darkTheme {
     final textTheme = _baseTextTheme.apply(
-      bodyColor: Colors.white,
-      displayColor: Colors.white,
+      bodyColor: onSurface,
+      displayColor: onSurface,
     );
 
     return ThemeData(
@@ -117,21 +139,22 @@ class PocketClawTheme {
 
       // AppBar
       appBarTheme: AppBarTheme(
-        backgroundColor: surfaceDim,
-        foregroundColor: Colors.white,
+        backgroundColor: deepCharcoal,
+        foregroundColor: onSurface,
         elevation: 0,
         scrolledUnderElevation: 2,
         centerTitle: false,
         titleTextStyle: GoogleFonts.jetBrainsMono(
           fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          color: onSurface,
+          letterSpacing: 0.4,
         ),
       ),
 
       // Cards
       cardTheme: CardThemeData(
-        color: surfaceContainer,
+        color: surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -142,9 +165,9 @@ class PocketClawTheme {
 
       // Bottom Navigation
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: surfaceDim,
-        selectedItemColor: lobsterRed,
-        unselectedItemColor: const Color(0xFF7A7A90),
+        backgroundColor: deepCharcoal,
+        selectedItemColor: bronze,
+        unselectedItemColor: onSurfaceMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 8,
         selectedLabelStyle: GoogleFonts.jetBrainsMono(
@@ -158,25 +181,25 @@ class PocketClawTheme {
 
       // Navigation Bar (Material 3)
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: surfaceDim,
-        indicatorColor: lobsterRed.withAlpha(40),
+        backgroundColor: deepCharcoal,
+        indicatorColor: bronze.withAlpha(40),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: lobsterRed);
+            return const IconThemeData(color: bronze);
           }
-          return const IconThemeData(color: Color(0xFF7A7A90));
+          return const IconThemeData(color: onSurfaceMuted);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return GoogleFonts.jetBrainsMono(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: lobsterRed,
+              color: bronze,
             );
           }
           return GoogleFonts.jetBrainsMono(
             fontSize: 10,
-            color: const Color(0xFF7A7A90),
+            color: onSurfaceMuted,
           );
         }),
       ),
@@ -195,7 +218,7 @@ class PocketClawTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: lobsterRed, width: 2),
+          borderSide: const BorderSide(color: bronze, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -205,13 +228,13 @@ class PocketClawTheme {
           horizontal: 16,
           vertical: 14,
         ),
-        hintStyle: TextStyle(color: Colors.white.withAlpha(100)),
+        hintStyle: TextStyle(color: onSurface.withAlpha(100)),
       ),
 
       // Elevated button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: lobsterRed,
+          backgroundColor: bronze,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -221,6 +244,7 @@ class PocketClawTheme {
           textStyle: GoogleFonts.jetBrainsMono(
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
           ),
         ),
       ),
@@ -228,8 +252,8 @@ class PocketClawTheme {
       // Outlined button
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: lobsterRed,
-          side: const BorderSide(color: lobsterRed),
+          foregroundColor: bronze,
+          side: const BorderSide(color: bronze),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -237,6 +261,7 @@ class PocketClawTheme {
           textStyle: GoogleFonts.jetBrainsMono(
             fontSize: 14,
             fontWeight: FontWeight.w600,
+            letterSpacing: 0.4,
           ),
         ),
       ),
@@ -244,7 +269,7 @@ class PocketClawTheme {
       // Text button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: electricTeal,
+          foregroundColor: amber,
           textStyle: GoogleFonts.jetBrainsMono(
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -254,15 +279,15 @@ class PocketClawTheme {
 
       // Floating action button
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: lobsterRed,
+        backgroundColor: bronze,
         foregroundColor: Colors.white,
         elevation: 4,
       ),
 
       // Chip
       chipTheme: ChipThemeData(
-        backgroundColor: surfaceContainer,
-        selectedColor: lobsterRed.withAlpha(40),
+        backgroundColor: surfaceContainerLow,
+        selectedColor: bronze.withAlpha(40),
         side: BorderSide(color: colorScheme.outline.withAlpha(80)),
         labelStyle: GoogleFonts.jetBrainsMono(fontSize: 11),
         shape: RoundedRectangleBorder(
@@ -278,7 +303,7 @@ class PocketClawTheme {
 
       // Dialog
       dialogTheme: DialogThemeData(
-        backgroundColor: surfaceContainer,
+        backgroundColor: surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -286,44 +311,46 @@ class PocketClawTheme {
 
       // Tabs
       tabBarTheme: TabBarThemeData(
-        labelColor: lobsterRed,
-        unselectedLabelColor: const Color(0xFF7A7A90),
+        labelColor: bronze,
+        unselectedLabelColor: onSurfaceMuted,
         indicator: const UnderlineTabIndicator(
-          borderSide: BorderSide(color: lobsterRed, width: 2),
+          borderSide: BorderSide(color: bronze, width: 2),
         ),
         labelStyle: GoogleFonts.jetBrainsMono(
           fontSize: 13,
           fontWeight: FontWeight.w600,
+          letterSpacing: 0.4,
         ),
         unselectedLabelStyle: GoogleFonts.jetBrainsMono(
           fontSize: 13,
+          letterSpacing: 0.4,
         ),
       ),
 
       // Switch
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return lobsterRed;
-          return const Color(0xFF7A7A90);
+          if (states.contains(WidgetState.selected)) return bronze;
+          return onSurfaceMuted;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return lobsterRed.withAlpha(80);
+            return bronze.withAlpha(80);
           }
-          return const Color(0xFF2A2A40);
+          return surfaceContainerLow;
         }),
       ),
 
       // Progress indicator
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: lobsterRed,
-        linearTrackColor: Color(0xFF2A2A40),
+        color: bronze,
+        linearTrackColor: surfaceContainerLow,
       ),
 
       // Snackbar
       snackBarTheme: SnackBarThemeData(
         backgroundColor: surfaceContainerHigh,
-        contentTextStyle: const TextStyle(color: Colors.white),
+        contentTextStyle: TextStyle(color: onSurface),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),

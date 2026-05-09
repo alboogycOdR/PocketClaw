@@ -310,7 +310,7 @@ class _TestResultBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        success ? const Color(0xFF4CAF50) : PocketClawTheme.lobsterRed;
+        success ? PocketClawTheme.success : PocketClawTheme.lobsterRed;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

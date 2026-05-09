@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../data/models/chat_message.dart';
 
 class SourceBadge extends StatelessWidget {
@@ -12,9 +13,9 @@ class SourceBadge extends StatelessWidget {
   const SourceBadge({super.key, required this.source});
 
   Color get _color => switch (source) {
-        MessageSource.local => const Color(0xFF00E5CC),
-        MessageSource.server => const Color(0xFFE53935),
-        MessageSource.bridge => const Color(0xFFFFB74D),
+        MessageSource.local => PocketClawTheme.amber,
+        MessageSource.server => PocketClawTheme.bronze,
+        MessageSource.bridge => PocketClawTheme.warning,
         MessageSource.device => const Color(0xFF7C4DFF),
       };
 

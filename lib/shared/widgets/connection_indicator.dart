@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../data/models/gateway_event.dart';
 
 class ConnectionIndicator extends StatelessWidget {
@@ -17,13 +18,13 @@ class ConnectionIndicator extends StatelessWidget {
   });
 
   Color get _color => switch (state) {
-        GatewayState.connected => const Color(0xFF4CAF50),
+        GatewayState.connected => PocketClawTheme.success,
         GatewayState.connecting ||
         GatewayState.reconnecting =>
-          const Color(0xFFFFB74D),
-        GatewayState.disconnected => const Color(0xFF00E5CC),
-        GatewayState.error => const Color(0xFFE53935),
-        GatewayState.pairingRequired => const Color(0xFFFFB74D),
+          PocketClawTheme.warning,
+        GatewayState.disconnected => PocketClawTheme.amber,
+        GatewayState.error => PocketClawTheme.lobsterRed,
+        GatewayState.pairingRequired => PocketClawTheme.warning,
       };
 
   String get _label => switch (state) {

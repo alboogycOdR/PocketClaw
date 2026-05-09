@@ -89,7 +89,7 @@ class _VoiceInputWidgetState extends State<VoiceInputWidget>
               border: Border.all(
                 color: _isRecording
                     ? PocketClawTheme.lobsterRed
-                    : const Color(0xFF3A3A50),
+                    : const Color(0xFF3A2F26),
                 width: 1.5,
               ),
             ),

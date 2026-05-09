@@ -242,11 +242,11 @@ class _NoteCard extends StatelessWidget {
   const _NoteCard({required this.note});
 
   Color get _folderColor => switch (note.folder) {
-        'work' => PocketClawTheme.lobsterRed,
-        'personal' => PocketClawTheme.electricTeal,
+        'work' => PocketClawTheme.bronze,
+        'personal' => PocketClawTheme.amber,
         'projects' => const Color(0xFF7C4DFF),
-        'research' => const Color(0xFFFFB74D),
-        _ => Colors.white38,
+        'research' => PocketClawTheme.warning,
+        _ => PocketClawTheme.onSurfaceMuted,
       };
 
   @override
@@ -422,8 +422,8 @@ class _MemoryStatusHeader extends StatelessWidget {
               Icons.psychology_outlined,
               size: 20,
               color: embOk
-                  ? PocketClawTheme.electricTeal
-                  : const Color(0xFFFFB74D),
+                  ? PocketClawTheme.success
+                  : PocketClawTheme.warning,
             ),
             const SizedBox(width: 10),
             Expanded(

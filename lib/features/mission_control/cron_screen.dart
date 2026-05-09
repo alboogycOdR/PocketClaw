@@ -187,7 +187,7 @@ class _CronTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (job.lastStatus) {
-      'ok' => const Color(0xFF4CAF50),
+      'ok' => PocketClawTheme.success,
       'error' => PocketClawTheme.lobsterRed,
       _ => Colors.white38,
     };

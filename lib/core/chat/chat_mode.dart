@@ -49,9 +49,9 @@ extension ChatModeLabel on ChatMode {
   };
 
   Color get color => switch (this) {
-    ChatMode.local    => PocketClawTheme.electricTeal,
+    ChatMode.local    => PocketClawTheme.amber,
     ChatMode.cloud    => const Color(0xFFD4A574), // Anthropic-ish amber
-    ChatMode.openclaw => PocketClawTheme.lobsterRed,
+    ChatMode.openclaw => PocketClawTheme.bronze,
     ChatMode.hermes   => const Color(0xFF7C3AED),
   };
 

@@ -57,14 +57,14 @@ class PrivacyWarningBanner extends ConsumerWidget {
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFB74D).withAlpha(25),
+        color: PocketClawTheme.warning.withAlpha(25),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFFFB74D).withAlpha(80)),
+        border: Border.all(color: PocketClawTheme.warning.withAlpha(80)),
       ),
       child: Row(
         children: [
           const Icon(Icons.shield_outlined,
-              size: 18, color: Color(0xFFFFB74D)),
+              size: 18, color: PocketClawTheme.warning),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -72,7 +72,7 @@ class PrivacyWarningBanner extends ConsumerWidget {
               '${mode == ChatMode.cloud ? "your cloud API" : "OpenClaw server"}.',
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 11,
-                color: const Color(0xFFFFB74D),
+                color: PocketClawTheme.warning,
               ),
             ),
           ),

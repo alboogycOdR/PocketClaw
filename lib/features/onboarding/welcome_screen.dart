@@ -88,7 +88,7 @@ class WelcomeScreen extends ConsumerWidget {
               _FeatureRow(
                 icon: Icons.extension,
                 text: 'Extensible skills system',
-                color: const Color(0xFFFFB74D),
+                color: PocketClawTheme.amber,
               ),
 
               const Spacer(flex: 2),

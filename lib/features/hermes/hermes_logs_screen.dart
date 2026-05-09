@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../data/providers/hermes_data_providers.dart';
 import '../../shared/widgets/empty_state.dart';
 
@@ -134,9 +135,9 @@ class _HermesLogsTabState extends ConsumerState<HermesLogsTab> {
   Color _colorForLine(String line) {
     final lower = line.toLowerCase();
     if (lower.contains('error') || lower.contains('fatal')) {
-      return const Color(0xFFEF5350);
+      return PocketClawTheme.lobsterRed;
     }
-    if (lower.contains('warn')) return const Color(0xFFFFB74D);
+    if (lower.contains('warn')) return PocketClawTheme.warning;
     if (lower.contains('info')) return Colors.white70;
     return Colors.white60;
   }

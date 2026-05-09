@@ -764,7 +764,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         color: PocketClawTheme.surfaceDim,
         border: Border(
           top: BorderSide(
-            color: const Color(0xFF3A3A50).withAlpha(80),
+            color: const Color(0xFF3A2F26).withAlpha(80),
           ),
         ),
       ),
