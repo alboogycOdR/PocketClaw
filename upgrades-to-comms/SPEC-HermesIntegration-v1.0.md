@@ -27,7 +27,7 @@ http://100.78.70.2:8642
 ### Authentication
 Every request requires:
 ```
-Authorization: Bearer hermes-pocket-claw-2026
+Authorization: Bearer <YOUR_HERMES_API_KEY>
 ```
 
 ### Confirmed Endpoints
@@ -50,7 +50,7 @@ Authorization: Bearer hermes-pocket-claw-2026
 **Request:**
 ```
 GET /v1/models
-Authorization: Bearer hermes-pocket-claw-2026
+Authorization: Bearer <YOUR_HERMES_API_KEY>
 ```
 
 **Response (verified):**
@@ -80,7 +80,7 @@ Model ID to use in all requests: `"hermes-agent"`
 **Request:**
 ```
 POST /v1/chat/completions
-Authorization: Bearer hermes-pocket-claw-2026
+Authorization: Bearer <YOUR_HERMES_API_KEY>
 Content-Type: application/json
 
 {
@@ -168,7 +168,7 @@ Hermes routes to **Claude Haiku 4.5** by default via Anthropic directly. It also
 
 ### API Server .env (relevant fields — do not log these)
 ```
-API_SERVER_KEY=hermes-pocket-claw-2026
+API_SERVER_KEY=<YOUR_HERMES_API_KEY>
 API_SERVER_HOST=100.78.70.2
 API_SERVER_PORT=8642
 ANTHROPIC_API_KEY=[set]
@@ -836,7 +836,7 @@ Add to `SharedPreferences` (non-sensitive):
 | Key | Value |
 |---|---|
 | `hermes_base_url` | `http://100.78.70.2:8642` |
-| `hermes_api_key` | `hermes-pocket-claw-2026` |
+| `hermes_api_key` | `<YOUR_HERMES_API_KEY>` |
 | `default_execution_path` | `auto` \| `local` \| `server` \| `hermes` |
 
 The API key is not a long-lived credential (it's a gateway token set by you), so `SharedPreferences` is acceptable. If this ever becomes a sensitive user-specific key, move to `flutter_secure_storage`.

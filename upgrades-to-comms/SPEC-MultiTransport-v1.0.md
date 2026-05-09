@@ -1173,7 +1173,7 @@ In `lib/data/providers/core_providers.dart` lines 54–67:
 **Delete:**
 ```dart
 const String _kDebugHardcodedGatewayUrl = 'ws://100.78.70.2:18789';
-const String _kDebugHardcodedGatewayToken = 'da860812aa80a7dcb254b611e041b8f4f6f9f704903e925c';
+const String _kDebugHardcodedGatewayToken = '<REDACTED_OLD_GATEWAY_TOKEN>';
 ```
 
 **Replace with:**

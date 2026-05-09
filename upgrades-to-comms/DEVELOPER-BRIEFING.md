@@ -198,7 +198,7 @@ ss -tlnp | grep -E "18789|3100|8642|3000"
 
 # Hermes API health
 curl -s http://100.78.70.2:8642/v1/models \
-  -H "Authorization: Bearer hermes-pocket-claw-2026" | python3 -m json.tool
+  -H "Authorization: Bearer <YOUR_HERMES_API_KEY>" | python3 -m json.tool
 
 # Paperclip health
 curl -s http://100.78.70.2:3100/api/health | python3 -m json.tool

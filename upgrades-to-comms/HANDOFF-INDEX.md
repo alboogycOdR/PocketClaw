@@ -168,7 +168,7 @@ ss -tlnp | grep -E "18789|3100|8642"
 
 # Hermes health
 curl -s http://100.78.70.2:8642/v1/models \
-  -H "Authorization: Bearer hermes-pocket-claw-2026"
+  -H "Authorization: Bearer <YOUR_HERMES_API_KEY>"
 ```
 
 ---
