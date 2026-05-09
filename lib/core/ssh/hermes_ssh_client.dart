@@ -97,14 +97,45 @@ class HermesSshClient {
   /// Non-zero exit codes throw [SshCommandException] when stdout is empty;
   /// commands that print useful output despite a non-zero exit (e.g. tools
   /// that emit warnings) still return their stdout.
+  ///
+  /// IMPORTANT: SSH multiplexes channels over a single TCP session and
+  /// most sshd configs cap at MaxSessions=10. Each exec opens a channel;
+  /// if we don't close them after reading, they accumulate and the 11th
+  /// exec fails with `SSHChannelOpenError(2: open failed)`. We close
+  /// stdin (no input) and the session itself once stdout/stderr drain.
+  /// On a hard channel-open failure (e.g. the session has already been
+  /// poisoned by the leak from earlier builds), we tear down the
+  /// underlying client and retry once on a fresh session.
   Future<String> exec(String command) async {
+    try {
+      return await _execOnce(command);
+    } on SSHChannelOpenError {
+      // Stale-session fallback: kill the underlying client and try
+      // again. _ensureConnected() will rebuild it from scratch.
+      try {
+        _client?.close();
+      } catch (_) {}
+      _client = null;
+      return await _execOnce(command);
+    }
+  }
+
+  Future<String> _execOnce(String command) async {
     await _ensureConnected();
     final session = await _client!.execute(command);
-    final stdoutF = session.stdout.cast<List<int>>().transform(utf8.decoder).join();
-    final stderrF = session.stderr.cast<List<int>>().transform(utf8.decoder).join();
+    try {
+      await session.stdin.close();
+    } catch (_) {}
+    final stdoutF =
+        session.stdout.cast<List<int>>().transform(utf8.decoder).join();
+    final stderrF =
+        session.stderr.cast<List<int>>().transform(utf8.decoder).join();
     final out = await stdoutF;
     final err = await stderrF;
     final code = session.exitCode ?? 0;
+    try {
+      session.close();
+    } catch (_) {}
     if (code != 0 && out.isEmpty) {
       throw SshCommandException(command: command, exitCode: code, stderr: err);
     }
