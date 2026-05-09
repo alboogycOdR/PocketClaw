@@ -1,8 +1,9 @@
 /// Manages the active conversation session — context window and message flow.
-/// Each session is scoped to a chat mode (local / cloud / openclaw) and its
+/// Each session is scoped to a chat mode (local / openclaw / hermes) and its
 /// history never crosses into other modes.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/database/daos/message_dao.dart';
@@ -39,8 +40,21 @@ class SessionManager {
   String get currentMode => _currentMode;
 
   /// Set the active mode. Should be called when the user switches chat mode.
+  /// MUST be preceded by [flushCurrentSession] when there is a buffered
+  /// conversation — otherwise the buffer gets persisted with the new
+  /// mode tag and ends up in the wrong mode's history list.
   void setMode(String mode) {
     _currentMode = mode;
+  }
+
+  /// Persist the in-memory buffer to disk under the CURRENT mode tag,
+  /// then clear it. Call this before [setMode] so the buffered messages
+  /// keep the mode they were actually written under.
+  Future<void> flushCurrentSession() async {
+    if (_buffer.isEmpty) return;
+    await _history
+        .saveSession(_currentSessionKey, _buffer, mode: _currentMode);
+    _buffer.clear();
   }
 
   /// Start a fresh session for the given mode (or current mode if null).
@@ -97,12 +111,22 @@ class SessionManager {
     await _messageDao.deleteBySessionKey(_currentSessionKey);
   }
 
-  /// Restore a previous session by key.
+  /// Restore a previous session by key. Refuses to load a session whose
+  /// stored mode tag doesn't match [_currentMode] — protects against the
+  /// chat history crossover described in ADR-001.
   Future<void> loadSession(String key) async {
     // Persist current before switching
     if (_buffer.isNotEmpty) {
       await _history.saveSession(_currentSessionKey, _buffer,
           mode: _currentMode);
+    }
+
+    final storedMode = await _history.modeOf(key);
+    if (storedMode != null && storedMode != _currentMode) {
+      debugPrint('[SessionManager] refusing to load session "$key" '
+          '— stored mode "$storedMode" != current mode "$_currentMode"');
+      throw StateError(
+          'Session "$key" belongs to mode "$storedMode", not "$_currentMode"');
     }
 
     _currentSessionKey = key;

@@ -76,13 +76,18 @@ class ChatModeSelector extends ConsumerWidget {
     final currentMode = ref.read(chatModeProvider);
     if (currentMode == mode) return;
 
+    final sessionManager = ref.read(sessionManagerProvider);
+
+    // Flush buffered messages to disk under the OLD mode tag BEFORE we
+    // switch. If we set the new mode first, the buffer gets persisted
+    // with the wrong tag and shows up in the new mode's history list.
+    // (ADR-001 §3.2 — mode tag bug.)
+    await sessionManager.flushCurrentSession();
+
     final prefs = ref.read(sharedPrefsProvider);
     await prefs.setString('chat_mode', mode.name);
     ref.read(chatModeProvider.notifier).state = mode;
 
-    // Tell the SessionManager which mode it is in so subsequent messages
-    // are tagged correctly.
-    final sessionManager = ref.read(sessionManagerProvider);
     sessionManager.setMode(mode.name);
 
     // Load the new mode's last session (or start fresh)

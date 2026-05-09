@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../data/models/skill.dart';
 import '../../data/providers/core_providers.dart';
+import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/source_badge.dart';
 import '../../data/models/chat_message.dart';
@@ -23,13 +24,25 @@ class SkillsScreen extends ConsumerWidget {
 
     return loadState.when(
       loading: () => Scaffold(
-        appBar: AppBar(title: const Text('Skills')),
+        appBar: AppBar(
+          title: const Text('Skills'),
+          actions: const [
+            AgentScopeBadge.openclaw(),
+            SizedBox(width: 8),
+          ],
+        ),
         body: const Center(
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
       ),
       error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('Skills')),
+        appBar: AppBar(
+          title: const Text('Skills'),
+          actions: const [
+            AgentScopeBadge.openclaw(),
+            SizedBox(width: 8),
+          ],
+        ),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -70,6 +83,8 @@ class _SkillsList extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Skills'),
         actions: [
+          const AgentScopeBadge.openclaw(),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
             tooltip: 'Refresh server skills',

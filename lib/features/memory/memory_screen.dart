@@ -9,6 +9,7 @@ import '../../app/theme.dart';
 import '../../data/models/memory_note.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
+import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'note_editor.dart';
 import 'search_view.dart';
@@ -119,6 +120,8 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       appBar: AppBar(
         title: const Text('Memory'),
         actions: [
+          const AgentScopeBadge.openclaw(),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search, size: 22),
             onPressed: () {

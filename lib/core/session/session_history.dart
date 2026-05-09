@@ -67,6 +67,22 @@ class SessionHistory {
     return rows.map(_rowToMessage).toList();
   }
 
+  /// Look up the mode tag a session was stored under. Returns null if
+  /// the session row doesn't exist or has no mode column populated.
+  /// Used by [SessionManager.loadSession] to refuse cross-mode loads.
+  Future<String?> modeOf(String key) async {
+    final db = await _db;
+    final rows = await db.query(
+      'sessions',
+      columns: ['mode'],
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['mode'] as String?;
+  }
+
   /// List saved sessions, most recent first. If [mode] is provided,
   /// only sessions for that mode are returned.
   Future<List<SessionInfo>> listSessions({String? mode}) async {
