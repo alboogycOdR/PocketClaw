@@ -143,8 +143,9 @@ class OpenClawSshService {
   /// version — only accepts rows whose first non-whitespace token is a
   /// UUID (`8-4-4-4-12` hex), a 64-char hex (deviceId), or a 32-char hex
   /// fingerprint. Everything else (column headers, separators, name-only
-  /// rows, blank cells, "Pocket Claw" labels without a paired hex) is
-  /// dropped. Approve/Revoke can only operate on a real ID anyway.
+  /// rows, blank cells, "Pocket Claw"/"ClawCommander" labels without a
+  /// paired hex) is dropped. Approve/Revoke can only operate on a real
+  /// ID anyway.
   ///
   /// Pending section emits `id = requestId`, status = pending.
   /// Paired section emits `id = deviceId`, status = paired.
@@ -183,9 +184,11 @@ class OpenClawSshService {
       final id = m.group(1)!;
 
       // Try to extract a friendly display name from the row by looking
-      // for "Pocket Claw" or any non-id leading text. Best-effort.
+      // for "ClawCommander", "Pocket Claw" (legacy), or any non-id
+      // leading text. Best-effort.
       String? name;
-      final nameMatch = RegExp(r'(Pocket Claw|[A-Za-z][A-Za-z0-9 _-]{1,30})')
+      final nameMatch = RegExp(
+              r'(ClawCommander|Pocket Claw|[A-Za-z][A-Za-z0-9 _-]{1,30})')
           .firstMatch(trimmed.replaceAll(id, ''));
       if (nameMatch != null) name = nameMatch.group(0)!.trim();
 

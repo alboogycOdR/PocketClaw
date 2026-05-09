@@ -554,7 +554,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Pocket Claw',
+                  'ClawCommander',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,

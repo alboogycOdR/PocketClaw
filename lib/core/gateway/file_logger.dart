@@ -1,6 +1,6 @@
 /// Minimal file-based logger used when HONOR MagicOS filters logcat.
 /// Appends lines to Documents/gateway.log which we pull via
-/// `adb pull /storage/emulated/0/Android/data/com.carmen.pocket_claw/files/gateway.log`.
+/// `adb pull /storage/emulated/0/Android/data/com.carmen.clawcommander/files/gateway.log`.
 library;
 
 import 'dart:async';

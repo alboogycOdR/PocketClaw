@@ -1,10 +1,10 @@
-/// Pocket Claw constants
+/// ClawCommander constants
 library;
 
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Pocket Claw';
+  static const String appName = 'ClawCommander';
   static const String appVersion = '1.0.0';
   static const String orgName = 'Nuburo.DIGITAL (PTY) LTD';
 

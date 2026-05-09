@@ -19,7 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/local_model_config.dart';
 
 class DeviceMemoryService {
-  static const _channel = MethodChannel('com.carmen.pocket_claw/device');
+  static const _channel = MethodChannel('com.carmen.clawcommander/device');
   static const _fallbackBytes = 4 * 1024 * 1024 * 1024; // 4 GB
 
   /// Cache the lookup so repeated `canRunModel` calls during a build

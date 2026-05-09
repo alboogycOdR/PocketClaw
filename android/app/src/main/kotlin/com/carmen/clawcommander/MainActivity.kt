@@ -1,4 +1,4 @@
-package com.carmen.pocket_claw
+package com.carmen.clawcommander
 
 import android.app.ActivityManager
 import android.content.Context
@@ -22,7 +22,7 @@ class MainActivity : FlutterFragmentActivity() {
         // with their expectations.
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.carmen.pocket_claw/device"
+            "com.carmen.clawcommander/device"
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getTotalRam" -> {

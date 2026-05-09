@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.carmen.pocket_claw"
+    namespace = "com.carmen.clawcommander"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.carmen.pocket_claw"
+        applicationId = "com.carmen.clawcommander"
         minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -61,7 +61,7 @@ class HermesAcpClient {
     await _request('initialize', {
       'protocolVersion': 1,
       'clientCapabilities': <String, dynamic>{},
-      'clientInfo': {'name': 'PocketClaw', 'version': '1.0'},
+      'clientInfo': {'name': 'ClawCommander', 'version': '1.0'},
     });
 
     _keepaliveTimer = Timer.periodic(

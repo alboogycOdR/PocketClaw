@@ -1,4 +1,4 @@
-/// Pocket Claw - Mobile AI Agent with OpenClaw Integration
+/// ClawCommander - Mobile AI Agent Command Centre
 library;
 
 import 'dart:async';

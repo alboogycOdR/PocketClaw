@@ -96,7 +96,7 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
     final showLock = biometricEnabled && !_unlocked;
 
     return MaterialApp.router(
-      title: 'Pocket Claw',
+      title: 'ClawCommander',
       debugShowCheckedModeBanner: false,
       theme: PocketClawTheme.darkTheme,
       routerConfig: appRouter,

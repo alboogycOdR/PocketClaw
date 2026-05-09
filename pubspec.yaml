@@ -1,5 +1,5 @@
-name: pocket_claw
-description: "Pocket Claw - Mobile AI Agent with OpenClaw Integration"
+name: clawcommander
+description: "ClawCommander - Mobile AI Agent Command Centre"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -114,8 +114,8 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/pocket_claw_icon.png"
+  image_path: "assets/icon/clawcommander_icon.png"
   min_sdk_android: 24
   adaptive_icon_background: "#1A1A2E"
-  adaptive_icon_foreground: "assets/icon/pocket_claw_icon_foreground.png"
+  adaptive_icon_foreground: "assets/icon/clawcommander_icon_foreground.png"
   remove_alpha_ios: true

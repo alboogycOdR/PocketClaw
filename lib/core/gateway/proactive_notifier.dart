@@ -106,7 +106,7 @@ class ProactiveNotifier {
     if (lifecycle != AppLifecycleState.resumed) {
       final service = _ref.read(notificationServiceProvider);
       await service.showNotification(
-        title: 'Pocket Claw',
+        title: 'ClawCommander',
         body: body.length > 160 ? '${body.substring(0, 157)}…' : body,
       );
     }

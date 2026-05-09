@@ -48,7 +48,7 @@ class WelcomeScreen extends ConsumerWidget {
 
               // Title
               Text(
-                'Pocket Claw',
+                'ClawCommander',
                 style: GoogleFonts.jetBrainsMono(
                   fontSize: 32,
                   fontWeight: FontWeight.w700,

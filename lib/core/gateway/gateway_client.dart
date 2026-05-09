@@ -700,7 +700,7 @@ class GatewayClient {
         'maxProtocol': 3,
         'client': {
           'id': clientIdStr,
-          'displayName': 'Pocket Claw',
+          'displayName': 'ClawCommander',
           'version': '1.0.0',
           'platform': platformStr,
           'mode': clientModeStr,

@@ -116,9 +116,12 @@ class NotificationService {
     required String body,
   }) async {
     const androidDetails = AndroidNotificationDetails(
+      // Channel ID kept as 'pocket_claw_default' — changing it would
+      // create a new channel and abandon any user-tuned notification
+      // preferences (sound/vibration/importance) on the old channel.
       'pocket_claw_default',
-      'Pocket Claw',
-      channelDescription: 'General notifications from Pocket Claw',
+      'ClawCommander',
+      channelDescription: 'General notifications from ClawCommander',
       importance: Importance.high,
       priority: Priority.high,
     );
