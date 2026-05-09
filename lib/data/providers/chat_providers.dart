@@ -442,7 +442,7 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
           await _processServer(ref, cleanText, imagePath: imageUrl);
           break;
         case ChatMode.hermes:
-          await _processHermes(ref, cleanText);
+          await _processHermes(ref, cleanText, imagePath: imageUrl);
           break;
       }
     } catch (e) {
@@ -626,8 +626,9 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
 Future<bool> _processHermesAcp(
   Ref ref,
   String text,
-  HermesSshClient ssh,
-) async {
+  HermesSshClient ssh, {
+  String? imagePath,
+}) async {
   final messages = ref.read(messagesProvider.notifier);
   final placeholderId = _uuid.v4();
   messages.add(ChatMessage(
@@ -712,10 +713,40 @@ Future<bool> _processHermesAcp(
     }
   });
 
+  // Build the optional image attachment for ACP. Reuses the same
+  // base64 + MIME-sniff path the OpenClaw path uses, then re-shapes
+  // it into AcpImageAttachment which session/prompt expects.
+  List<AcpImageAttachment>? acpImages;
+  if (imagePath != null) {
+    try {
+      final encoded = await _encodeImageAttachment(imagePath);
+      acpImages = [
+        AcpImageAttachment(
+          base64Data: encoded['content'] as String,
+          mimeType: encoded['mimeType'] as String,
+        ),
+      ];
+    } catch (e) {
+      messages.updateById(placeholderId, (m) => m.copyWith(
+            isStreaming: false,
+            clearStatusText: true,
+            content: 'Attachment error: $e',
+          ));
+      ref.read(activeAcpClientProvider.notifier).state = null;
+      await sub.cancel();
+      await acp.stop();
+      return true;
+    }
+  }
+
   String? sessionId;
   try {
     sessionId = await acp.newSession();
-    final result = await acp.sendPrompt(sessionId: sessionId, text: text);
+    final result = await acp.sendPrompt(
+      sessionId: sessionId,
+      text: text,
+      images: acpImages,
+    );
     final usageNote = result.totalTokens > 0
         ? '${result.inputTokens}→${result.outputTokens} tok'
         : null;
@@ -763,7 +794,7 @@ Future<bool> _processHermesAcp(
   return true;
 }
 
-Future<void> _processHermes(Ref ref, String text) async {
+Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
   final messages = ref.read(messagesProvider.notifier);
 
   // Prefer ACP over SSH when SSH is configured — it streams tool calls
@@ -772,10 +803,26 @@ Future<void> _processHermes(Ref ref, String text) async {
   // first response.
   final ssh = await ref.read(sshClientProvider.future);
   if (ssh != null) {
-    final used = await _processHermesAcp(ref, text, ssh);
+    final used = await _processHermesAcp(ref, text, ssh, imagePath: imagePath);
     if (used) return;
     // ACP failed before any output — fall through to REST so the user
     // still gets a reply.
+  }
+
+  // REST fallback can't carry images today — warn rather than silently
+  // dropping the attachment.
+  if (imagePath != null) {
+    messages.add(ChatMessage(
+      id: _uuid.v4(),
+      role: MessageRole.assistant,
+      content:
+          'Image attachments require the SSH/ACP path. Configure SSH in '
+          'Settings → SSH so Hermes can stream tool calls + accept images, '
+          'then resend.',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+    ));
+    return;
   }
 
   final client = ref.read(hermesClientProvider);
