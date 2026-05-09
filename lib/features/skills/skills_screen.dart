@@ -1,4 +1,8 @@
-/// Skills list grouped by runtime (Local/Server/Bridge)
+/// Skills — server-aware. Top-level [SkillsScreen] switches on
+/// [activeServerProvider]:
+///   - OpenClaw → existing list grouped by runtime (Local/Server/Bridge)
+///   - Hermes   → [HermesSkillsTab] wrapped (browses ~/.hermes/skills/)
+///   - Local    → existing list, server section will simply be empty
 library;
 
 import 'package:flutter/material.dart';
@@ -9,10 +13,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../data/models/skill.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/server_providers.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/source_badge.dart';
 import '../../data/models/chat_message.dart';
+import '../hermes/hermes_skills_screen.dart';
 import 'skills_providers.dart';
 
 class SkillsScreen extends ConsumerWidget {
@@ -20,6 +26,13 @@ class SkillsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final server = ref.watch(activeServerProvider);
+    if (server == ActiveServer.hermes) {
+      return const _HermesSkillsView();
+    }
+
+    // OpenClaw and Local both use the existing runtime-grouped list.
+    // For Local, the "Server" section will just render empty.
     final loadState = ref.watch(skillsLoadedProvider);
 
     return loadState.when(
@@ -27,7 +40,7 @@ class SkillsScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Skills'),
           actions: const [
-            AgentScopeBadge.openclaw(),
+            AgentScopeBadge(),
             SizedBox(width: 8),
           ],
         ),
@@ -39,7 +52,7 @@ class SkillsScreen extends ConsumerWidget {
         appBar: AppBar(
           title: const Text('Skills'),
           actions: const [
-            AgentScopeBadge.openclaw(),
+            AgentScopeBadge(),
             SizedBox(width: 8),
           ],
         ),
@@ -83,7 +96,7 @@ class _SkillsList extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Skills'),
         actions: [
-          const AgentScopeBadge.openclaw(),
+          const AgentScopeBadge(),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
@@ -446,6 +459,24 @@ class _SkillCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HermesSkillsView extends StatelessWidget {
+  const _HermesSkillsView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Skills'),
+        actions: const [
+          AgentScopeBadge(),
+          SizedBox(width: 8),
+        ],
+      ),
+      body: const HermesSkillsTab(),
     );
   }
 }

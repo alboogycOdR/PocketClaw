@@ -2,8 +2,10 @@
 /// Each mode has its own isolated session key; switching modes loads
 /// that mode's last session.
 ///
-/// Cloud mode was dropped 2026-05-09 — PocketClaw routes only to
-/// local / OpenClaw / Hermes now.
+/// Cloud mode was dropped 2026-05-09 — ClawCommander routes only to
+/// local / OpenClaw / Hermes now. Phase 2 (ADR-001) makes
+/// `chatModeProvider` derive from `activeServerProvider` so the chat
+/// path and the management surfaces stay in lockstep.
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +14,11 @@ import '../../core/chat/chat_mode.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
 import 'core_providers.dart';
 import 'hermes_providers.dart';
+import 'server_providers.dart';
 
-/// Current active chat mode. Persisted in SharedPreferences.
-/// Defaults to whichever mode is first-available on launch.
+/// Current active chat mode. Persisted in SharedPreferences. If the
+/// user hasn't picked one explicitly, derive from the active server so
+/// chat routes to whichever agent the rest of the app is showing.
 final chatModeProvider = StateProvider<ChatMode>((ref) {
   final prefs = ref.watch(sharedPrefsProvider);
   final stored = prefs.getString('chat_mode');
@@ -23,38 +27,17 @@ final chatModeProvider = StateProvider<ChatMode>((ref) {
       return ChatMode.values.byName(stored);
     } catch (_) {
       // Stored mode is no longer valid (e.g. legacy 'cloud' from a
-      // previous build) — fall through to auto-detect.
+      // previous build) — fall through to derive from active server.
     }
   }
 
-  // User-set default execution path takes precedence over autodetect.
-  final preferred = prefs.getString('default_execution_path');
-  if (preferred == 'hermes') {
-    final url = ref.read(hermesBaseUrlProvider);
-    final key = ref.read(hermesApiKeyProvider);
-    if (url.isNotEmpty && key.isNotEmpty) return ChatMode.hermes;
-  }
-
-  return _detectDefaultMode(ref);
+  final server = ref.watch(activeServerProvider);
+  return switch (server) {
+    ActiveServer.openclaw => ChatMode.openclaw,
+    ActiveServer.hermes => ChatMode.hermes,
+    ActiveServer.local => ChatMode.local,
+  };
 });
-
-ChatMode _detectDefaultMode(Ref ref) {
-  // 1. OpenClaw gateway configured?
-  try {
-    final url = ref.read(gatewayUrlProvider);
-    if (url.isNotEmpty) return ChatMode.openclaw;
-  } catch (_) {}
-
-  // 2. Hermes configured?
-  try {
-    final url = ref.read(hermesBaseUrlProvider);
-    final key = ref.read(hermesApiKeyProvider);
-    if (url.isNotEmpty && key.isNotEmpty) return ChatMode.hermes;
-  } catch (_) {}
-
-  // 3. Fall back to local.
-  return ChatMode.local;
-}
 
 /// Per-mode session key. Stored per mode in prefs.
 /// Returns null if no session has been started in this mode yet.

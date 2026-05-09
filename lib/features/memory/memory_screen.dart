@@ -1,4 +1,8 @@
-/// Memory browser with Local / Server tabs, search bar, file tree, card grid
+/// Memory browser — server-aware. Top-level [MemoryScreen] switches on
+/// [activeServerProvider]:
+///   - OpenClaw → [_OpenClawMemoryScreen] (Local notes + server files tabs)
+///   - Hermes   → [_HermesMemoryView] (MEMORY/USER/SOUL via SSH)
+///   - Local    → [_LocalMemoryView] (just on-device notes, no server tab)
 library;
 
 import 'package:flutter/material.dart';
@@ -8,11 +12,27 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../data/models/memory_note.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../hermes/hermes_memory_screen.dart';
 import 'note_editor.dart';
 import 'search_view.dart';
+
+class MemoryScreen extends ConsumerWidget {
+  const MemoryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final server = ref.watch(activeServerProvider);
+    return switch (server) {
+      ActiveServer.openclaw => const _OpenClawMemoryScreen(),
+      ActiveServer.hermes => const _HermesMemoryView(),
+      ActiveServer.local => const _LocalMemoryView(),
+    };
+  }
+}
 
 // Default agent name on single-agent OpenClaw gateways. Matches the
 // sessionKey prefix we see in server traffic ("agent:main:..."). If a
@@ -91,14 +111,15 @@ final memoryFileContentProvider =
   return (file['content'] as String?) ?? '';
 });
 
-class MemoryScreen extends ConsumerStatefulWidget {
-  const MemoryScreen({super.key});
+class _OpenClawMemoryScreen extends ConsumerStatefulWidget {
+  const _OpenClawMemoryScreen();
 
   @override
-  ConsumerState<MemoryScreen> createState() => _MemoryScreenState();
+  ConsumerState<_OpenClawMemoryScreen> createState() =>
+      _OpenClawMemoryScreenState();
 }
 
-class _MemoryScreenState extends ConsumerState<MemoryScreen>
+class _OpenClawMemoryScreenState extends ConsumerState<_OpenClawMemoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -120,7 +141,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       appBar: AppBar(
         title: const Text('Memory'),
         actions: [
-          const AgentScopeBadge.openclaw(),
+          const AgentScopeBadge(),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.search, size: 22),
@@ -551,6 +572,63 @@ class _ServerErrorCard extends StatelessWidget {
             TextButton(onPressed: onRetry, child: const Text('Retry')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _HermesMemoryView extends StatelessWidget {
+  const _HermesMemoryView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Memory'),
+        actions: const [
+          AgentScopeBadge(),
+          SizedBox(width: 8),
+        ],
+      ),
+      body: const HermesMemoryTab(),
+    );
+  }
+}
+
+class _LocalMemoryView extends ConsumerWidget {
+  const _LocalMemoryView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Memory'),
+        actions: [
+          const AgentScopeBadge(),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.search, size: 22),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MemorySearchView(),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: _LocalNotesGrid(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final saved = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (_) => const NoteEditor()),
+          );
+          if (saved == true) {
+            ref.invalidate(_localNotesProvider);
+          }
+        },
+        child: const Icon(Icons.add),
       ),
     );
   }

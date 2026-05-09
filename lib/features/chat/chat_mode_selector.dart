@@ -12,6 +12,7 @@ import '../../core/chat/chat_mode.dart';
 import '../../data/providers/chat_mode_providers.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/server_providers.dart';
 
 class ChatModeSelector extends ConsumerWidget {
   const ChatModeSelector({super.key});
@@ -87,6 +88,16 @@ class ChatModeSelector extends ConsumerWidget {
     final prefs = ref.read(sharedPrefsProvider);
     await prefs.setString('chat_mode', mode.name);
     ref.read(chatModeProvider.notifier).state = mode;
+
+    // Keep activeServer in lockstep with chat mode — Phase 2 makes the
+    // server the top-level scope, so changing chat mode also changes
+    // which agent's Mission Control / Memory / Skills the user sees.
+    final correspondingServer = switch (mode) {
+      ChatMode.openclaw => ActiveServer.openclaw,
+      ChatMode.hermes => ActiveServer.hermes,
+      ChatMode.local => ActiveServer.local,
+    };
+    await setActiveServer(ref, correspondingServer);
 
     sessionManager.setMode(mode.name);
 

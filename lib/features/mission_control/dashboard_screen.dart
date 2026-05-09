@@ -1,4 +1,10 @@
-/// Mission Control dashboard overview
+/// Mission Control — server-aware. Top-level [DashboardScreen]
+/// switches on [activeServerProvider]:
+///   - OpenClaw → [_OpenClawDashboard] (the existing stat cards + health
+///     + activity + cron + Channels dashboard)
+///   - Hermes   → [_HermesDashboardEmbed] (HermesManagementScreen tabs
+///     embedded inline; Sessions / Memory / Cron / Skills / Logs)
+///   - Local    → [LocalModelDashboard] (active model + RAM stats)
 library;
 
 import 'package:flutter/material.dart';
@@ -9,15 +15,50 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/stat_card.dart';
+import '../hermes/hermes_management_screen.dart';
 import 'health_widget.dart';
+import 'local_model_dashboard.dart';
 import 'mission_control_providers.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final server = ref.watch(activeServerProvider);
+    return switch (server) {
+      ActiveServer.openclaw => const _OpenClawDashboard(),
+      ActiveServer.hermes => const _HermesDashboardEmbed(),
+      ActiveServer.local => const LocalModelDashboard(),
+    };
+  }
+}
+
+class _HermesDashboardEmbed extends StatelessWidget {
+  const _HermesDashboardEmbed();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mission Control'),
+        actions: const [
+          AgentScopeBadge(),
+          SizedBox(width: 8),
+        ],
+      ),
+      body: const HermesManagementScreen(embeddedMode: true),
+    );
+  }
+}
+
+class _OpenClawDashboard extends ConsumerWidget {
+  const _OpenClawDashboard();
 
   void _refresh(WidgetRef ref) {
     ref.invalidate(mcHealthProvider);
@@ -50,7 +91,7 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Mission Control'),
         actions: [
-          const AgentScopeBadge.openclaw(),
+          const AgentScopeBadge(),
           const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
