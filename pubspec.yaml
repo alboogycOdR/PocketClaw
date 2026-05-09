@@ -51,6 +51,14 @@ dependencies:
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
 
+  # Voice input (STT) — device-built-in speech recognition.
+  # `record` would be useful for future Whisper / cloud-STT
+  # upgrades but its 5.1.2 release pulls a broken
+  # record_linux 0.7.2 (missing startStream override) that
+  # blocks Android release builds. Add it back when needed,
+  # pinning record_linux to a fixed version.
+  speech_to_text: ^7.0.0
+
   # Local LLM — GGUF via fllama only. flutter_gemma removed (see
   # commit log) — was >80MB of native libs, fragile .task format,
   # and GGUF covers the same use cases with a wider model catalogue.
