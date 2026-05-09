@@ -139,27 +139,31 @@ class OpenClawSshService {
     }
   }
 
-  /// Parse the ASCII table output of `openclaw devices`. Format observed
-  /// in production:
+  /// Parse the ASCII table output of `openclaw devices list`. Strict
+  /// version — only accepts rows whose first non-whitespace token is a
+  /// UUID (`8-4-4-4-12` hex), a 64-char hex (deviceId), or a 32-char hex
+  /// fingerprint. Everything else (column headers, separators, name-only
+  /// rows, blank cells, "Pocket Claw" labels without a paired hex) is
+  /// dropped. Approve/Revoke can only operate on a real ID anyway.
   ///
-  ///   Pending (n)
-  ///   Request                                Device      Requested   Approved Age   Status
-  ///   <uuid>                                 Pocket Claw roles: ... none     2m ago new pairing
-  ///
-  ///   Paired (m)
-  ///   Device                                 Roles      Scopes                Tokens   IP
-  ///   <hex or name>                          operator   operator.admin, ...   operator 100.x.x.x
-  ///
-  /// We split on the section headers and consume any row whose first
-  /// column looks like a UUID (pending: requestId) or a 64-char hex /
-  /// "Pocket Claw" / arbitrary name (paired). Best-effort — a hard
-  /// regex match would be too brittle across CLI versions.
+  /// Pending section emits `id = requestId`, status = pending.
+  /// Paired section emits `id = deviceId`, status = paired.
   static List<OpenClawDevice> _parseDevicesAscii(String raw) {
     final out = <OpenClawDevice>[];
     final lines = raw.split('\n');
     var section = ''; // 'pending' | 'paired' | 'revoked'
 
-    final headerRe = RegExp(r'^(Pending|Paired|Revoked)\s*\(\d+\)', caseSensitive: false);
+    final headerRe =
+        RegExp(r'^(Pending|Paired|Revoked)\s*\(\d+\)', caseSensitive: false);
+    // UUID, 64-char hex (device id sha-256), or 32-char hex.
+    final idRe = RegExp(
+      r'\b('
+      r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+      r'|[0-9a-f]{64}'
+      r'|[0-9a-f]{32}'
+      r')\b',
+      caseSensitive: false,
+    );
 
     for (final line in lines) {
       final trimmed = line.trim();
@@ -170,21 +174,24 @@ class OpenClawSshService {
         section = hdr.group(1)!.toLowerCase();
         continue;
       }
-      // Skip column header line (starts with one of the known column names).
-      if (trimmed.startsWith('Request') ||
-          trimmed.startsWith('Device') ||
-          trimmed.startsWith('---')) {
-        continue;
-      }
       if (section.isEmpty) continue;
 
-      // Take the first whitespace-separated token as the row's id.
-      final firstToken = trimmed.split(RegExp(r'\s{2,}|\t')).first.trim();
-      if (firstToken.isEmpty) continue;
+      // Find an ID-shaped token anywhere in the line. Anything without
+      // one is column header / separator / name-only / noise — skip.
+      final m = idRe.firstMatch(trimmed);
+      if (m == null) continue;
+      final id = m.group(1)!;
+
+      // Try to extract a friendly display name from the row by looking
+      // for "Pocket Claw" or any non-id leading text. Best-effort.
+      String? name;
+      final nameMatch = RegExp(r'(Pocket Claw|[A-Za-z][A-Za-z0-9 _-]{1,30})')
+          .firstMatch(trimmed.replaceAll(id, ''));
+      if (nameMatch != null) name = nameMatch.group(0)!.trim();
 
       out.add(OpenClawDevice(
-        id: firstToken,
-        name: section == 'pending' ? null : firstToken,
+        id: id,
+        name: name,
         status: section,
       ));
     }

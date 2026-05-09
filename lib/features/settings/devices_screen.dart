@@ -169,7 +169,11 @@ class DevicesScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Approve failed: $e')),
+          SnackBar(
+            content: Text('Approve failed: $e'),
+            duration: const Duration(seconds: 10),
+            showCloseIcon: true,
+          ),
         );
       }
     }
@@ -219,7 +223,11 @@ class DevicesScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Revoke failed: $e')),
+          SnackBar(
+            content: Text('Revoke failed: $e'),
+            duration: const Duration(seconds: 10),
+            showCloseIcon: true,
+          ),
         );
       }
     }
