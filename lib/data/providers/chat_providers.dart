@@ -379,10 +379,29 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
       processing.state = false;
     }
 
-    // Persist to session
+    // Persist both the user message and the completed assistant reply
+    // to the per-mode session DB. Without persisting the assistant side
+    // here, switching chat modes (or any session reload) would replay
+    // only the user's half from disk and the AI's response would
+    // visually disappear.
     try {
       final session = ref.read(sessionManagerProvider);
       await session.addMessage(userMsg);
+
+      // Find the most recent assistant message that landed during this
+      // turn. The streaming pipelines (_processLocal/_processCloud/
+      // _processServer/_processHermes) all end with the assistant reply
+      // as the tail of messagesProvider, with isStreaming flipped off.
+      final all = ref.read(messagesProvider);
+      for (var i = all.length - 1; i >= 0; i--) {
+        final m = all[i];
+        if (m.role == MessageRole.assistant && !m.isStreaming) {
+          if (m.content.trim().isNotEmpty) {
+            await session.addMessage(m);
+          }
+          break;
+        }
+      }
     } catch (_) {
       // Session persistence may fail on web
     }
