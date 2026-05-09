@@ -833,10 +833,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
           const SizedBox(width: 4),
 
-          // Voice button
+          // Voice button — wired to SttService per SPEC-VoiceInput-v1.0.
+          // Tap mic → device STT transcribes speech → text streams into
+          // the input controller. `onStart` / `onStop` keep the existing
+          // recording-state chrome (snackbar, hint text) working.
           VoiceInputWidget(
             onStart: _onVoiceStart,
             onStop: _onVoiceStop,
+            onPartialResult: (text) {
+              // Live partial transcription as the user speaks.
+              _textController.text = text;
+              _textController.selection = TextSelection.fromPosition(
+                TextPosition(offset: text.length),
+              );
+            },
+            onFinalResult: (text) {
+              // Final transcription — leave it in the field for the
+              // user to edit or send.
+              _textController.text = text;
+              _textController.selection = TextSelection.fromPosition(
+                TextPosition(offset: text.length),
+              );
+            },
+            onDone: () {
+              // Recording stopped: dismiss the "listening" snackbar.
+              if (mounted) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              }
+            },
           ),
 
           // Send / Stop button — swaps to Stop while a server reply is
