@@ -71,6 +71,17 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
     ];
   }
 
+  /// Look up a message by id, or null if it has been removed/replaced.
+  /// Used by the ACP send path to read the in-flight message before
+  /// appending more thought-chunk text to it.
+  ChatMessage? byId(String id) {
+    try {
+      return state.firstWhere((m) => m.id == id);
+    } on StateError {
+      return null;
+    }
+  }
+
   /// Append (or replace, if [toolCallId] already exists) a tool call on
   /// the message with [messageId]. Used by the Hermes ACP send path to
   /// surface live tool-call cards inline below the streaming text.
@@ -607,12 +618,13 @@ Future<bool> _processHermesAcp(
               clearStatusText: true,
             ));
       case AcpThoughtChunkEvent(:final text):
-        // Thought chunks aren't surfaced inline — keep them in statusText
-        // as a low-key indicator that the agent is reasoning.
+        // Accumulate the agent's reasoning into thinkingText so the
+        // ThinkingIndicator can show the full transcript on demand;
+        // statusText becomes a brief "thinking…" indicator only.
+        final current = messages.byId(placeholderId)?.thinkingText ?? '';
         messages.updateById(placeholderId, (m) => m.copyWith(
-              statusText: text.length > 64
-                  ? '${text.substring(0, 64)}…'
-                  : text,
+              thinkingText: current + text,
+              statusText: '\u{1F4A1} Thinking…',
             ));
       case AcpToolCallStartEvent():
         messages.addToolCall(

@@ -631,7 +631,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ],
                     ),
                   )
-                : ListView.builder(
+                : Builder(builder: (context) {
+                    // Pre-compute the last user-message index so the
+                    // long-press Retry button is only offered on the
+                    // most recent user turn.
+                    final lastUserIdx = messages.lastIndexWhere(
+                        (m) => m.role == MessageRole.user);
+                    return ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     itemCount: messages.length + (isProcessing ? 1 : 0),
@@ -688,12 +694,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           if (msg.imageUrl != null)
                             PhotoPreview(imageUrl: msg.imageUrl!),
 
-                          // Message bubble
-                          ChatBubble(message: msg),
+                          // Message bubble — only the last user message
+                          // gets a non-null onRetry, which surfaces the
+                          // Retry button in the long-press actions bar.
+                          ChatBubble(
+                            message: msg,
+                            onRetry: index == lastUserIdx
+                                ? () {
+                                    ref.read(sendMessageProvider)(
+                                      msg.content,
+                                      imageUrl: msg.imageUrl,
+                                    );
+                                  }
+                                : null,
+                          ),
                         ],
                       );
                     },
-                  ),
+                  );
+                  }),
           ),
 
           // Pending image preview

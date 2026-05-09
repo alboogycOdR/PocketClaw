@@ -66,6 +66,11 @@ class ChatMessage {
   /// assistant text arrives.
   final String? statusText;
 
+  /// Accumulated agent reasoning text from `AcpThoughtChunkEvent` —
+  /// rendered inside [ThinkingIndicator] above the assistant message.
+  /// Non-null only for Hermes ACP turns that emit thinking.
+  final String? thinkingText;
+
   /// OpenClaw run identifier this message is tied to (for abort/correlation).
   final String? runId;
 
@@ -86,6 +91,7 @@ class ChatMessage {
     this.imageUrl,
     this.memoryCitations = const [],
     this.statusText,
+    this.thinkingText,
     this.runId,
     this.acpToolCalls = const [],
   });
@@ -98,6 +104,8 @@ class ChatMessage {
     List<String>? memoryCitations,
     String? statusText,
     bool clearStatusText = false,
+    String? thinkingText,
+    bool clearThinkingText = false,
     String? runId,
     List<ChatAcpToolCall>? acpToolCalls,
   }) =>
@@ -113,6 +121,8 @@ class ChatMessage {
         imageUrl: imageUrl,
         memoryCitations: memoryCitations ?? this.memoryCitations,
         statusText: clearStatusText ? null : (statusText ?? this.statusText),
+        thinkingText:
+            clearThinkingText ? null : (thinkingText ?? this.thinkingText),
         runId: runId ?? this.runId,
         acpToolCalls: acpToolCalls ?? this.acpToolCalls,
       );
