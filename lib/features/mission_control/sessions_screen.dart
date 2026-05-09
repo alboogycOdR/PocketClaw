@@ -11,6 +11,7 @@ import '../../app/theme.dart';
 import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/openclaw_session.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/session_providers.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'mission_control_providers.dart';
 
@@ -80,12 +81,21 @@ class SessionsScreen extends ConsumerWidget {
   }
 }
 
-class _SessionCard extends StatelessWidget {
+class _SessionCard extends ConsumerWidget {
   final OpenClawSession session;
   const _SessionCard({required this.session});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Prefer the auto-generated title from the title store (Sprint B);
+    // fall back to agentId, then to a shortened session id.
+    final stored = ref.watch(sessionTitleProvider(session.id));
+    final displayTitle = stored ??
+        session.agentId ??
+        (session.id.length > 12
+            ? 'Session ${session.id.substring(0, 8)}…'
+            : session.id);
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -103,7 +113,7 @@ class _SessionCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    session.agentId ?? session.id,
+                    displayTitle,
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

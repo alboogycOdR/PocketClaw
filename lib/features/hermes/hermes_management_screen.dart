@@ -1,10 +1,11 @@
-/// Hermes management — 5-tab container backed by SSH transport.
-/// Sessions, Memory, Cron, Skills, Logs. SPEC-MultiTransport §11.1.
+/// Hermes management — 6-tab container backed by SSH + analytics.
+/// Sessions, Memory, Cron, Skills, Logs, Analytics (Sprint C).
+/// Each tab is gated by [serverCapabilitiesProvider] (Sprint B) so the
+/// surface stays informative when SSH is missing.
 ///
 /// Two presentation modes:
-///   - standalone (default) — full Scaffold with own AppBar; reached
-///     via the legacy `/hermes` route.
-///   - embedded — caller provides the AppBar (Phase 2 server-aware
+///   - standalone — full Scaffold with own AppBar (legacy).
+///   - embedded   — caller provides the AppBar (Phase 2 server-aware
 ///     Mission Control wraps this when active server is Hermes).
 library;
 
@@ -13,7 +14,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../data/providers/capability_providers.dart';
 import '../../data/providers/ssh_providers.dart';
+import '../../shared/widgets/approvals_panel.dart';
+import '../../shared/widgets/feature_not_available_card.dart';
+import 'hermes_analytics_screen.dart';
 import 'hermes_cron_screen.dart';
 import 'hermes_logs_screen.dart';
 import 'hermes_memory_screen.dart';
@@ -32,7 +37,7 @@ class HermesManagementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sshAsync = ref.watch(sshClientProvider);
 
-    final tabs = const TabBar(
+    const tabs = TabBar(
       isScrollable: true,
       tabAlignment: TabAlignment.start,
       tabs: [
@@ -41,21 +46,25 @@ class HermesManagementScreen extends ConsumerWidget {
         Tab(icon: Icon(Icons.schedule, size: 18), text: 'Cron'),
         Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Skills'),
         Tab(icon: Icon(Icons.terminal, size: 18), text: 'Logs'),
+        Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: 'Analytics'),
       ],
     );
 
     final body = sshAsync.when(
       data: (client) {
-        if (client == null) return const HermesNotConfigured();
-        return const TabBarView(
-          children: [
-            HermesSessionsTab(),
-            HermesMemoryTab(),
-            HermesCronTab(),
-            HermesSkillsTab(),
-            HermesLogsTab(),
-          ],
-        );
+        // If SSH is null AND no host configured, fall through to the
+        // capability-gated tabs (each will render its own helpful card).
+        // If SSH is null but a host IS configured, that's a connection
+        // error — keep the existing HermesNotConfigured fallback for
+        // clarity.
+        if (client == null) {
+          final sshHost = ref.watch(sshHostProvider);
+          if (sshHost.isEmpty) {
+            return const _GatedTabBarView();
+          }
+          return const HermesNotConfigured();
+        }
+        return const _GatedTabBarView();
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Padding(
@@ -92,13 +101,15 @@ class HermesManagementScreen extends ConsumerWidget {
     );
 
     if (embeddedMode) {
-      // Caller supplies the AppBar — render TabBar inline above the
-      // tab content. Material expects a surface around the TabBar so
-      // its underline ink-decoration anchors correctly.
       return DefaultTabController(
-        length: 5,
+        length: 6,
         child: Column(
           children: [
+            // Pending approvals — only visible when there are any.
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: ApprovalsPanel(),
+            ),
             Material(
               color: PocketClawTheme.surfaceContainer,
               child: tabs,
@@ -110,7 +121,7 @@ class HermesManagementScreen extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -119,8 +130,55 @@ class HermesManagementScreen extends ConsumerWidget {
           ),
           bottom: tabs,
         ),
-        body: body,
+        body: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: ApprovalsPanel(),
+            ),
+            Expanded(child: body),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// The capability-gated TabBarView. Each child checks the relevant
+/// capability and renders a [FeatureNotAvailableCard] when it's missing.
+class _GatedTabBarView extends ConsumerWidget {
+  const _GatedTabBarView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final caps = ref.watch(serverCapabilitiesProvider);
+    return TabBarView(
+      children: [
+        caps.hasSessions
+            ? const HermesSessionsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Sessions', featureKey: 'sessions'),
+        caps.hasMemory
+            ? const HermesMemoryTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Memory', featureKey: 'memory'),
+        caps.hasCron
+            ? const HermesCronTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Cron', featureKey: 'cron'),
+        caps.hasSkills
+            ? const HermesSkillsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Skills', featureKey: 'skills'),
+        caps.hasLogs
+            ? const HermesLogsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Logs', featureKey: 'logs'),
+        caps.hasCost
+            ? const HermesAnalyticsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Analytics', featureKey: 'cost'),
+      ],
     );
   }
 }

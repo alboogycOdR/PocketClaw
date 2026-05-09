@@ -5,6 +5,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/hermes/hermes_data_service.dart';
+import '../../core/hermes/models/hermes_analytics.dart';
 import '../../core/hermes/models/hermes_cron_job.dart';
 import '../../core/hermes/models/hermes_message.dart';
 import '../../core/hermes/models/hermes_session.dart';
@@ -48,6 +49,22 @@ final hermesCostSummaryProvider =
   final svc = await ref.watch(hermesDataServiceProvider.future);
   if (svc == null) return const HermesCostSummary();
   return svc.getCostSummary();
+});
+
+// ── Analytics (Sprint C) ─────────────────────────────────────────────────
+
+final hermesDailyStatsProvider =
+    FutureProvider<List<HermesDailyStats>>((ref) async {
+  final svc = await ref.watch(hermesDataServiceProvider.future);
+  if (svc == null) return const [];
+  return svc.getDailyStats(days: 7);
+});
+
+final hermesModelStatsProvider =
+    FutureProvider<List<HermesModelStats>>((ref) async {
+  final svc = await ref.watch(hermesDataServiceProvider.future);
+  if (svc == null) return const [];
+  return svc.getCostByModel();
 });
 
 // ── Cron ─────────────────────────────────────────────────────────────────

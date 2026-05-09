@@ -17,6 +17,7 @@ import '../../data/providers/core_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
+import '../../shared/widgets/approvals_panel.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/stat_card.dart';
 import '../hermes/hermes_management_screen.dart';
@@ -103,6 +104,9 @@ class _OpenClawDashboard extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Pending approvals — collapses to nothing when none.
+            const ApprovalsPanel(),
+
             // Stat cards row
             Row(
               children: [

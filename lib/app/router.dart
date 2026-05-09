@@ -1,8 +1,11 @@
-/// Pocket Claw GoRouter configuration with bottom navigation shell
+/// ClawCommander GoRouter configuration with bottom navigation shell
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
 import '../features/chat/chat_screen.dart';
 // Paperclip "Company" tab hidden 2026-05-08 — keep import out of tree
@@ -188,13 +191,15 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
-class _AppShell extends StatelessWidget {
+class _AppShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
 
   const _AppShell({required this.navigationShell});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final approvalCount = ref.watch(pendingApprovalCountProvider);
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
@@ -205,39 +210,82 @@ class _AppShell extends StatelessWidget {
             initialLocation: index == navigationShell.currentIndex,
           );
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.chat_outlined),
             selectedIcon: Icon(Icons.chat),
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
+            icon: _NavIconWithBadge(
+              icon: Icons.dashboard_outlined,
+              count: approvalCount,
+            ),
+            selectedIcon: _NavIconWithBadge(
+              icon: Icons.dashboard,
+              count: approvalCount,
+            ),
             label: 'Control',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.memory_outlined),
             selectedIcon: Icon(Icons.memory),
             label: 'Memory',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.extension_outlined),
             selectedIcon: Icon(Icons.extension),
             label: 'Skills',
           ),
-          // NavigationDestination(
-          //   icon: Icon(Icons.business_outlined),
-          //   selectedIcon: Icon(Icons.business),
-          //   label: 'Company',
-          // ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
             label: 'Settings',
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Material icon with a small numeric badge. Used on the Control tab
+/// to count pending approvals; the badge collapses when count == 0.
+class _NavIconWithBadge extends StatelessWidget {
+  final IconData icon;
+  final int count;
+  const _NavIconWithBadge({required this.icon, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return Icon(icon);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon),
+        Positioned(
+          right: -6,
+          top: -4,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE53935),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.black, width: 1),
+            ),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            child: Text(
+              count > 9 ? '9+' : '$count',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

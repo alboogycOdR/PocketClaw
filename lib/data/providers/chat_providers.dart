@@ -22,14 +22,17 @@ import '../../core/ssh/hermes_ssh_client.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/session/session_history.dart';
+import '../../core/session/session_title_generator.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../shared/widgets/execution_path_chip.dart';
 import 'academy_providers.dart';
+import 'approvals_providers.dart';
 import 'chat_mode_providers.dart';
 import 'core_providers.dart';
 import 'hermes_providers.dart';
 import 'life_architect_providers.dart';
+import 'session_providers.dart';
 import 'ssh_providers.dart';
 
 const _uuid = Uuid();
@@ -170,6 +173,8 @@ final acpPermissionResponderProvider =
       optionId: optionId,
     );
     ref.read(pendingAcpPermissionProvider.notifier).state = null;
+    // Also clear the mirrored entry from the global queue.
+    ref.read(approvalsProvider.notifier).resolve(pending.requestId.toString());
   };
 });
 
@@ -329,6 +334,45 @@ final abortChatProvider = Provider<Future<void> Function()>((ref) {
   };
 });
 
+// ── Session auto-title (Sprint B) ──
+//
+// Save a generated title for the active OpenClaw session keyed by the
+// SharedPreferences `openclaw_session_key` value. Idempotent — once a
+// title is set we don't overwrite it. Hermes sessions get their title
+// from `state.db` server-side and never go through this path.
+
+void _maybeSaveSessionTitle(Ref ref) {
+  try {
+    final messages = ref.read(messagesProvider);
+    if (messages.isEmpty) return;
+
+    final mode = ref.read(chatModeProvider);
+    if (mode != ChatMode.openclaw) return;
+
+    final prefs = ref.read(sharedPrefsProvider);
+    final sessionKey = prefs.getString(_kSessionKeyPref);
+    if (sessionKey == null || sessionKey.isEmpty) return;
+
+    final store = ref.read(sessionTitleStoreProvider);
+    if (store.getTitle(sessionKey) != null) return; // already titled
+
+    ChatMessage? firstUser;
+    for (final m in messages) {
+      if (m.role == MessageRole.user) {
+        firstUser = m;
+        break;
+      }
+    }
+    if (firstUser == null) return;
+
+    final title = SessionTitleGenerator.generate(firstUser.content);
+    // Fire-and-forget — the next page load will pick it up.
+    store.setTitle(sessionKey, title);
+  } catch (_) {
+    // Title generation is non-critical; never let it break the turn.
+  }
+}
+
 // ── Send Message Action ──
 
 final sendMessageProvider = Provider<Future<void> Function(String, {String? imageUrl})>((ref) {
@@ -411,6 +455,10 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
       ));
     } finally {
       processing.state = false;
+      // After every successful turn, generate + persist a title for
+      // the active session if it doesn't already have one. Cheap;
+      // best-effort. (Sprint B.)
+      _maybeSaveSessionTitle(ref);
     }
 
     // Persist both the user message and the completed assistant reply
@@ -645,8 +693,11 @@ Future<bool> _processHermesAcp(
           content: event.content,
         );
       case AcpPermissionRequestEvent():
-        // Park the request so the chat screen can show a dialog.
+        // Park the request so the chat screen can show a dialog…
         ref.read(pendingAcpPermissionProvider.notifier).state = event;
+        // …and mirror it into the global queue so the Control-tab
+        // badge and ApprovalsPanel can surface it outside of chat.
+        ref.read(approvalsProvider.notifier).addAcpApproval(event);
       case AcpPromptCompleteEvent():
         // Final completion is handled by sendPrompt's await; we don't
         // need to do anything here. (Notifications can also arrive

@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../ssh/hermes_ssh_client.dart';
 import 'hermes_paths.dart';
 import 'hermes_remote_sqlite.dart';
+import 'models/hermes_analytics.dart';
 import 'models/hermes_cron_job.dart';
 import 'models/hermes_message.dart';
 import 'models/hermes_session.dart';
@@ -67,6 +68,44 @@ class HermesDataService {
       LIMIT 20
     ''');
     return rows.map(HermesSession.fromSqliteRow).toList();
+  }
+
+  /// Daily token + cost rollup for the last [days] days. Powers the
+  /// 7-day area chart on the Analytics tab.
+  Future<List<HermesDailyStats>> getDailyStats({int days = 7}) async {
+    final rows = await _db.query('''
+      SELECT
+        date(started_at, 'unixepoch') AS day,
+        COALESCE(SUM(input_tokens), 0)  AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens,
+        COUNT(*) AS sessions,
+        COALESCE(SUM(
+          COALESCE(actual_cost_usd, estimated_cost_usd)
+        ), 0.0) AS cost_usd
+      FROM sessions
+      WHERE started_at > strftime('%s', 'now', '-$days days')
+      GROUP BY day
+      ORDER BY day ASC
+    ''');
+    return rows.map(HermesDailyStats.fromRow).toList();
+  }
+
+  /// Per-model breakdown of token usage and cost. Powers the cost
+  /// ledger on the Analytics tab.
+  Future<List<HermesModelStats>> getCostByModel() async {
+    final rows = await _db.query('''
+      SELECT
+        COALESCE(model, 'unknown') AS model,
+        COALESCE(SUM(input_tokens + output_tokens), 0) AS total_tokens,
+        COALESCE(SUM(
+          COALESCE(actual_cost_usd, estimated_cost_usd)
+        ), 0.0) AS cost_usd,
+        COUNT(*) AS session_count
+      FROM sessions
+      GROUP BY model
+      ORDER BY cost_usd DESC
+    ''');
+    return rows.map(HermesModelStats.fromRow).toList();
   }
 
   Future<HermesCostSummary> getCostSummary() async {
