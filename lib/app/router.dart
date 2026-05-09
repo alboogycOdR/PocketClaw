@@ -9,7 +9,6 @@ import '../features/chat/chat_screen.dart';
 // while the surface is parked. Re-enable by restoring the branch +
 // nav destination below if Paperclip earns its slot back.
 // import '../features/company/company_screen.dart';
-import '../features/hermes/hermes_management_screen.dart';
 import '../features/life_architect/life_architect_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
@@ -61,11 +60,10 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
 
-    // Hermes management (outside shell — modal full-screen with 5 tabs).
-    GoRoute(
-      path: '/hermes',
-      builder: (context, state) => const HermesManagementScreen(),
-    ),
+    // Hermes management used to live at /hermes; Phase 2 made it a
+    // tab in Mission Control when active server is Hermes (see
+    // dashboard_screen.dart::_HermesDashboardEmbed). The standalone
+    // route was removed once embedded mode was confirmed on device.
 
     // Academy Mode + Life Architect — coaching overlays. Full-screen
     // outside the bottom-nav shell so they own the chrome.

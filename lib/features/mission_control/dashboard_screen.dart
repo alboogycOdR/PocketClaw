@@ -14,7 +14,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
 import '../../data/providers/core_providers.dart';
-import '../../data/providers/hermes_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
@@ -308,11 +307,6 @@ class _OpenClawDashboard extends ConsumerWidget {
               ],
             ),
 
-            // Hermes management entry — only shown when Hermes is configured.
-            // Bridge to /hermes (sessions, memory, cron, skills, logs) until
-            // Phase 2 makes the Management tab server-aware.
-            const _HermesManagementTile(),
-
             const SizedBox(height: 24),
           ],
         ),
@@ -388,88 +382,6 @@ class _OpenClawDashboard extends ConsumerWidget {
                 style: TextStyle(color: Colors.white38)),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _HermesManagementTile extends ConsumerWidget {
-  const _HermesManagementTile();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final hermesUrl = ref.watch(hermesBaseUrlProvider);
-    if (hermesUrl.isEmpty) return const SizedBox.shrink();
-
-    final reachable = ref.watch(hermesReachableProvider);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(children: [
-              const Icon(Icons.psychology_outlined,
-                  size: 14, color: Color(0xFF7C3AED)),
-              const SizedBox(width: 6),
-              Text(
-                'Hermes Agent',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 12,
-                  color: Colors.white54,
-                ),
-              ),
-            ]),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            margin: EdgeInsets.zero,
-            child: ListTile(
-              leading: reachable.when(
-                data: (ok) => Icon(
-                  ok ? Icons.check_circle_outline : Icons.error_outline,
-                  color: ok
-                      ? PocketClawTheme.success
-                      : PocketClawTheme.lobsterRed,
-                ),
-                loading: () => const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                error: (_, __) => Icon(
-                  Icons.error_outline,
-                  color: PocketClawTheme.lobsterRed,
-                ),
-              ),
-              title: const Text('Hermes Management'),
-              subtitle: reachable.when(
-                data: (ok) => Text(
-                  ok ? 'Online' : 'Unreachable',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: ok
-                        ? PocketClawTheme.success
-                        : PocketClawTheme.lobsterRed,
-                  ),
-                ),
-                loading: () => const Text(
-                  'Checking…',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                error: (_, __) => const Text(
-                  'Error',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-              ),
-              trailing:
-                  const Icon(Icons.chevron_right, color: Colors.white38),
-              onTap: () => context.push('/hermes'),
-            ),
-          ),
-        ],
       ),
     );
   }
