@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../data/models/usage_stats.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/health_bar.dart';
@@ -32,8 +33,8 @@ class HealthWidget extends StatelessWidget {
                   health.gatewayRunning ? Icons.dns : Icons.dns_outlined,
                   size: 16,
                   color: health.gatewayRunning
-                      ? const Color(0xFF4CAF50)
-                      : const Color(0xFFE53935),
+                      ? PocketClawTheme.success
+                      : PocketClawTheme.lobsterRed,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -46,8 +47,8 @@ class HealthWidget extends StatelessWidget {
                       horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: health.gatewayRunning
-                        ? const Color(0xFF4CAF50).withAlpha(25)
-                        : const Color(0xFFE53935).withAlpha(25),
+                        ? PocketClawTheme.success.withAlpha(25)
+                        : PocketClawTheme.lobsterRed.withAlpha(25),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -56,8 +57,8 @@ class HealthWidget extends StatelessWidget {
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: health.gatewayRunning
-                          ? const Color(0xFF4CAF50)
-                          : const Color(0xFFE53935),
+                          ? PocketClawTheme.success
+                          : PocketClawTheme.lobsterRed,
                     ),
                   ),
                 ),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
 import '../../core/packs/starter_pack_service.dart';
 import '../../data/providers/core_providers.dart';
 
@@ -254,8 +255,8 @@ class _CommercialWizardScreenState
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: selected
-                        ? const Color(0xFFE53935)
-                        : const Color(0xFF3A3A50).withAlpha(80),
+                        ? PocketClawTheme.bronze
+                        : const Color(0xFF3A2F26).withAlpha(80),
                     width: selected ? 2 : 1,
                   ),
                 ),
@@ -284,7 +285,7 @@ class _CommercialWizardScreenState
                     ),
                     if (selected)
                       const Icon(Icons.check_circle,
-                          color: Color(0xFFE53935), size: 22),
+                          color: PocketClawTheme.bronze, size: 22),
                   ],
                 ),
               ),

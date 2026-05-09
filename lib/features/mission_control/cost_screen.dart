@@ -159,7 +159,7 @@ class _CostScreenState extends ConsumerState<CostScreen> {
                   title: 'Output',
                   value: '${(usage.outputTokens / 1000).toStringAsFixed(1)}k',
                   subtitle: 'tokens',
-                  iconColor: const Color(0xFFFFB74D),
+                  iconColor: PocketClawTheme.warning,
                 ),
               ),
             ],
@@ -206,12 +206,12 @@ class _CostScreenState extends ConsumerState<CostScreen> {
     }
 
     final colors = [
-      PocketClawTheme.lobsterRed,
-      PocketClawTheme.electricTeal,
-      const Color(0xFFFFB74D),
+      PocketClawTheme.bronze,
+      PocketClawTheme.amber,
+      PocketClawTheme.warning,
       const Color(0xFF7C4DFF),
-      const Color(0xFF4CAF50),
-      const Color(0xFFFF7043),
+      PocketClawTheme.success,
+      PocketClawTheme.lobsterRed,
     ];
 
     final entries = nonZero.entries.toList();

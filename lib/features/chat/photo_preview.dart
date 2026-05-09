@@ -25,7 +25,7 @@ class PhotoPreview extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(0xFF3A3A50).withAlpha(120),
+            color: const Color(0xFF3A2F26).withAlpha(120),
           ),
         ),
         child: ClipRRect(

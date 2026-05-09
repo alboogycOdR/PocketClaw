@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/theme.dart';
+
 class HealthBar extends StatelessWidget {
   final String label;
   final double percentage;
@@ -17,9 +19,9 @@ class HealthBar extends StatelessWidget {
   });
 
   Color get _barColor {
-    if (percentage >= 90) return const Color(0xFFE53935);
-    if (percentage >= 70) return const Color(0xFFFFB74D);
-    return const Color(0xFF4CAF50);
+    if (percentage >= 90) return PocketClawTheme.lobsterRed;
+    if (percentage >= 70) return PocketClawTheme.warning;
+    return PocketClawTheme.success;
   }
 
   @override
@@ -57,7 +59,7 @@ class HealthBar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: clampedPct / 100,
             minHeight: 6,
-            backgroundColor: const Color(0xFF2A2A40),
+            backgroundColor: PocketClawTheme.surfaceContainerLow,
             valueColor: AlwaysStoppedAnimation<Color>(_barColor),
           ),
         ),

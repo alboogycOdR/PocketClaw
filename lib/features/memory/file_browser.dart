@@ -71,7 +71,7 @@ class _FileNodeState extends ConsumerState<_FileNode> {
   }
 
   Color get _iconColor {
-    if (widget.file.isDirectory) return const Color(0xFFFFB74D);
+    if (widget.file.isDirectory) return PocketClawTheme.warning;
     final name = widget.file.name.toLowerCase();
     if (name.endsWith('.md')) return PocketClawTheme.electricTeal;
     return Colors.white54;

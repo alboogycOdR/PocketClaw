@@ -173,14 +173,14 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: (_testSuccess
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFE53935))
+                        ? PocketClawTheme.success
+                        : PocketClawTheme.lobsterRed)
                     .withAlpha(15),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: (_testSuccess
-                          ? const Color(0xFF4CAF50)
-                          : const Color(0xFFE53935))
+                          ? PocketClawTheme.success
+                          : PocketClawTheme.lobsterRed)
                       .withAlpha(60),
                 ),
               ),
@@ -190,8 +190,8 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
                     _testSuccess ? Icons.check_circle : Icons.error_outline,
                     size: 18,
                     color: _testSuccess
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFE53935),
+                        ? PocketClawTheme.success
+                        : PocketClawTheme.lobsterRed,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -200,8 +200,8 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
                       style: GoogleFonts.jetBrainsMono(
                         fontSize: 12,
                         color: _testSuccess
-                            ? const Color(0xFF4CAF50)
-                            : const Color(0xFFE53935),
+                            ? PocketClawTheme.success
+                            : PocketClawTheme.lobsterRed,
                       ),
                     ),
                   ),

@@ -106,9 +106,9 @@ class _GatewayPairingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final paired = state == GatewayState.connected;
     final color = paired
-        ? const Color(0xFF4CAF50)
+        ? PocketClawTheme.success
         : state == GatewayState.pairingRequired
-            ? const Color(0xFFFFB74D)
+            ? PocketClawTheme.warning
             : PocketClawTheme.lobsterRed;
     final label = switch (state) {
       GatewayState.connected => 'OpenClaw paired',

@@ -207,7 +207,7 @@ class SkillDetailScreen extends ConsumerWidget {
                         icon: Icons.key,
                         label: 'Environment Variables',
                         items: skill.requiredEnv,
-                        color: const Color(0xFFFFB74D),
+                        color: PocketClawTheme.warning,
                       ),
                       const SizedBox(height: 10),
                     ],

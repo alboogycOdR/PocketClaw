@@ -118,7 +118,7 @@ class _SkillsList extends ConsumerWidget {
               _RuntimeHeader(
                 label: 'On device — Bridge',
                 count: bridge.length,
-                color: const Color(0xFFFFB74D),
+                color: PocketClawTheme.warning,
               ),
               const SizedBox(height: 8),
               ...bridge.map((s) => _SkillCard(skill: s)),

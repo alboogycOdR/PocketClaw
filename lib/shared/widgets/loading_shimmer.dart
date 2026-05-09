@@ -4,6 +4,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../app/theme.dart';
+
 class LoadingShimmer extends StatelessWidget {
   final int itemCount;
   final double itemHeight;
@@ -19,8 +21,8 @@ class LoadingShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E32),
-      highlightColor: const Color(0xFF28283E),
+      baseColor: PocketClawTheme.surface,
+      highlightColor: PocketClawTheme.surfaceContainerHigh,
       child: ListView.builder(
         padding: padding,
         physics: const NeverScrollableScrollPhysics(),
@@ -57,8 +59,8 @@ class ShimmerBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFF1E1E32),
-      highlightColor: const Color(0xFF28283E),
+      baseColor: PocketClawTheme.surface,
+      highlightColor: PocketClawTheme.surfaceContainerHigh,
       child: Container(
         width: width,
         height: height,

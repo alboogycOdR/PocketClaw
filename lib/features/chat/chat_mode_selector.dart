@@ -127,7 +127,7 @@ class _ModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final availability = ref.watch(modeAvailabilityProvider(mode));
     final color = mode.color;
-    final bg = isActive ? color.withAlpha(30) : const Color(0xFF1A1A2E);
+    final bg = isActive ? color.withAlpha(30) : PocketClawTheme.surface;
     final borderColor = isActive ? color : color.withAlpha(60);
     final textColor = availability.isAvailable
         ? (isActive ? color : Colors.white70)
@@ -195,8 +195,8 @@ class _ActiveModeSubtitle extends ConsumerWidget {
           availability.isAvailable ? Icons.check_circle : Icons.warning_amber,
           size: 12,
           color: availability.isAvailable
-              ? const Color(0xFF4CAF50)
-              : const Color(0xFFFFB74D),
+              ? PocketClawTheme.success
+              : PocketClawTheme.warning,
         ),
         const SizedBox(width: 6),
         Expanded(

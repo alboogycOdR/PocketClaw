@@ -342,7 +342,7 @@ class _SuccessCard extends StatelessWidget {
         : apiKey;
     return Card(
       margin: EdgeInsets.zero,
-      color: const Color(0xFF1B3B1F),
+      color: const Color(0xFF1B2A1A),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -351,14 +351,14 @@ class _SuccessCard extends StatelessWidget {
             Row(
               children: [
                 const Icon(Icons.check_circle,
-                    color: Color(0xFF4CAF50), size: 20),
+                    color: PocketClawTheme.success, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Onboarding complete',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF4CAF50),
+                    color: PocketClawTheme.success,
                   ),
                 ),
               ],

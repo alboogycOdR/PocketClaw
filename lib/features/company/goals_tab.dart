@@ -147,9 +147,9 @@ class _GoalCard extends ConsumerWidget {
   const _GoalCard({required this.goal});
 
   Color get _statusColor => switch (goal.status) {
-        'achieved' => const Color(0xFF4CAF50),
-        'active' => PocketClawTheme.electricTeal,
-        'planned' => const Color(0xFFFFB74D),
+        'achieved' => PocketClawTheme.success,
+        'active' => PocketClawTheme.amber,
+        'planned' => PocketClawTheme.warning,
         'cancelled' => Colors.white38,
         _ => Colors.white54,
       };

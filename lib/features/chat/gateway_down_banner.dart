@@ -6,6 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/theme.dart';
 import '../../core/chat/chat_mode.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_mode_providers.dart';
@@ -49,14 +50,14 @@ class GatewayDownBanner extends ConsumerWidget {
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFB74D).withAlpha(25),
-        border: Border.all(color: const Color(0xFFFFB74D).withAlpha(120)),
+        color: PocketClawTheme.warning.withAlpha(25),
+        border: Border.all(color: PocketClawTheme.warning.withAlpha(120)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off, size: 18, color: Color(0xFFFFB74D)),
+          const Icon(Icons.cloud_off, size: 18, color: PocketClawTheme.warning),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -67,7 +68,7 @@ class GatewayDownBanner extends ConsumerWidget {
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFFFFB74D),
+                    color: PocketClawTheme.warning,
                   ),
                 ),
                 const SizedBox(height: 2),

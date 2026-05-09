@@ -39,7 +39,7 @@ class CommandAutocompleteStrip extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: PocketClawTheme.surfaceDim,
-        border: Border.all(color: const Color(0xFF3A3A50)),
+        border: Border.all(color: const Color(0xFF3A2F26)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -47,7 +47,7 @@ class CommandAutocompleteStrip extends StatelessWidget {
         children: [
           for (var i = 0; i < matches.length; i++) ...[
             if (i != 0)
-              const Divider(height: 1, color: Color(0xFF2A2A3A)),
+              const Divider(height: 1, color: Color(0xFF2A2018)),
             _CommandRow(spec: matches[i], onTap: () => onPick(matches[i])),
           ],
         ],

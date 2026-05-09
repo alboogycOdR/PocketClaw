@@ -96,7 +96,7 @@ class _FunctionCallIndicatorState extends State<FunctionCallIndicator>
                   : Icons.error_outline,
               size: 14,
               color: widget.functionCall.result != null
-                  ? const Color(0xFF4CAF50)
+                  ? PocketClawTheme.success
                   : PocketClawTheme.lobsterRed,
             ),
           const SizedBox(width: 8),

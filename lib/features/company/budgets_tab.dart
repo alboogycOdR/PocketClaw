@@ -148,7 +148,7 @@ class _SummaryCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: hot
                         ? PocketClawTheme.lobsterRed
-                        : const Color(0xFFFFB74D),
+                        : PocketClawTheme.warning,
                   ),
                 ),
               ],
@@ -159,7 +159,7 @@ class _SummaryCard extends StatelessWidget {
               backgroundColor: Colors.white10,
               color: hot
                   ? PocketClawTheme.lobsterRed
-                  : const Color(0xFFFFB74D),
+                  : PocketClawTheme.warning,
               minHeight: 6,
             ),
             const SizedBox(height: 10),
@@ -209,7 +209,7 @@ class _SummaryCard extends StatelessWidget {
                   '\$${summary.remainingDollars.toStringAsFixed(2)}',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 13,
-                    color: const Color(0xFF4CAF50),
+                    color: PocketClawTheme.success,
                   ),
                 ),
               ],
