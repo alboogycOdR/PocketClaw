@@ -19,6 +19,7 @@ import '../../data/providers/life_architect_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../data/providers/ssh_providers.dart';
 import '../../shared/constants.dart';
+import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'device_identity_settings.dart';
 import 'devices_screen.dart';
@@ -43,6 +44,10 @@ class SettingsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Settings'),
+          actions: const [
+            AgentScopeBadge(),
+            SizedBox(width: 8),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,

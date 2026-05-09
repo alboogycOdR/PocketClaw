@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/hermes/hermes_data_service.dart';
 import '../../core/hermes/models/hermes_analytics.dart';
 import '../../core/hermes/models/hermes_cron_job.dart';
+import '../../core/hermes/models/hermes_memory_entry.dart';
 import '../../core/hermes/models/hermes_message.dart';
 import '../../core/hermes/models/hermes_session.dart';
 import 'ssh_providers.dart';
@@ -81,6 +82,13 @@ final hermesMemoryProvider = FutureProvider<String>((ref) async {
   final svc = await ref.watch(hermesDataServiceProvider.future);
   if (svc == null) return '';
   return svc.readMemory();
+});
+
+final hermesMemoryEntriesProvider =
+    FutureProvider<List<HermesMemoryEntry>>((ref) async {
+  final svc = await ref.watch(hermesDataServiceProvider.future);
+  if (svc == null) return const [];
+  return svc.getMemoryEntries();
 });
 
 final hermesUserProfileProvider = FutureProvider<String>((ref) async {

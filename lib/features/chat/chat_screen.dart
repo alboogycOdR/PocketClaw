@@ -18,6 +18,7 @@ import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/extensions.dart';
+import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import 'chat_bubble.dart';
 import 'chat_mode_selector.dart';
@@ -578,7 +579,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          // Session management button
+          // Active server picker — tappable AgentScopeBadge opens a
+          // bottom-sheet to switch OpenClaw / Hermes / Local from any
+          // tab.
+          const AgentScopeBadge(),
+          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.forum_outlined, size: 20),
             tooltip: 'Sessions',

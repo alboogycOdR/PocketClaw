@@ -9,6 +9,7 @@ import 'hermes_paths.dart';
 import 'hermes_remote_sqlite.dart';
 import 'models/hermes_analytics.dart';
 import 'models/hermes_cron_job.dart';
+import 'models/hermes_memory_entry.dart';
 import 'models/hermes_message.dart';
 import 'models/hermes_session.dart';
 
@@ -139,6 +140,65 @@ class HermesDataService {
   Future<void> writeSoul(String content) =>
       _ssh.writeFile(paths.soulMD, content);
 
+  // ── Memory entries (§-delimited) ────────────────────────────────────
+  //
+  // MEMORY.md is one append-only file but Hermes treats it as a list
+  // of timestamped entries separated by `§` on its own line. Splitting
+  // here lets the UI render each entry as a card with edit + delete
+  // affordances instead of one giant textarea.
+
+  static const String _entryDelimiter = '§';
+
+  Future<List<HermesMemoryEntry>> getMemoryEntries() async {
+    final raw = await readMemory();
+    return parseMemoryEntries(raw);
+  }
+
+  /// Pure helper — exposed for testing and so the UI can preview a
+  /// parsed view of any string without an SSH round-trip.
+  static List<HermesMemoryEntry> parseMemoryEntries(String raw) {
+    if (raw.trim().isEmpty) return const [];
+    final out = <HermesMemoryEntry>[];
+    final blocks = raw.split(RegExp('^\\s*$_entryDelimiter\\s*\$',
+        multiLine: true));
+    for (final block in blocks) {
+      final trimmed = block.trim();
+      if (trimmed.isEmpty) continue;
+      out.add(HermesMemoryEntry.fromBlock(trimmed));
+    }
+    return out;
+  }
+
+  String _serializeEntries(List<HermesMemoryEntry> entries) {
+    if (entries.isEmpty) return '';
+    return entries.map((e) => e.toBlock()).join('\n\n$_entryDelimiter\n\n');
+  }
+
+  Future<void> addMemoryEntry(String body) async {
+    final entries = [...await getMemoryEntries()];
+    entries.add(HermesMemoryEntry(
+      timestamp: DateTime.now().toUtc(),
+      body: body.trim(),
+    ));
+    await writeMemory(_serializeEntries(entries));
+  }
+
+  Future<void> updateMemoryEntry(int index, String body) async {
+    final entries = [...await getMemoryEntries()];
+    if (index < 0 || index >= entries.length) {
+      throw RangeError('Memory entry index $index out of range');
+    }
+    entries[index] = entries[index].copyWith(body: body.trim());
+    await writeMemory(_serializeEntries(entries));
+  }
+
+  Future<void> deleteMemoryEntry(int index) async {
+    final entries = [...await getMemoryEntries()];
+    if (index < 0 || index >= entries.length) return;
+    entries.removeAt(index);
+    await writeMemory(_serializeEntries(entries));
+  }
+
   // ── Cron ────────────────────────────────────────────────────────────
 
   Future<CronJobsFile> getCronJobs() async {
@@ -166,6 +226,39 @@ class HermesDataService {
       ],
     );
     await saveCronJobs(updated);
+  }
+
+  /// Append a new cron job. Returns the saved job (with the
+  /// freshly-minted id) so the UI can update its list optimistically.
+  Future<HermesCronJob> createCronJob(HermesCronJob job) async {
+    final file = await getCronJobs();
+    final id = job.id.isEmpty
+        ? 'job_${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}'
+        : job.id;
+    final saved = HermesCronJob(
+      id: id,
+      name: job.name,
+      prompt: job.prompt,
+      schedule: job.schedule,
+      enabled: job.enabled,
+      state: job.state,
+      skills: job.skills,
+      model: job.model,
+      deliver: job.deliver,
+      nextRunAt: job.nextRunAt,
+      lastRunAt: job.lastRunAt,
+      lastError: job.lastError,
+      workdir: job.workdir,
+    );
+    await saveCronJobs(CronJobsFile(jobs: [...file.jobs, saved]));
+    return saved;
+  }
+
+  Future<void> deleteCronJob(String jobId) async {
+    final file = await getCronJobs();
+    await saveCronJobs(CronJobsFile(
+      jobs: file.jobs.where((j) => j.id != jobId).toList(),
+    ));
   }
 
   // ── Skills ──────────────────────────────────────────────────────────

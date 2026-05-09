@@ -94,10 +94,13 @@ class HermesClient {
 
   // ── Chat — streaming SSE ──────────────────────────────────────────────
 
-  /// Returns a stream of token strings. Caller collects them to build the
-  /// full response. Stream completes when `data: [DONE]` is received or
-  /// the underlying HTTP body closes.
-  Stream<String> chatStream(
+  /// Stream typed SSE events from `/v1/chat/completions`. Yields
+  /// [SseTextToken], [SseToolProgress], or [SseDone] until the body
+  /// closes or `[DONE]` arrives. See [HermesSseParser] for shape.
+  ///
+  /// Older callers can use [HermesSseParser.textTokensOnly] to collapse
+  /// the stream back to plain strings.
+  Stream<SseParsedEvent> chatStream(
     String message, {
     List<Map<String, String>>? history,
     int maxTokens = 1024,
@@ -124,7 +127,6 @@ class HermesClient {
         );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      // Drain body for the error message before throwing.
       final body = await response.stream.bytesToString();
       throw HermesApiException(
         statusCode: response.statusCode,
@@ -135,8 +137,9 @@ class HermesClient {
     final parser = HermesSseParser();
 
     await for (final chunk in response.stream.transform(utf8.decoder)) {
-      for (final token in parser.process(chunk)) {
-        yield token;
+      for (final event in parser.process(chunk)) {
+        yield event;
+        if (event is SseDone) return;
       }
     }
   }

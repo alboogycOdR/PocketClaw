@@ -18,6 +18,7 @@ import '../../core/gateway/offline_queue.dart';
 import '../../core/hermes/acp/acp_models.dart';
 import '../../core/hermes/acp/hermes_acp_client.dart';
 import '../../core/hermes/hermes_client.dart';
+import '../../core/hermes/hermes_sse_parser.dart';
 import '../../core/ssh/hermes_ssh_client.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/models/model_format.dart';
@@ -883,12 +884,44 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
 
   final buffer = StringBuffer();
   try {
-    await for (final token in client.chatStream(text, history: history)) {
-      buffer.write(token);
-      messages.updateById(placeholderId, (m) => m.copyWith(
-            content: buffer.toString(),
-            clearStatusText: true,
-          ));
+    await for (final event in client.chatStream(text, history: history)) {
+      switch (event) {
+        case SseTextToken(:final text):
+          buffer.write(text);
+          messages.updateById(placeholderId, (m) => m.copyWith(
+                content: buffer.toString(),
+                clearStatusText: true,
+              ));
+        case SseToolProgress(
+            :final toolCallId,
+            :final title,
+            :final kind,
+            :final status,
+            :final content,
+          ):
+          // Mirror the ACP tool-call surface so the TUI activity card
+          // shows progress for REST runs too.
+          messages.addToolCall(
+            placeholderId,
+            ChatAcpToolCall(
+              toolCallId: toolCallId,
+              title: title,
+              kind: kind,
+              status: status,
+              content: content,
+            ),
+          );
+          if (status == 'completed' || status == 'failed') {
+            messages.updateToolCall(
+              placeholderId,
+              toolCallId,
+              status: status,
+              content: content,
+            );
+          }
+        case SseDone():
+          break;
+      }
     }
     messages.updateById(placeholderId, (m) => m.copyWith(
           isStreaming: false,

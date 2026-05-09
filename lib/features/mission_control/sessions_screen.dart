@@ -12,6 +12,7 @@ import '../../core/gateway/gateway_rest.dart';
 import '../../data/models/openclaw_session.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/session_providers.dart';
+import '../../shared/utils/date_grouping.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'mission_control_providers.dart';
 
@@ -59,13 +60,23 @@ class SessionsScreen extends ConsumerWidget {
               ),
             );
           }
+          final grouped = groupByDate<OpenClawSession>(
+            sessions,
+            (s) => s.startedAt,
+          );
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(mcSessionsProvider),
-            child: ListView.separated(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: sessions.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _SessionCard(session: sessions[i]),
+              children: [
+                for (final entry in grouped.entries) ...[
+                  _GroupHeader(label: entry.key.label),
+                  for (final s in entry.value) ...[
+                    _SessionCard(session: s),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+              ],
             ),
           );
         },
@@ -220,4 +231,25 @@ String _fmtStarted(DateTime t) {
   if (diff.inHours > 0) return '${diff.inHours}h ago';
   if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
   return 'just now';
+}
+
+class _GroupHeader extends StatelessWidget {
+  final String label;
+  const _GroupHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 12, 0, 6),
+      child: Text(
+        label,
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 10,
+          letterSpacing: 0.14,
+          fontWeight: FontWeight.w600,
+          color: Colors.white38,
+        ),
+      ),
+    );
+  }
 }

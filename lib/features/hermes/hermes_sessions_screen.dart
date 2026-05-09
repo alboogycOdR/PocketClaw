@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../core/hermes/models/hermes_session.dart';
 import '../../data/providers/hermes_data_providers.dart';
+import '../../shared/utils/date_grouping.dart';
 import '../../shared/widgets/empty_state.dart';
 import 'hermes_session_detail_screen.dart';
 
@@ -90,20 +91,40 @@ class _HermesSessionsTabState extends ConsumerState<HermesSessionsTab> {
                   ),
                 );
               }
+              // Group by Today / Yesterday / This Week / Earlier so a
+              // long session list stays scannable. Search results stay
+              // flat — the user is already filtering by query.
+              if (searching) {
+                return RefreshIndicator(
+                  onRefresh: () async => ref
+                      .invalidate(hermesSessionSearchProvider(_query)),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    itemCount: sessions.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) =>
+                        _SessionTile(session: sessions[i]),
+                  ),
+                );
+              }
+              final grouped = groupByDate<HermesSession>(
+                sessions,
+                (s) => s.startedAt,
+              );
               return RefreshIndicator(
-                onRefresh: () async {
-                  if (searching) {
-                    ref.invalidate(hermesSessionSearchProvider(_query));
-                  } else {
-                    ref.invalidate(hermesSessionsProvider);
-                  }
-                },
-                child: ListView.separated(
+                onRefresh: () async =>
+                    ref.invalidate(hermesSessionsProvider),
+                child: ListView(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  itemCount: sessions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) =>
-                      _SessionTile(session: sessions[i]),
+                  children: [
+                    for (final entry in grouped.entries) ...[
+                      _GroupHeader(label: entry.key.label),
+                      for (final s in entry.value) ...[
+                        _SessionTile(session: s),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ],
                 ),
               );
             },
@@ -235,6 +256,27 @@ String _fmtTokens(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M tok';
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k tok';
   return '$n tok';
+}
+
+class _GroupHeader extends StatelessWidget {
+  final String label;
+  const _GroupHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+      child: Text(
+        label,
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 10,
+          letterSpacing: 0.14,
+          fontWeight: FontWeight.w600,
+          color: Colors.white38,
+        ),
+      ),
+    );
+  }
 }
 
 String _fmtAgo(DateTime t) {
