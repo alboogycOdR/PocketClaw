@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/local_model_config.dart';
+import '../models/model_version_status.dart';
 import 'abstract_llm_engine.dart';
 
 class LlamaCppEngine implements AbstractLLMEngine {
@@ -76,9 +77,11 @@ class LlamaCppEngine implements AbstractLLMEngine {
 
     // fllama's `getFormattedChat` does a `(HashMap[]) ArrayList` cast on
     // its Java side that crashes with `ClassCastException` on current
-    // builds. Format the prompt in Dart instead — ChatML is the chat
-    // template for Qwen 2.x / DeepSeek / Yi / many recent open models.
-    // Fall back to fllama if it's available and works (best-effort).
+    // builds. Format the prompt in Dart instead, picking the per-model
+    // template from `_config.chatTemplate`. Picking the wrong template
+    // produces garbled output — Gemma echoes its own role headers if
+    // given ChatML, etc. Fall back to fllama only when its native path
+    // works (best-effort).
     String? formattedPrompt;
     try {
       final messages = <RoleContent>[
@@ -91,9 +94,13 @@ class LlamaCppEngine implements AbstractLLMEngine {
         messages: messages,
       );
     } catch (_) {
-      // fall through to manual ChatML
+      // fall through to template router
     }
-    formattedPrompt ??= _formatChatML(systemPrompt: systemPrompt, user: prompt);
+    formattedPrompt ??= _formatPrompt(
+      template: _config.chatTemplate,
+      systemPrompt: systemPrompt,
+      user: prompt,
+    );
 
     // Set up token stream listener. fllama only emits per-token events when
     // `emitRealtimeCompletion: true` is passed to completion() — otherwise
@@ -124,7 +131,7 @@ class LlamaCppEngine implements AbstractLLMEngine {
       nPredict: maxTokens,
       temperature: temperature,
       topP: 0.95,
-      stop: ['<|im_end|>', '<|endoftext|>', '<|end|>', '</s>'],
+      stop: _stopTokensFor(_config.chatTemplate),
       emitRealtimeCompletion: true,
     ).then((result) {
       // Fallback: emit whatever the future returned, minus what we already
@@ -147,9 +154,42 @@ class LlamaCppEngine implements AbstractLLMEngine {
     await subscription?.cancel();
   }
 
-  /// ChatML template — `<|im_start|>role\ncontent<|im_end|>` with a trailing
-  /// `assistant` open turn so the model continues from there. Used by Qwen
-  /// 2.x, DeepSeek, Yi, and several other recent open models.
+  /// Route to the per-template formatter. Each template uses the role
+  /// markers and turn structure that the model was trained with — using
+  /// the wrong one makes the model emit its own header text in replies.
+  static String _formatPrompt({
+    required ChatTemplate template,
+    String? systemPrompt,
+    required String user,
+  }) =>
+      switch (template) {
+        ChatTemplate.gemma =>
+          _formatGemma(systemPrompt: systemPrompt, user: user),
+        ChatTemplate.llama3 =>
+          _formatLlama3(systemPrompt: systemPrompt, user: user),
+        ChatTemplate.phi3 =>
+          _formatPhi3(systemPrompt: systemPrompt, user: user),
+        ChatTemplate.mistral =>
+          _formatMistral(systemPrompt: systemPrompt, user: user),
+        ChatTemplate.chatml =>
+          _formatChatML(systemPrompt: systemPrompt, user: user),
+      };
+
+  /// Per-template stop tokens. fllama feeds these to llama.cpp so the
+  /// stream halts at the model's own turn boundary instead of continuing
+  /// into a hallucinated "user:" reply.
+  static List<String> _stopTokensFor(ChatTemplate template) =>
+      switch (template) {
+        ChatTemplate.gemma => const ['<end_of_turn>', '<eos>'],
+        ChatTemplate.llama3 => const ['<|eot_id|>', '<|end_of_text|>'],
+        ChatTemplate.chatml => const ['<|im_end|>', '<|endoftext|>'],
+        ChatTemplate.phi3 => const ['<|end|>', '<|endoftext|>'],
+        ChatTemplate.mistral => const ['</s>'],
+      };
+
+  /// ChatML — `<|im_start|>role\ncontent<|im_end|>` with a trailing
+  /// `assistant` open turn so the model continues from there. Used by
+  /// Qwen 2.x, DeepSeek, Yi, and other recent open models.
   static String _formatChatML({String? systemPrompt, required String user}) {
     final b = StringBuffer();
     if (systemPrompt != null && systemPrompt.isNotEmpty) {
@@ -162,6 +202,61 @@ class LlamaCppEngine implements AbstractLLMEngine {
     b.write('<|im_end|>\n');
     b.write('<|im_start|>assistant\n');
     return b.toString();
+  }
+
+  /// Gemma — `<start_of_turn>role\n…<end_of_turn>`. Verified against
+  /// Gemma 2/3/4 instruct chat templates.
+  static String _formatGemma({String? systemPrompt, required String user}) {
+    final b = StringBuffer();
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      b.write('<start_of_turn>system\n');
+      b.write(systemPrompt);
+      b.write('<end_of_turn>\n');
+    }
+    b.write('<start_of_turn>user\n');
+    b.write(user);
+    b.write('<end_of_turn>\n');
+    b.write('<start_of_turn>model\n');
+    return b.toString();
+  }
+
+  /// Llama 3 — header-id markers wrapping each turn. Used for Llama 3.1,
+  /// 3.2 and 3.3 instruct variants.
+  static String _formatLlama3({String? systemPrompt, required String user}) {
+    final b = StringBuffer()..write('<|begin_of_text|>');
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      b.write('<|start_header_id|>system<|end_header_id|>\n\n');
+      b.write(systemPrompt);
+      b.write('<|eot_id|>');
+    }
+    b.write('<|start_header_id|>user<|end_header_id|>\n\n');
+    b.write(user);
+    b.write('<|eot_id|>');
+    b.write('<|start_header_id|>assistant<|end_header_id|>\n\n');
+    return b.toString();
+  }
+
+  /// Phi-3 — `<|role|>…<|end|>`. Covers Phi-3 / Phi-3.5 instruct.
+  static String _formatPhi3({String? systemPrompt, required String user}) {
+    final b = StringBuffer();
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      b.write('<|system|>\n');
+      b.write(systemPrompt);
+      b.write('<|end|>\n');
+    }
+    b.write('<|user|>\n');
+    b.write(user);
+    b.write('<|end|>\n<|assistant|>\n');
+    return b.toString();
+  }
+
+  /// Mistral — `[INST] … [/INST]`. The system prompt is folded into the
+  /// instruction since Mistral has no dedicated system role marker.
+  static String _formatMistral({String? systemPrompt, required String user}) {
+    if (systemPrompt != null && systemPrompt.isNotEmpty) {
+      return '[INST] $systemPrompt\n\n$user [/INST]';
+    }
+    return '[INST] $user [/INST]';
   }
 
   @override
@@ -181,13 +276,18 @@ class LlamaCppEngine implements AbstractLLMEngine {
       'GGUF models require hfFilename in LocalModelConfig',
     );
 
-    final dir = await getApplicationDocumentsDirectory();
-    final destDir = Directory('${dir.path}/models/gguf');
+    // Versioned destination: {docs}/models/gguf/{id}/{commitHash}/{file}.
+    // Pinning by commit hash means a re-download always yields the exact
+    // same bytes even if HF later replaces the "main" pointer with a new
+    // quantisation, and lets us run the old + new versions side by side
+    // during an upgrade.
+    final destDir = await _versionedDirFor(model);
     if (!destDir.existsSync()) await destDir.create(recursive: true);
+    final destPath = '${destDir.path}/${model.hfFilename}';
 
-    final destPath = '${destDir.path}/${model.id}.gguf';
-    final url = 'https://huggingface.co/${model.hfRepo}'
-        '/resolve/main/${model.hfFilename}';
+    // `model.downloadUrl` builds the HF resolve URL from the same
+    // `hfCommitHash` so the URL and the on-disk path stay in sync.
+    final url = model.downloadUrl;
 
     // Up to 3 attempts. Each attempt resumes from the byte count already
     // written to disk (HTTP Range request). HF CDN pre-signed URLs often
@@ -336,21 +436,97 @@ class LlamaCppEngine implements AbstractLLMEngine {
 
   @override
   Future<void> deleteModel(String modelId) async {
-    final path = await getModelPath(modelId);
-    if (path != null) {
-      final file = File(path);
-      if (file.existsSync()) await file.delete();
+    // Wipe both the versioned tree and the legacy flat file so an upgrade
+    // → delete cycle doesn't leave stale bytes on disk. Tolerate missing
+    // entries — half-migrated state is normal.
+    final dir = await getApplicationDocumentsDirectory();
+    final modelDir = Directory('${dir.path}/models/gguf/$modelId');
+    if (modelDir.existsSync()) {
+      try {
+        await modelDir.delete(recursive: true);
+      } catch (_) {}
+    }
+    final legacyFile = File('${dir.path}/models/gguf/$modelId.gguf');
+    if (legacyFile.existsSync()) {
+      try {
+        await legacyFile.delete();
+      } catch (_) {}
     }
     if (_loadedModelId == modelId) {
       await unloadModel();
     }
   }
 
+  /// Resolve a model file on disk. Prefers the versioned layout written by
+  /// the current download path; falls back to the legacy flat
+  /// `{id}.gguf` location for downloads created before version pinning.
+  /// On a legacy hit we lazily migrate to the versioned location so the
+  /// next call hits the fast path.
   @override
   Future<String?> getModelPath(String modelId) async {
+    if (modelId != _config.id) {
+      // This engine instance is bound to one model — refuse cross-lookups.
+      // The download manager builds an engine per model, so this check
+      // mainly catches mistakes during refactors.
+      return null;
+    }
     final dir = await getApplicationDocumentsDirectory();
-    final path = '${dir.path}/models/gguf/$modelId.gguf';
-    return File(path).existsSync() ? path : null;
+    final filename = _config.hfFilename ?? '$modelId.gguf';
+    final versionedPath = '${dir.path}/models/gguf'
+        '/$modelId/${_config.hfCommitHash}/$filename';
+    if (File(versionedPath).existsSync()) return versionedPath;
+
+    // Legacy: opportunistic migration. If `rename()` fails (cross-volume,
+    // permissions), keep returning the legacy path so chat keeps working.
+    final legacyPath = '${dir.path}/models/gguf/$modelId.gguf';
+    if (File(legacyPath).existsSync()) {
+      try {
+        await Directory(File(versionedPath).parent.path).create(recursive: true);
+        await File(legacyPath).rename(versionedPath);
+        return versionedPath;
+      } catch (e) {
+        debugPrint('LlamaCppEngine: legacy migration failed, using flat path: $e');
+        return legacyPath;
+      }
+    }
+    return null;
+  }
+
+  Future<Directory> _versionedDirFor(LocalModelConfig model) async {
+    final dir = await getApplicationDocumentsDirectory();
+    return Directory(
+      '${dir.path}/models/gguf/${model.id}/${model.hfCommitHash}',
+    );
+  }
+
+  /// Whether the on-disk download matches the catalogue's pinned version.
+  static Future<ModelVersionStatus> getVersionStatus(
+    LocalModelConfig model,
+  ) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final filename = model.hfFilename ?? '${model.id}.gguf';
+    final pinnedPath =
+        '${dir.path}/models/gguf/${model.id}/${model.hfCommitHash}/$filename';
+    if (File(pinnedPath).existsSync()) {
+      return ModelVersionStatus.currentVersion;
+    }
+
+    // Any other versioned subdir? -> upgrade available.
+    final modelRoot = Directory('${dir.path}/models/gguf/${model.id}');
+    if (modelRoot.existsSync()) {
+      final entries = modelRoot.listSync();
+      if (entries.any((e) => e is Directory)) {
+        return ModelVersionStatus.updateAvailable;
+      }
+    }
+
+    // Legacy flat layout counts as a pre-versioning download — treat it as
+    // an update opportunity so the user can re-download against the pin.
+    final legacyPath = '${dir.path}/models/gguf/${model.id}.gguf';
+    if (File(legacyPath).existsSync()) {
+      return ModelVersionStatus.updateAvailable;
+    }
+    return ModelVersionStatus.notDownloaded;
   }
 
   @override

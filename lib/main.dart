@@ -12,6 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart' as app_router;
 import 'app/theme.dart';
+import 'core/llm/model_registry.dart';
+import 'core/llm/models/local_model_config.dart';
+import 'core/llm/services/model_allowlist_service.dart';
 import 'data/providers/core_providers.dart';
 
 /// Minimal, bulletproof startup.
@@ -64,8 +67,29 @@ void main() {
     // Seed the router's first-run flag before it builds any routes.
     app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
 
+    // Pre-load the model catalogue so the synchronous
+    // `modelCatalogueProvider` / `selectedModelConfigProvider` callsites
+    // see the full local + cloud list immediately. If the bundled JSON
+    // can't be parsed (broken asset, malformed cache override), fall back
+    // to cloud-only — cloud chat keeps working, local section just
+    // appears empty. Background remote refresh updates the cache for
+    // the next launch.
+    final allowlistService = ModelAllowlistService();
+    List<LocalModelConfig> catalogue;
+    try {
+      final localModels = await allowlistService.loadModels();
+      catalogue = [...localModels, ...kCloudModels];
+    } catch (e) {
+      debugPrint('Catalogue pre-load failed, falling back to cloud-only: $e');
+      catalogue = kCloudModels;
+    }
+    // Fire-and-forget: refresh remote allowlist for next launch.
+    // ignore: unawaited_futures
+    allowlistService.refreshFromRemote();
+
     final overrides = <Override>[
       if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),
+      modelCatalogueProvider.overrideWithValue(catalogue),
     ];
 
     runApp(

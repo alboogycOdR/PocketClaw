@@ -1,169 +1,23 @@
-/// Full model registry — all supported local models
+/// Cloud LLM registry. Local GGUF models are loaded from
+/// `assets/model_allowlist.json` via `ModelAllowlistService` so that adding
+/// a new local model doesn't require an app store release. Cloud models stay
+/// in code because their endpoints and IDs are stable and the UI flow for
+/// them (BYO API key, custom-id override) is fundamentally different.
 library;
 
 import 'models/local_model_config.dart';
 import 'models/model_format.dart';
 import 'models/model_provider.dart';
 
-const List<LocalModelConfig> kAvailableModels = [
-  // -- GOOGLE (Gemma GGUF via fllama) -----------------------------------------
-
-  LocalModelConfig(
-    id: 'gemma-2-2b',
-    displayName: 'Gemma 2 2B',
-    description: 'Google\u2019s balanced default \u2014 best Gemma for mobile',
-    sizeGB: 1.6,
-    ramMB: 4000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.google,
-    hfRepo: 'bartowski/gemma-2-2b-it-GGUF',
-    hfFilename: 'gemma-2-2b-it-Q4_K_M.gguf',
-    capabilities: ['text', 'reasoning'],
-    requiresLicense: true,
-    licenseUrl: 'https://ai.google.dev/gemma/terms',
-  ),
-
-  LocalModelConfig(
-    id: 'gemma-3-1b',
-    displayName: 'Gemma 3 1B',
-    description: 'Small, fast Gemma 3 \u2014 good for lightweight chat',
-    sizeGB: 0.7,
-    ramMB: 2000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.google,
-    hfRepo: 'bartowski/google_gemma-3-1b-it-GGUF',
-    hfFilename: 'google_gemma-3-1b-it-Q4_K_M.gguf',
-    capabilities: ['text'],
-    requiresLicense: true,
-    licenseUrl: 'https://ai.google.dev/gemma/terms',
-  ),
-
-  LocalModelConfig(
-    id: 'gemma-3-4b',
-    displayName: 'Gemma 3 4B',
-    description: 'Gemma 3 mid-tier \u2014 stronger reasoning',
-    sizeGB: 2.5,
-    ramMB: 6000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.google,
-    hfRepo: 'bartowski/google_gemma-3-4b-it-GGUF',
-    hfFilename: 'google_gemma-3-4b-it-Q4_K_M.gguf',
-    capabilities: ['text', 'reasoning'],
-    requiresLicense: true,
-    licenseUrl: 'https://ai.google.dev/gemma/terms',
-  ),
-
-  // -- META (fllama / .gguf) --------------------------------------------------
-
-  LocalModelConfig(
-    id: 'llama-3.2-3b',
-    displayName: 'Llama 3.2 3B',
-    description: 'Strong general tasks, Meta',
-    sizeGB: 1.8,
-    ramMB: 4000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.meta,
-    hfRepo: 'bartowski/Llama-3.2-3B-Instruct-GGUF',
-    hfFilename: 'Llama-3.2-3B-Instruct-Q4_K_M.gguf',
-    capabilities: ['text', 'reasoning'],
-    requiresLicense: true,
-    licenseUrl: 'https://www.llama.com/llama3_2/license/',
-  ),
-
-  LocalModelConfig(
-    id: 'llama-3.2-1b',
-    displayName: 'Llama 3.2 1B',
-    description: 'Fast and lightweight, Meta',
-    sizeGB: 0.7,
-    ramMB: 2000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.meta,
-    hfRepo: 'bartowski/Llama-3.2-1B-Instruct-GGUF',
-    hfFilename: 'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
-    capabilities: ['text'],
-    requiresLicense: true,
-    licenseUrl: 'https://www.llama.com/llama3_2/license/',
-  ),
-
-  // -- MICROSOFT (fllama / .gguf) ---------------------------------------------
-
-  LocalModelConfig(
-    id: 'phi-3.5-mini',
-    displayName: 'Phi-3.5 Mini',
-    description: 'Excellent reasoning and instruction following, Microsoft',
-    sizeGB: 2.2,
-    ramMB: 4000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.microsoft,
-    hfRepo: 'microsoft/Phi-3.5-mini-instruct-gguf',
-    hfFilename: 'Phi-3.5-mini-instruct-Q4_K_M.gguf',
-    capabilities: ['text', 'reasoning', 'code'],
-  ),
-
-  LocalModelConfig(
-    id: 'phi-3-mini',
-    displayName: 'Phi-3 Mini 3.8B',
-    description: 'Strong reasoning, compact size, Microsoft',
-    sizeGB: 2.3,
-    ramMB: 4000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.microsoft,
-    hfRepo: 'microsoft/Phi-3-mini-4k-instruct-gguf',
-    hfFilename: 'Phi-3-mini-4k-instruct-q4.gguf',
-    capabilities: ['text', 'reasoning', 'code'],
-  ),
-
-  // -- ALIBABA (fllama / .gguf) -----------------------------------------------
-
-  LocalModelConfig(
-    id: 'qwen-2.5-1.5b',
-    displayName: 'Qwen 2.5 1.5B',
-    description: 'Multilingual, code-capable, Alibaba',
-    sizeGB: 0.9,
-    ramMB: 2000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.alibaba,
-    hfRepo: 'Qwen/Qwen2.5-1.5B-Instruct-GGUF',
-    hfFilename: 'qwen2.5-1.5b-instruct-q4_k_m.gguf',
-    capabilities: ['text', 'code', 'multilingual'],
-  ),
-
-  LocalModelConfig(
-    id: 'qwen-2.5-0.5b',
-    displayName: 'Qwen 2.5 0.5B',
-    description: 'Smallest viable model \u2014 ultra-low RAM',
-    sizeGB: 0.4,
-    ramMB: 1000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.alibaba,
-    hfRepo: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF',
-    hfFilename: 'qwen2.5-0.5b-instruct-q4_k_m.gguf',
-    capabilities: ['text', 'multilingual'],
-  ),
-
-  // -- HUGGINGFACE (fllama / .gguf) -------------------------------------------
-
-  LocalModelConfig(
-    id: 'smollm2-1.7b',
-    displayName: 'SmolLM2 1.7B',
-    description: 'Surprisingly capable at its size, HuggingFace',
-    sizeGB: 1.0,
-    ramMB: 2000,
-    format: ModelFormat.gguf,
-    provider: ModelProvider.huggingFace,
-    hfRepo: 'HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF',
-    hfFilename: 'smollm2-1.7b-instruct-q4_k_m.gguf',
-    capabilities: ['text', 'reasoning'],
-  ),
-
-  // -- CLOUD APIs (bring your own key) ----------------------------------------
+const List<LocalModelConfig> kCloudModels = [
+  // -- Anthropic --------------------------------------------------------------
 
   LocalModelConfig(
     id: 'claude-sonnet',
     displayName: 'Claude Sonnet 4',
-    description: 'Anthropic\u2019s best balance of speed and intelligence',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Anthropic’s best balance of speed and intelligence',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.anthropic,
     cloudApiEndpoint: 'https://api.anthropic.com/v1/messages',
@@ -175,9 +29,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'claude-haiku',
     displayName: 'Claude Haiku 4.5',
-    description: 'Anthropic\u2019s fastest model \u2014 great for quick tasks',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Anthropic’s fastest model — great for quick tasks',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.anthropic,
     cloudApiEndpoint: 'https://api.anthropic.com/v1/messages',
@@ -186,12 +40,14 @@ const List<LocalModelConfig> kAvailableModels = [
     capabilities: ['text', 'reasoning', 'code'],
   ),
 
+  // -- OpenAI -----------------------------------------------------------------
+
   LocalModelConfig(
     id: 'gpt-4o-mini',
     displayName: 'GPT-4o Mini',
-    description: 'OpenAI\u2019s compact powerhouse \u2014 fast and affordable',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'OpenAI’s compact powerhouse — fast and affordable',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.openAI,
     cloudApiEndpoint: 'https://api.openai.com/v1/chat/completions',
@@ -203,9 +59,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'gpt-4o',
     displayName: 'GPT-4o',
-    description: 'OpenAI\u2019s flagship \u2014 maximum capability',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'OpenAI’s flagship — maximum capability',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.openAI,
     cloudApiEndpoint: 'https://api.openai.com/v1/chat/completions',
@@ -214,12 +70,14 @@ const List<LocalModelConfig> kAvailableModels = [
     capabilities: ['text', 'reasoning', 'code', 'vision'],
   ),
 
+  // -- Google AI (Gemini) -----------------------------------------------------
+
   LocalModelConfig(
     id: 'gemini-2-flash',
     displayName: 'Gemini 2.0 Flash',
-    description: 'Google\u2019s fastest cloud model \u2014 free tier available',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Google’s fastest cloud model — free tier available',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.googleAI,
     cloudModelId: 'gemini-2.0-flash',
@@ -229,9 +87,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'gemini-2.5-flash',
     displayName: 'Gemini 2.5 Flash',
-    description: 'Google\u2019s mid-tier \u2014 faster, cheaper than Pro',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Google’s mid-tier — faster, cheaper than Pro',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.googleAI,
     cloudModelId: 'gemini-2.5-flash',
@@ -241,9 +99,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'gemini-2.5-pro',
     displayName: 'Gemini 2.5 Pro',
-    description: 'Google\u2019s most capable model \u2014 deep reasoning',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Google’s most capable model — deep reasoning',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.googleAI,
     cloudModelId: 'gemini-2.5-pro',
@@ -255,9 +113,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'grok-4',
     displayName: 'Grok 4',
-    description: 'xAI\u2019s flagship \u2014 strong reasoning, real-time access',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'xAI’s flagship — strong reasoning, real-time access',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.xai,
     cloudApiEndpoint: 'https://api.x.ai/v1/chat/completions',
@@ -271,9 +129,9 @@ const List<LocalModelConfig> kAvailableModels = [
   LocalModelConfig(
     id: 'kimi-k2',
     displayName: 'Kimi K2',
-    description: 'Moonshot\u2019s long-context flagship \u2014 strong on code and tools',
-    sizeGB: 0,
-    ramMB: 0,
+    description: 'Moonshot’s long-context flagship — strong on code and tools',
+    sizeBytes: 0,
+    minRamBytes: 0,
     format: ModelFormat.cloud,
     provider: ModelProvider.moonshot,
     cloudApiEndpoint: 'https://api.moonshot.ai/v1/chat/completions',

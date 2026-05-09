@@ -13,10 +13,12 @@ import '../../core/gateway/gateway_rest.dart';
 import '../../core/gateway/offline_queue.dart';
 import '../../core/gateway/paperclip_rest.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
+import '../../core/llm/engines/llama_cpp_engine.dart';
 import '../../core/llm/engines/llm_engine_factory.dart';
 import '../../core/llm/model_registry.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
 import '../../core/llm/models/model_download_state.dart';
+import '../../core/llm/models/model_version_status.dart';
 import '../../core/llm/services/api_key_service.dart';
 import '../../core/llm/services/hf_token_service.dart';
 import '../../core/llm/services/license_service.dart';
@@ -100,7 +102,7 @@ final paperclipTokenProvider = StateProvider<String>((ref) {
 
 final selectedModelIdProvider = StateProvider<String>((ref) {
   final prefs = ref.watch(sharedPrefsProvider);
-  return prefs.getString('selected_model') ?? 'gemma-4-e2b';
+  return prefs.getString('selected_model') ?? 'gemma-4-2b';
 });
 
 // ── Connectivity ──
@@ -473,16 +475,28 @@ final modelDownloadManagerProvider = Provider<ModelDownloadManager>((ref) {
   return manager;
 });
 
-final availableModelsProvider = Provider<List<llm.LocalModelConfig>>((_) {
-  return kAvailableModels;
+/// Full model catalogue: local GGUF entries (loaded from
+/// `assets/model_allowlist.json` at startup) followed by hardcoded cloud
+/// entries. The default value here is cloud-only so that the app still has
+/// a usable list if main() couldn't pre-load the JSON for some reason —
+/// the override in main.dart replaces it with the merged list.
+final modelCatalogueProvider = Provider<List<llm.LocalModelConfig>>((_) {
+  return kCloudModels;
 });
 
 final selectedModelConfigProvider = Provider<llm.LocalModelConfig>((ref) {
   final selectedId = ref.watch(selectedModelIdProvider);
   final prefs = ref.watch(sharedPrefsProvider);
-  final base = kAvailableModels.firstWhere(
+  final catalogue = ref.watch(modelCatalogueProvider);
+
+  // Fallback chain: picked model → first cloud model → first model in list.
+  // The catalogue is guaranteed non-empty (kCloudModels is hardcoded).
+  final base = catalogue.firstWhere(
     (m) => m.id == selectedId,
-    orElse: () => kAvailableModels.firstWhere((m) => m.id == 'gemma-3-270m'),
+    orElse: () => catalogue.firstWhere(
+      (m) => m.isCloud,
+      orElse: () => catalogue.first,
+    ),
   );
 
   // User override: if the user has set a custom cloud model ID for this
@@ -532,6 +546,23 @@ final modelDownloadStateProvider =
 
 final hasHFTokenProvider = FutureProvider<bool>((ref) async {
   return ref.watch(hfTokenServiceProvider).hasToken();
+});
+
+/// Per-model "Update available" / "Current version" / "Not downloaded"
+/// status. Drives the badge + Update button on the model card.
+///
+/// Family key is the model `id` so Riverpod equality is cheap; the lookup
+/// resolves the full config from the catalogue inside the provider so
+/// re-watches don't depend on object identity of the LocalModelConfig.
+final modelVersionStatusProvider =
+    FutureProvider.family<ModelVersionStatus, String>((ref, modelId) async {
+  final catalogue = ref.watch(modelCatalogueProvider);
+  final model = catalogue.firstWhere(
+    (m) => m.id == modelId,
+    orElse: () => throw StateError('Model $modelId not in catalogue'),
+  );
+  if (model.isCloud) return ModelVersionStatus.currentVersion;
+  return LlamaCppEngine.getVersionStatus(model);
 });
 
 final apiKeyServiceProvider = Provider<ApiKeyService>((_) {

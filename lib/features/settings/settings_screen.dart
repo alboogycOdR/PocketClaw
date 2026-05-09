@@ -10,7 +10,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
-import '../../core/llm/model_registry.dart';
 import '../../data/models/openclaw_models.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
@@ -171,7 +170,8 @@ class _ModelsTab extends ConsumerWidget {
     final hasToken = ref.watch(hasHFTokenProvider);
     final tokenAvailable = hasToken.whenOrNull(data: (v) => v) ?? false;
 
-    final selectedModel = kAvailableModels.cast<dynamic>().firstWhere(
+    final catalogue = ref.watch(modelCatalogueProvider);
+    final selectedModel = catalogue.cast<dynamic>().firstWhere(
           (m) => m.id == selectedId,
           orElse: () => null,
         );
@@ -198,7 +198,7 @@ class _ModelsTab extends ConsumerWidget {
                 leading: Icon(Icons.memory, color: PocketClawTheme.electricTeal),
                 title: const Text('Local Model'),
                 subtitle: Text(
-                  '$modelLabel  ·  ${kAvailableModels.length} available',
+                  '$modelLabel  ·  ${catalogue.length} available',
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 12,
                     color: PocketClawTheme.electricTeal,

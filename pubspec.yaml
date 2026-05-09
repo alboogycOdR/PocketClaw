@@ -94,6 +94,7 @@ flutter:
   assets:
     - assets/skills/
     - assets/images/.gitkeep
+    - assets/model_allowlist.json
 
   fonts:
     - family: JetBrainsMono

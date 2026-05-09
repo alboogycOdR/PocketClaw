@@ -7,13 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
-import '../../core/llm/model_registry.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
 import '../../core/llm/models/model_download_state.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/llm/models/model_provider.dart';
 import '../../core/llm/services/api_key_service.dart';
+import '../../core/llm/services/device_memory_service.dart';
 import '../../core/llm/services/license_service.dart';
+import '../../core/llm/models/model_version_status.dart';
 import '../../data/providers/core_providers.dart';
 
 class ModelConfig extends ConsumerStatefulWidget {
@@ -40,6 +41,21 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
       }
     }
 
+    // HuggingFace token gate: gated repos (Gemma, Llama) reject anonymous
+    // downloads with HTTP 401. Surface the token dialog inline rather than
+    // letting the download fail with a cryptic auth error.
+    if (model.requiresLicense) {
+      final tokenService = ref.read(hfTokenServiceProvider);
+      final hasToken = await tokenService.hasToken();
+      if (!hasToken && mounted) {
+        showHfTokenDialog(context, ref);
+        // The dialog runs async — bail out and let the user tap Download
+        // again once their token is saved. Re-running the dialog here
+        // would race with their typing.
+        return;
+      }
+    }
+
     setState(() => _downloadingId = model.id);
 
     final manager = ref.read(modelDownloadManagerProvider);
@@ -63,6 +79,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
     final selectedId = ref.watch(selectedModelIdProvider);
     final hasToken = ref.watch(hasHFTokenProvider);
     final tokenAvailable = hasToken.whenOrNull(data: (v) => v) ?? false;
+    final catalogue = ref.watch(modelCatalogueProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Models')),
@@ -124,7 +141,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
           ),
           const SizedBox(height: 10),
 
-          ...kAvailableModels.where((m) => m.isCloud).map((model) {
+          ...catalogue.where((m) => m.isCloud).map((model) {
             final isSelected = model.id == selectedId;
             final cloudProvider = ApiKeyService.providerFor(model.provider);
             final hasKey = cloudProvider != null
@@ -180,7 +197,7 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
           ),
           const SizedBox(height: 10),
 
-          ...kAvailableModels.where((m) => m.isLocal).map((model) {
+          ...catalogue.where((m) => m.isLocal).map((model) {
             final isSelected = model.id == selectedId;
             final downloadState = ref.watch(modelDownloadStateProvider(model.id));
             final isDownloading = _downloadingId == model.id ||
@@ -201,6 +218,23 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
                 ) ??
                 0.0;
 
+            // RAM gate. While the lookup is in flight we show no warning
+            // (optimistic) — the gate fires once the device value lands.
+            final deviceRam = ref.watch(deviceRamProvider);
+            final hasEnoughRam = deviceRam.whenOrNull(
+                  data: (ram) => ram >= model.minRamBytes,
+                ) ??
+                true;
+
+            // Version status: drives the "Update available" badge.
+            // Default to currentVersion while loading so we don't flash a
+            // false-positive badge during the async file probe.
+            final versionStatus =
+                ref.watch(modelVersionStatusProvider(model.id)).whenOrNull(
+                      data: (s) => s,
+                    ) ??
+                    ModelVersionStatus.currentVersion;
+
             return _MultiModelCard(
               model: model,
               isSelected: isSelected,
@@ -209,6 +243,8 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
               downloadProgress: progress,
               errorMessage: errorMsg,
               hasToken: tokenAvailable,
+              hasEnoughRam: hasEnoughRam,
+              versionStatus: versionStatus,
               onDownload: () => _startDownload(model),
               onSelect: () => _selectModel(model),
               onTokenTap: () => showHfTokenDialog(context, ref),
@@ -269,6 +305,8 @@ class _MultiModelCard extends StatelessWidget {
   final double downloadProgress;
   final String? errorMessage;
   final bool hasToken;
+  final bool hasEnoughRam;
+  final ModelVersionStatus versionStatus;
   final VoidCallback onDownload;
   final VoidCallback onSelect;
   final VoidCallback onTokenTap;
@@ -283,6 +321,8 @@ class _MultiModelCard extends StatelessWidget {
     required this.downloadProgress,
     this.errorMessage,
     required this.hasToken,
+    this.hasEnoughRam = true,
+    this.versionStatus = ModelVersionStatus.currentVersion,
     required this.onDownload,
     required this.onSelect,
     required this.onTokenTap,
@@ -367,6 +407,28 @@ class _MultiModelCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             _StatusBadge(
                               label: 'BETA',
+                              color: PocketClawTheme.warning,
+                            ),
+                          ],
+                          if (model.tags.contains('new')) ...[
+                            const SizedBox(width: 6),
+                            _StatusBadge(
+                              label: 'NEW',
+                              color: PocketClawTheme.electricTeal,
+                            ),
+                          ],
+                          if (model.tags.contains('recommended')) ...[
+                            const SizedBox(width: 6),
+                            _StatusBadge(
+                              label: 'RECOMMENDED',
+                              color: PocketClawTheme.success,
+                            ),
+                          ],
+                          if (versionStatus ==
+                              ModelVersionStatus.updateAvailable) ...[
+                            const SizedBox(width: 6),
+                            _StatusBadge(
+                              label: 'UPDATE',
                               color: PocketClawTheme.warning,
                             ),
                           ],
@@ -550,6 +612,27 @@ class _MultiModelCard extends StatelessWidget {
           onPressed: onTokenTap,
           icon: const Icon(Icons.lock_outline, size: 20),
           color: Colors.white38,
+        ),
+      );
+    }
+
+    // Device doesn't meet the model's minimum RAM — surface a disabled
+    // button with a tooltip rather than letting the user kick off a
+    // multi-GB download that will OOM at load time.
+    if (!hasEnoughRam) {
+      return Tooltip(
+        message:
+            'Needs ${model.minRamGB.toStringAsFixed(0)} GB RAM — your device may not support this model',
+        child: ElevatedButton(
+          onPressed: null,
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            backgroundColor: PocketClawTheme.surfaceContainerLow,
+          ),
+          child: const Text(
+            'Low RAM',
+            style: TextStyle(fontSize: 12, color: Colors.white38),
+          ),
         ),
       );
     }
