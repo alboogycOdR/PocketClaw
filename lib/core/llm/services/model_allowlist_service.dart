@@ -142,7 +142,10 @@ class ModelAllowlistService {
 
   ModelFormat _parseFormat(String? raw) => switch (raw) {
         'task' => ModelFormat.task,
-        'cloud' => ModelFormat.cloud,
+        // Cloud was dropped 2026-05-09 — any leftover 'cloud' entries
+        // in older cached allowlists fall through to gguf and will
+        // simply fail to download (no hfRepo). Cleaner than a runtime
+        // crash on parse.
         _ => ModelFormat.gguf,
       };
 

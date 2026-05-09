@@ -599,7 +599,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Chat mode selector (Local / Cloud / OpenClaw)
+          // Chat mode selector (Local / OpenClaw / Hermes)
           const ChatModeSelector(),
 
           // Pairing-required banner (only visible when the gateway rejected

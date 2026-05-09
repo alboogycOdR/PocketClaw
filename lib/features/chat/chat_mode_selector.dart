@@ -1,4 +1,4 @@
-/// Chat Mode Selector — segmented control showing Local / Cloud / OpenClaw.
+/// Chat Mode Selector — segmented control showing Local / OpenClaw / Hermes.
 /// Tapping switches the active mode and loads that mode's session.
 /// Unavailable modes are visually dim and show a helper message on tap.
 library;

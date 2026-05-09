@@ -11,7 +11,6 @@ import '../../core/llm/models/local_model_config.dart' as llm;
 import '../../core/llm/models/model_download_state.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/llm/models/model_provider.dart';
-import '../../core/llm/services/api_key_service.dart';
 import '../../core/llm/services/device_memory_service.dart';
 import '../../core/llm/services/license_service.dart';
 import '../../core/llm/models/model_version_status.dart';
@@ -101,8 +100,9 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Run models on-device for offline privacy, or connect '
-                      'to cloud APIs with your own key for maximum power.',
+                      'On-device models — offline, private, fast. '
+                      'Cloud LLMs are intentionally not supported here; '
+                      'use the AI provider\'s own app for that.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white54,
@@ -122,62 +122,6 @@ class _ModelConfigState extends ConsumerState<ModelConfig> {
               onTap: () => showHfTokenDialog(context, ref),
             ),
           ],
-
-          // -- Cloud Models Section --
-          const SizedBox(height: 20),
-          Text(
-            'CLOUD MODELS',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.white38,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Bring your own API key \u2014 no download required',
-            style: TextStyle(fontSize: 11, color: Colors.white24),
-          ),
-          const SizedBox(height: 10),
-
-          ...catalogue.where((m) => m.isCloud).map((model) {
-            final isSelected = model.id == selectedId;
-            final cloudProvider = ApiKeyService.providerFor(model.provider);
-            final hasKey = cloudProvider != null
-                ? (ref.watch(hasCloudKeyProvider(cloudProvider))
-                        .whenOrNull(data: (v) => v) ??
-                    false)
-                : false;
-
-            final prefs = ref.watch(sharedPrefsProvider);
-            final customId = getCustomModelId(prefs, model.id);
-            final effectiveId = customId ?? model.cloudModelId ?? '';
-
-            return _MultiModelCard(
-              model: model,
-              isSelected: isSelected,
-              isDownloading: false,
-              isDownloaded: hasKey,
-              downloadProgress: 0,
-              errorMessage: null,
-              hasToken: true,
-              effectiveModelId: effectiveId,
-              onEditModelId: () =>
-                  _showModelIdOverrideDialog(context, ref, model),
-              onDownload: () {
-                if (cloudProvider != null) {
-                  _showCloudApiKeyDialog(context, ref, cloudProvider, model);
-                }
-              },
-              onSelect: () => _selectModel(model),
-              onTokenTap: () {
-                if (cloudProvider != null) {
-                  _showCloudApiKeyDialog(context, ref, cloudProvider, model);
-                }
-              },
-            );
-          }),
 
           // -- Local Models Section --
           const SizedBox(height: 20),
@@ -360,11 +304,14 @@ class _MultiModelCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Edit model ID icon (cloud models only)
-                      // Shown just before the name badges
-                      if (onEditModelId != null &&
-                          effectiveModelId != null &&
-                          effectiveModelId != model.cloudModelId)
+                      // Custom model-ID display (cloud-only feature
+                      // retired 2026-05-09). Block left commented as a
+                      // breadcrumb in case the override widget gets
+                      // repurposed later.
+                      // ignore: dead_code
+                      if (false &&
+                          onEditModelId != null &&
+                          effectiveModelId != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 2),
                           child: Row(
@@ -590,20 +537,6 @@ class _MultiModelCard extends StatelessWidget {
       return Icon(Icons.check_circle, color: PocketClawTheme.success, size: 24);
     }
 
-    // Cloud model without key
-    if (model.isCloud) {
-      return OutlinedButton.icon(
-        onPressed: onDownload, // opens API key dialog
-        icon: const Icon(Icons.key, size: 14),
-        label: const Text('API Key', style: TextStyle(fontSize: 11)),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          side: BorderSide(color: model.provider.badgeColor),
-          foregroundColor: model.provider.badgeColor,
-        ),
-      );
-    }
-
     // Local model not downloaded
     if (!hasToken && model.requiresLicense) {
       return Tooltip(
@@ -684,9 +617,8 @@ class _FormatTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (format) {
-      ModelFormat.gguf  => ('GGUF', const Color(0xFF9C27B0)),
-      ModelFormat.task  => ('.TASK', const Color(0xFF4285F4)),
-      ModelFormat.cloud => ('CLOUD', const Color(0xFF10A37F)),
+      ModelFormat.gguf => ('GGUF', const Color(0xFF9C27B0)),
+      ModelFormat.task => ('.TASK', const Color(0xFF4285F4)),
     };
 
     return Container(
@@ -892,245 +824,6 @@ void showHfTokenDialog(BuildContext context, WidgetRef ref) {
           ),
         ],
       ),
-    ),
-  ).then((_) => controller.dispose());
-}
-
-// -- Cloud API key dialog -----------------------------------------------------
-
-void _showCloudApiKeyDialog(
-  BuildContext context,
-  WidgetRef ref,
-  CloudProvider cloudProvider,
-  llm.LocalModelConfig model,
-) {
-  final keyService = ref.read(apiKeyServiceProvider);
-  final controller = TextEditingController();
-  var isValidating = false;
-  var validationResult = '';
-
-  final providerName = switch (cloudProvider) {
-    CloudProvider.anthropic => 'Anthropic',
-    CloudProvider.openAI    => 'OpenAI',
-    CloudProvider.googleAI  => 'Google AI',
-    CloudProvider.xai       => 'xAI',
-    CloudProvider.moonshot  => 'Moonshot',
-  };
-  final hintText = model.cloudApiKeyPrefix ?? 'sk-...';
-
-  // Pre-fill existing key
-  keyService.getKey(cloudProvider).then((key) {
-    if (key != null) controller.text = key;
-  });
-
-  showDialog(
-    context: context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setDialogState) => AlertDialog(
-        title: Text('$providerName API Key'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Enter your $providerName API key to use ${model.displayName}. '
-              'Your key is stored securely on-device only.',
-              style: const TextStyle(fontSize: 13, color: Colors.white54),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                labelText: 'API Key',
-                hintText: hintText,
-                border: const OutlineInputBorder(),
-                suffixIcon: isValidating
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
-              ),
-              obscureText: true,
-            ),
-            if (validationResult.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                validationResult,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: validationResult.contains('Valid')
-                      ? PocketClawTheme.success
-                      : PocketClawTheme.lobsterRed,
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await keyService.deleteKey(cloudProvider);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (context.mounted) {
-                ref.invalidate(hasCloudKeyProvider(cloudProvider));
-                // Force the cloud engine to rebuild without the key.
-                ref.invalidate(abstractLlmEngineProvider);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$providerName key cleared')),
-                );
-              }
-            },
-            child: const Text('Clear', style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final key = controller.text.trim();
-              if (key.isEmpty) return;
-              setDialogState(() {
-                isValidating = true;
-                validationResult = '';
-              });
-              final valid = await keyService.validate(cloudProvider, key);
-              setDialogState(() {
-                isValidating = false;
-                validationResult = valid ? 'Valid key' : 'Invalid key';
-              });
-            },
-            child: const Text('Validate'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final key = controller.text.trim();
-              if (key.isEmpty) {
-                if (ctx.mounted) Navigator.pop(ctx);
-                return;
-              }
-              try {
-                await keyService.saveKey(cloudProvider, key);
-                if (ctx.mounted) Navigator.pop(ctx);
-                if (context.mounted) {
-                  ref.invalidate(hasCloudKeyProvider(cloudProvider));
-                  // Force the cloud engine to rebuild with the new key.
-                  ref.invalidate(abstractLlmEngineProvider);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('$providerName key saved')),
-                  );
-                }
-              } catch (e) {
-                setDialogState(() {
-                  validationResult = e.toString();
-                });
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    ),
-  ).then((_) => controller.dispose());
-}
-
-// -- Custom Model ID override dialog ------------------------------------------
-
-void _showModelIdOverrideDialog(
-  BuildContext context,
-  WidgetRef ref,
-  llm.LocalModelConfig model,
-) {
-  final prefs = ref.read(sharedPrefsProvider);
-  final currentCustom = getCustomModelId(prefs, model.id);
-  final controller = TextEditingController(text: currentCustom ?? '');
-
-  showDialog(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Custom Model ID'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Override the model ID sent to ${model.provider.displayName}. '
-            'Useful when a new model variant releases and you don\u2019t want '
-            'to wait for an app update.',
-            style: const TextStyle(fontSize: 13, color: Colors.white54),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: PocketClawTheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 14, color: Colors.white54),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Default: ${model.cloudModelId ?? "(none)"}',
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 11,
-                      color: Colors.white54,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: 'Custom model ID',
-              hintText: model.cloudModelId ?? 'model-name',
-              border: const OutlineInputBorder(),
-            ),
-            style: GoogleFonts.jetBrainsMono(fontSize: 13),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () async {
-            await setCustomModelId(prefs, model.id, null);
-            if (ctx.mounted) Navigator.pop(ctx);
-            if (context.mounted) {
-              ref.invalidate(selectedModelConfigProvider);
-              ref.invalidate(abstractLlmEngineProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Reverted to default ID')),
-              );
-            }
-          },
-          child: const Text('Use default',
-              style: TextStyle(color: Colors.white38)),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final id = controller.text.trim();
-            if (id.isEmpty) {
-              if (ctx.mounted) Navigator.pop(ctx);
-              return;
-            }
-            await setCustomModelId(prefs, model.id, id);
-            if (ctx.mounted) Navigator.pop(ctx);
-            if (context.mounted) {
-              ref.invalidate(selectedModelConfigProvider);
-              ref.invalidate(abstractLlmEngineProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Custom ID saved: $id')),
-              );
-            }
-          },
-          child: const Text('Save'),
-        ),
-      ],
     ),
   ).then((_) => controller.dispose());
 }

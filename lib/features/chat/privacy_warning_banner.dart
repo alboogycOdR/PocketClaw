@@ -47,7 +47,8 @@ class PrivacyWarningBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(chatModeProvider);
 
-    // Only show in Cloud or OpenClaw modes
+    // Privacy banner is for non-local modes (OpenClaw / Hermes) where
+    // the message leaves the device. Local stays silent.
     if (mode == ChatMode.local) return const SizedBox.shrink();
     if (!containsPrivacyKeyword(draftText)) return const SizedBox.shrink();
 
@@ -69,7 +70,7 @@ class PrivacyWarningBanner extends ConsumerWidget {
           Expanded(
             child: Text(
               'This looks sensitive. Current mode sends to '
-              '${mode == ChatMode.cloud ? "your cloud API" : "OpenClaw server"}.',
+              '${mode == ChatMode.hermes ? "your Hermes server" : "the OpenClaw gateway"}.',
               style: GoogleFonts.jetBrainsMono(
                 fontSize: 11,
                 color: PocketClawTheme.warning,

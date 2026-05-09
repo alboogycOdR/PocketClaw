@@ -370,7 +370,6 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
     // Update execution path indicator for the chat chip
     final executionPath = switch (mode) {
       ChatMode.local    => ExecutionPath.local,
-      ChatMode.cloud    => ExecutionPath.server,
       ChatMode.openclaw => ExecutionPath.server,
       ChatMode.hermes   => ExecutionPath.hermes,
     };
@@ -380,9 +379,6 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
       switch (mode) {
         case ChatMode.local:
           await _processLocal(ref, cleanText, imageUrl: imageUrl);
-          break;
-        case ChatMode.cloud:
-          await _processCloud(ref, cleanText);
           break;
         case ChatMode.openclaw:
           // Server mode handles images natively via chat.send.attachments —
@@ -484,13 +480,13 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   final messages = ref.read(messagesProvider.notifier);
   final model = ref.read(selectedModelConfigProvider);
 
-  if (model.format == ModelFormat.cloud) {
+  if (model == null) {
     messages.add(ChatMessage(
       id: _uuid.v4(),
       role: MessageRole.assistant,
       content:
-          'Local mode needs a local model. Switch to Cloud mode, or pick '
-          'a local model in Settings \u2192 Models.',
+          'No local model configured. Pick one in Settings \u2192 Models '
+          'to use Local mode.',
       source: MessageSource.local,
       timestamp: DateTime.now(),
     ));
@@ -558,88 +554,9 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   }
 }
 
-Future<void> _processCloud(Ref ref, String text) async {
-  final messages = ref.read(messagesProvider.notifier);
-  final model = ref.read(selectedModelConfigProvider);
+// _processCloud and the cloud chat path were removed 2026-05-09.
+// PocketClaw routes only to local / OpenClaw / Hermes now.
 
-  if (model.format != ModelFormat.cloud) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'Cloud mode requires a cloud model (Claude, GPT, or Gemini). '
-          'Pick one in Settings \u2192 Models.',
-      source: MessageSource.server,
-      timestamp: DateTime.now(),
-    ));
-    return;
-  }
-
-  // Resolve the cloud engine — initialises and uses the stored API key.
-  // Await the future in case the engine is still initialising (e.g. after
-  // the user just saved a key, the provider was invalidated and is
-  // rebuilding).
-  AbstractLLMEngine engine;
-  try {
-    engine = await ref.read(abstractLlmEngineProvider.future);
-  } catch (e) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content: 'Failed to initialise cloud engine: $e',
-      source: MessageSource.server,
-      timestamp: DateTime.now(),
-    ));
-    return;
-  }
-
-  if (!engine.isReady) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'Cloud engine not ready. Check your API key for '
-          '${model.displayName} in Settings \u2192 Models.',
-      source: MessageSource.server,
-      timestamp: DateTime.now(),
-    ));
-    return;
-  }
-
-  // Streaming placeholder
-  final msgId = _uuid.v4();
-  messages.add(ChatMessage(
-    id: msgId,
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-  ));
-
-  try {
-    // 8192 is generous for modern cloud APIs and covers reasoning
-    // models (Gemini 2.5 Pro, GPT-o1, Claude extended thinking) that
-    // consume tokens internally before producing user-visible output.
-    final overlay = _activeSystemPromptOverlay(ref);
-    await for (final token in engine.generateStream(
-      text,
-      systemPrompt: overlay,
-      maxTokens: 8192,
-    )) {
-      messages.appendToLast(token);
-    }
-    messages.updateLast((m) => m.copyWith(isStreaming: false));
-    await _maybeAdvanceGrowPhase(ref, text);
-  } catch (e) {
-    messages.updateLast((m) => m.copyWith(
-          content: m.content.isEmpty
-              ? 'Cloud API error: $e'
-              : '${m.content}\n\n[Error: $e]',
-          isStreaming: false,
-        ));
-  }
-}
 
 /// Run a Hermes turn over ACP (SSH-exec'd `hermes acp` JSON-RPC).
 ///

@@ -8,52 +8,48 @@ import '../../app/theme.dart';
 
 /// The distinct chat modes. Each has an isolated message history and
 /// never shares context with the others.
+///
+/// Cloud was removed 2026-05-09 — Anthropic / OpenAI / Google all have
+/// their own dedicated mobile apps and PocketClaw is now exclusively
+/// for agentic systems (OpenClaw, Hermes) and on-device local models.
 enum ChatMode {
-  /// On-device inference via the selected local model (Gemma .task).
+  /// On-device inference via the selected local GGUF model (fllama).
   /// Messages NEVER leave the device.
   local,
-
-  /// Direct API call to a cloud LLM (Claude, GPT, Gemini).
-  /// User's API key + current conversation only.
-  cloud,
 
   /// Full agentic session via OpenClaw gateway.
   /// Includes Paperclip governance, tools, agent team, project memory.
   openclaw,
 
-  /// Hermes Agent (Nous Research) \u2014 REST chat against the user's
+  /// Hermes Agent (Nous Research) — REST chat against the user's
   /// self-hosted Hermes gateway. Carries Hermes' own toolset + memory.
   hermes,
 }
 
 extension ChatModeLabel on ChatMode {
   String get displayName => switch (this) {
-    ChatMode.local    => 'Local',
-    ChatMode.cloud    => 'Cloud',
-    ChatMode.openclaw => 'OpenClaw',
-    ChatMode.hermes   => 'Hermes',
-  };
+        ChatMode.local => 'Local',
+        ChatMode.openclaw => 'OpenClaw',
+        ChatMode.hermes => 'Hermes',
+      };
 
   String get tagline => switch (this) {
-    ChatMode.local    => 'Offline \u00b7 Private',
-    ChatMode.cloud    => 'Direct to your API key',
-    ChatMode.openclaw => 'Full agent team',
-    ChatMode.hermes   => 'Nous Research agent',
-  };
+        ChatMode.local => 'Offline · Private',
+        ChatMode.openclaw => 'Full agent team',
+        ChatMode.hermes => 'Nous Research agent',
+      };
 
   IconData get icon => switch (this) {
-    ChatMode.local    => Icons.phone_android,
-    ChatMode.cloud    => Icons.cloud_outlined,
-    ChatMode.openclaw => Icons.hub_outlined,
-    ChatMode.hermes   => Icons.psychology_outlined,
-  };
+        ChatMode.local => Icons.phone_android,
+        ChatMode.openclaw => Icons.hub_outlined,
+        ChatMode.hermes => Icons.psychology_outlined,
+      };
 
   Color get color => switch (this) {
-    ChatMode.local    => PocketClawTheme.amber,
-    ChatMode.cloud    => const Color(0xFFD4A574), // Anthropic-ish amber
-    ChatMode.openclaw => PocketClawTheme.bronze,
-    ChatMode.hermes   => const Color(0xFF7C3AED),
-  };
+        ChatMode.local => PocketClawTheme.amber,
+        ChatMode.openclaw => PocketClawTheme.bronze,
+        ChatMode.hermes => const Color(0xFF7C3AED),
+      };
 
-  String get storageKey => 'chat_mode_session_${name}';
+  String get storageKey => 'chat_mode_session_$name';
 }

@@ -1,9 +1,12 @@
-/// Model configuration — supports local (task/gguf) and cloud API models.
+/// Model configuration for on-device local models (.task / .gguf).
 ///
-/// Sizes are stored in bytes (`sizeBytes`, `minRamBytes`) so that the JSON
-/// allowlist (assets/model_allowlist.json) is the single source of truth and
-/// integer math stays exact. `sizeGB` / `ramMB` / `minRamGB` are display-only
-/// derived getters kept for backwards compatibility with existing UI strings.
+/// Cloud API model fields were dropped 2026-05-09 along with the rest
+/// of the cloud chat path — PocketClaw is local + agentic only now.
+///
+/// Sizes are stored in bytes (`sizeBytes`, `minRamBytes`) so the JSON
+/// allowlist (assets/model_allowlist.json) is the single source of
+/// truth and integer math stays exact. `sizeGB` / `ramMB` / `minRamGB`
+/// are display-only derived getters kept for the existing UI strings.
 library;
 
 import 'model_format.dart';
@@ -12,9 +15,10 @@ import 'model_variant.dart';
 
 /// Prompt formatting dialect for local instruct models.
 ///
-/// fllama emits raw token streams; the Dart side formats the prompt with the
-/// per-model template before calling completion. Picking the wrong template
-/// produces garbled output (e.g. Gemma echoing its own role headers).
+/// fllama emits raw token streams; the Dart side formats the prompt
+/// with the per-model template before calling completion. Picking the
+/// wrong template produces garbled output (e.g. Gemma echoing its own
+/// role headers).
 enum ChatTemplate { chatml, gemma, llama3, phi3, mistral }
 
 class LocalModelConfig {
@@ -22,10 +26,10 @@ class LocalModelConfig {
   final String displayName;
   final String description;
 
-  /// On-disk file size in bytes. 0 for cloud models.
+  /// On-disk file size in bytes.
   final int sizeBytes;
 
-  /// Minimum device RAM required to run, in bytes. 0 for cloud models.
+  /// Minimum device RAM required to run, in bytes.
   final int minRamBytes;
 
   final ModelFormat format;
@@ -34,8 +38,8 @@ class LocalModelConfig {
   final String? hfFilename;
 
   /// HuggingFace commit hash (or branch name) to pin the download to.
-  /// Defaults to "main". Storing this lets us detect new versions and pin
-  /// downloaded files to the exact bytes we expect.
+  /// Defaults to "main". Storing this lets us detect new versions and
+  /// pin downloaded files to the exact bytes we expect.
   final String hfCommitHash;
 
   final ChatTemplate chatTemplate;
@@ -46,16 +50,11 @@ class LocalModelConfig {
   /// Display tags such as "recommended" / "new". Drives badge rendering.
   final List<String> tags;
 
-  /// Alternate downloadable variants (e.g. Q4 vs Q8 of the same base model).
-  /// `null` means there is only the primary variant.
+  /// Alternate downloadable variants (e.g. Q4 vs Q8 of the same base
+  /// model). `null` means there is only the primary variant.
   final List<ModelVariant>? variants;
 
   final bool isBeta;
-
-  // -- Cloud API fields ------------------------------------------------------
-  final String? cloudApiEndpoint;
-  final String? cloudModelId;
-  final String? cloudApiKeyPrefix;
 
   const LocalModelConfig({
     required this.id,
@@ -75,13 +74,11 @@ class LocalModelConfig {
     this.tags = const [],
     this.variants,
     this.isBeta = false,
-    this.cloudApiEndpoint,
-    this.cloudModelId,
-    this.cloudApiKeyPrefix,
   });
 
-  bool get isCloud => format == ModelFormat.cloud;
-  bool get isLocal => format != ModelFormat.cloud;
+  /// Always true now that cloud has been removed — every registered
+  /// model is local. Kept as a getter so existing call sites compile.
+  bool get isLocal => true;
 
   /// File size in GB (display only).
   double get sizeGB => sizeBytes / (1024 * 1024 * 1024);
@@ -92,9 +89,9 @@ class LocalModelConfig {
   /// RAM requirement in GB (display only).
   double get minRamGB => minRamBytes / (1024 * 1024 * 1024);
 
-  /// HuggingFace download URL pinned to `hfCommitHash`. Throws for cloud
-  /// models or anything missing repo/filename — only the GGUF download path
-  /// should ever read this.
+  /// HuggingFace download URL pinned to `hfCommitHash`. Throws if the
+  /// model lacks repo/filename (would only ever happen on a misshaped
+  /// allowlist entry).
   String get downloadUrl {
     if (hfRepo == null || hfFilename == null) {
       throw StateError(
@@ -107,11 +104,10 @@ class LocalModelConfig {
         '?download=true';
   }
 
-  /// Returns a copy of this config with the given overrides.
-  LocalModelConfig copyWith({
-    String? cloudModelId,
-    String? cloudApiEndpoint,
-  }) {
+  /// Returns a copy of this config — kept for API compat. There are no
+  /// override-able fields right now since the cloud-* fields were
+  /// dropped, but this stays so existing call sites don't break.
+  LocalModelConfig copyWith() {
     return LocalModelConfig(
       id: id,
       displayName: displayName,
@@ -130,9 +126,6 @@ class LocalModelConfig {
       tags: tags,
       variants: variants,
       isBeta: isBeta,
-      cloudApiEndpoint: cloudApiEndpoint ?? this.cloudApiEndpoint,
-      cloudModelId: cloudModelId ?? this.cloudModelId,
-      cloudApiKeyPrefix: cloudApiKeyPrefix,
     );
   }
 }

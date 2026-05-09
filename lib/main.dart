@@ -12,7 +12,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/router.dart' as app_router;
 import 'app/theme.dart';
-import 'core/llm/model_registry.dart';
 import 'core/llm/models/local_model_config.dart';
 import 'core/llm/services/model_allowlist_service.dart';
 import 'data/providers/core_providers.dart';
@@ -67,21 +66,17 @@ void main() {
     // Seed the router's first-run flag before it builds any routes.
     app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
 
-    // Pre-load the model catalogue so the synchronous
-    // `modelCatalogueProvider` / `selectedModelConfigProvider` callsites
-    // see the full local + cloud list immediately. If the bundled JSON
-    // can't be parsed (broken asset, malformed cache override), fall back
-    // to cloud-only — cloud chat keeps working, local section just
-    // appears empty. Background remote refresh updates the cache for
-    // the next launch.
+    // Pre-load the local model catalogue so the synchronous
+    // `modelCatalogueProvider` / `selectedModelConfigProvider` call
+    // sites see the list immediately. Cloud was dropped 2026-05-09 so
+    // there's no fallback list to fall back to — an unreadable bundle
+    // means the Models tab shows empty until the next remote refresh.
     final allowlistService = ModelAllowlistService();
-    List<LocalModelConfig> catalogue;
+    List<LocalModelConfig> catalogue = const [];
     try {
-      final localModels = await allowlistService.loadModels();
-      catalogue = [...localModels, ...kCloudModels];
+      catalogue = await allowlistService.loadModels();
     } catch (e) {
-      debugPrint('Catalogue pre-load failed, falling back to cloud-only: $e');
-      catalogue = kCloudModels;
+      debugPrint('Catalogue pre-load failed: $e');
     }
     // Fire-and-forget: refresh remote allowlist for next launch.
     // ignore: unawaited_futures

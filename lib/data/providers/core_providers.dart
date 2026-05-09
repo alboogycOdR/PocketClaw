@@ -15,11 +15,9 @@ import '../../core/gateway/paperclip_rest.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/engines/llama_cpp_engine.dart';
 import '../../core/llm/engines/llm_engine_factory.dart';
-import '../../core/llm/model_registry.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
 import '../../core/llm/models/model_download_state.dart';
 import '../../core/llm/models/model_version_status.dart';
-import '../../core/llm/services/api_key_service.dart';
 import '../../core/llm/services/hf_token_service.dart';
 import '../../core/llm/services/license_service.dart';
 import '../../core/llm/services/model_download_manager.dart';
@@ -475,38 +473,21 @@ final modelDownloadManagerProvider = Provider<ModelDownloadManager>((ref) {
   return manager;
 });
 
-/// Full model catalogue: local GGUF entries (loaded from
-/// `assets/model_allowlist.json` at startup) followed by hardcoded cloud
-/// entries. The default value here is cloud-only so that the app still has
-/// a usable list if main() couldn't pre-load the JSON for some reason —
-/// the override in main.dart replaces it with the merged list.
-final modelCatalogueProvider = Provider<List<llm.LocalModelConfig>>((_) {
-  return kCloudModels;
-});
+/// Full model catalogue: local GGUF / .task entries loaded from
+/// `assets/model_allowlist.json` at startup. main() pre-loads and
+/// overrides this; the default empty list is the safe fallback when
+/// the bundled asset can't be parsed at all.
+final modelCatalogueProvider =
+    Provider<List<llm.LocalModelConfig>>((_) => const []);
 
-final selectedModelConfigProvider = Provider<llm.LocalModelConfig>((ref) {
+final selectedModelConfigProvider = Provider<llm.LocalModelConfig?>((ref) {
   final selectedId = ref.watch(selectedModelIdProvider);
-  final prefs = ref.watch(sharedPrefsProvider);
   final catalogue = ref.watch(modelCatalogueProvider);
-
-  // Fallback chain: picked model → first cloud model → first model in list.
-  // The catalogue is guaranteed non-empty (kCloudModels is hardcoded).
-  final base = catalogue.firstWhere(
+  if (catalogue.isEmpty) return null;
+  return catalogue.firstWhere(
     (m) => m.id == selectedId,
-    orElse: () => catalogue.firstWhere(
-      (m) => m.isCloud,
-      orElse: () => catalogue.first,
-    ),
+    orElse: () => catalogue.first,
   );
-
-  // User override: if the user has set a custom cloud model ID for this
-  // slot (e.g. to use 'gemini-2.5-pro-latest' or a newly-released
-  // variant), apply it here without needing a rebuild.
-  final override = prefs.getString(_customModelIdKey(base.id));
-  if (override != null && override.isNotEmpty && base.isCloud) {
-    return base.copyWith(cloudModelId: override);
-  }
-  return base;
 });
 
 /// Pref key for per-model custom ID override.
@@ -531,6 +512,11 @@ Future<void> setCustomModelId(
 
 final abstractLlmEngineProvider = FutureProvider<AbstractLLMEngine>((ref) async {
   final model = ref.watch(selectedModelConfigProvider);
+  if (model == null) {
+    throw StateError(
+      'No local model selected. Pick one in Settings → Models.',
+    );
+  }
   final token = await ref.watch(hfTokenServiceProvider).getToken();
   final engine = LLMEngineFactory.forModel(model);
   await engine.initialize(huggingFaceToken: token);
@@ -561,15 +547,8 @@ final modelVersionStatusProvider =
     (m) => m.id == modelId,
     orElse: () => throw StateError('Model $modelId not in catalogue'),
   );
-  if (model.isCloud) return ModelVersionStatus.currentVersion;
   return LlamaCppEngine.getVersionStatus(model);
 });
 
-final apiKeyServiceProvider = Provider<ApiKeyService>((_) {
-  return ApiKeyService();
-});
-
-final hasCloudKeyProvider =
-    FutureProvider.family<bool, CloudProvider>((ref, provider) async {
-  return ref.watch(apiKeyServiceProvider).hasKey(provider);
-});
+// apiKeyServiceProvider + hasCloudKeyProvider removed 2026-05-09 along
+// with the rest of the cloud chat path.
