@@ -16,6 +16,7 @@ import '../../data/providers/academy_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
 import '../../data/providers/life_architect_providers.dart';
+import '../../data/providers/server_providers.dart';
 import '../../data/providers/ssh_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
@@ -260,11 +261,19 @@ class _WorkspaceTab extends ConsumerWidget {
                 ),
                 title: const Text('Hermes Management'),
                 subtitle: const Text(
-                  'Sessions · Memory · Cron · Skills · Logs (via SSH)',
+                  'Switch active server → Control tab '
+                  '(Sessions · Memory · Cron · Skills · Logs · Analytics)',
                   style: TextStyle(fontSize: 12, color: Colors.white54),
                 ),
                 trailing: const _Chevron(),
-                onTap: () => context.push('/hermes'),
+                // The standalone /hermes route was removed in Phase 2.
+                // Hermes management is now embedded in the Control tab
+                // when the active server is Hermes — flip the server
+                // and route the user there.
+                onTap: () async {
+                  await setActiveServer(ref, ActiveServer.hermes);
+                  if (context.mounted) context.go('/control');
+                },
               ),
               const _ListDivider(),
               ListTile(
