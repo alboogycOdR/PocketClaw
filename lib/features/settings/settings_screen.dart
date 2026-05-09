@@ -10,9 +10,12 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../core/coaching/grow_state_machine.dart';
 import '../../data/models/openclaw_models.dart';
+import '../../data/providers/academy_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/life_architect_providers.dart';
 import '../../data/providers/ssh_providers.dart';
 import '../../shared/constants.dart';
 import '../../shared/widgets/connection_indicator.dart';
@@ -299,33 +302,22 @@ class _AppTab extends StatelessWidget {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
-              // Academy Mode + Life Architect Mode skeleton screens
-              // hidden 2026-05-08 — both flagged as "not wired to data
-              // providers" in upgrades-to-comms/ProjectProgress.md.
-              // Restore by uncommenting once the providers ship.
-              //
-              // ListTile(
-              //   leading: const Icon(Icons.school_outlined),
-              //   title: const Text('Academy Mode'),
-              //   subtitle: const Text(
-              //     'Curriculum tutoring shell',
-              //     style: TextStyle(fontSize: 12, color: Colors.white54),
-              //   ),
-              //   trailing: const _Chevron(),
-              //   onTap: () => context.push('/academy'),
-              // ),
-              // const _ListDivider(),
-              // ListTile(
-              //   leading: const Icon(Icons.self_improvement_outlined),
-              //   title: const Text('Life Architect'),
-              //   subtitle: const Text(
-              //     'GROW + safety preview',
-              //     style: TextStyle(fontSize: 12, color: Colors.white54),
-              //   ),
-              //   trailing: const _Chevron(),
-              //   onTap: () => context.push('/life-architect'),
-              // ),
-              // const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.school_outlined),
+                title: const Text('Academy Mode'),
+                subtitle: const _AcademyStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/academy'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.self_improvement_outlined),
+                title: const Text('Life Architect'),
+                subtitle: const _LifeArchitectStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/life-architect'),
+              ),
+              const _ListDivider(),
               // Commercial onboarding wizard hidden 2026-05-08 — it
               // configures Paperclip URL/WS/token alongside the gateway,
               // which is dead surface while Paperclip is parked. Restore
@@ -549,6 +541,55 @@ class _OpenClawModelsStatusLine extends ConsumerWidget {
       error: (_, __) => const Text(
         'Unavailable',
         style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _AcademyStatusLine extends ConsumerWidget {
+  const _AcademyStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(academyProvider);
+    if (!state.isActive) {
+      return const Text(
+        'Off',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    return Text(
+      '${state.subject} · ${state.level}'
+      '${state.streakDays > 0 ? " · ${state.streakDays}🔥" : ""}',
+      style: const TextStyle(
+        fontSize: 12,
+        color: PocketClawTheme.electricTeal,
+      ),
+    );
+  }
+}
+
+class _LifeArchitectStatusLine extends ConsumerWidget {
+  const _LifeArchitectStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(lifeArchitectProvider);
+    if (!state.isActive) {
+      return const Text(
+        'Off',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    final grow = ref.watch(growSessionProvider);
+    final facetSuffix = state.activeFacets.isNotEmpty
+        ? ' · ${state.activeFacets.length} coaches'
+        : '';
+    return Text(
+      'Active · GROW: ${grow.currentPhase.name.toUpperCase()}$facetSuffix',
+      style: const TextStyle(
+        fontSize: 12,
+        color: PocketClawTheme.electricTeal,
       ),
     );
   }

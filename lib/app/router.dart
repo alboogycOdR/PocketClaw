@@ -3,12 +3,14 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../features/academy/academy_screen.dart';
 import '../features/chat/chat_screen.dart';
 // Paperclip "Company" tab hidden 2026-05-08 — keep import out of tree
 // while the surface is parked. Re-enable by restoring the branch +
 // nav destination below if Paperclip earns its slot back.
 // import '../features/company/company_screen.dart';
 import '../features/hermes/hermes_management_screen.dart';
+import '../features/life_architect/life_architect_screen.dart';
 import '../features/memory/memory_screen.dart';
 import '../features/packs/pack_picker_screen.dart';
 import '../features/mission_control/activity_screen.dart';
@@ -63,6 +65,17 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/hermes',
       builder: (context, state) => const HermesManagementScreen(),
+    ),
+
+    // Academy Mode + Life Architect — coaching overlays. Full-screen
+    // outside the bottom-nav shell so they own the chrome.
+    GoRoute(
+      path: '/settings/academy',
+      builder: (context, state) => const AcademyScreen(),
+    ),
+    GoRoute(
+      path: '/settings/life-architect',
+      builder: (context, state) => const LifeArchitectScreen(),
     ),
 
     // Main app shell with bottom navigation

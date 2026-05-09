@@ -11,6 +11,9 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import '../../core/chat/chat_mode.dart';
+import '../../core/coaching/grow_session_history.dart';
+import '../../core/coaching/grow_state_machine.dart';
+import '../../core/coaching/safety_classifier.dart';
 import '../../core/gateway/offline_queue.dart';
 import '../../core/hermes/acp/acp_models.dart';
 import '../../core/hermes/acp/hermes_acp_client.dart';
@@ -22,9 +25,11 @@ import '../../core/session/session_history.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../shared/widgets/execution_path_chip.dart';
+import 'academy_providers.dart';
 import 'chat_mode_providers.dart';
 import 'core_providers.dart';
 import 'hermes_providers.dart';
+import 'life_architect_providers.dart';
 import 'ssh_providers.dart';
 
 const _uuid = Uuid();
@@ -336,6 +341,28 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
     );
     messages.add(userMsg);
 
+    // ── Safety gate (Life Architect) ─────────────────────────────────
+    // Always-on, regardless of Life Architect being switched on.
+    // Crisis / high-risk / therapy-drift content is intercepted here
+    // and replaced with a safe response — the AI is not called at all.
+    // SPEC-LifeArchitect-v1.0 §6 + §14.
+    final classifier = ref.read(safetyClassifierProvider);
+    final safety = classifier.classifyLocally(text);
+    if (safety != SafetyClassification.normal) {
+      messages.add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content: classifier.responseFor(safety),
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+      processing.state = false;
+      try {
+        await ref.read(sessionManagerProvider).addMessage(userMsg);
+      } catch (_) {/* persistence is best-effort */}
+      return;
+    }
+
     // Dispatch by explicit user-chosen chat mode (not Smart Router).
     final mode = ref.read(chatModeProvider);
     final cleanText = router.stripPrefix(text);
@@ -408,6 +435,51 @@ final sendMessageProvider = Provider<Future<void> Function(String, {String? imag
   };
 });
 
+/// Combined Academy / Life Architect / GROW overlay applied to every
+/// chat send. Returns null when no overlay is active. Life Architect
+/// takes precedence over Academy when both are on; GROW context (if
+/// the GROW-in-Chat toggle is on) is appended to the Life Architect
+/// system prompt so the model gets the phase nudge alongside the base
+/// architect persona.
+String? _activeSystemPromptOverlay(Ref ref) {
+  final lifePrompt = ref.read(lifeArchitectSystemPromptProvider);
+  final growCtx = ref.read(growContextProvider);
+  final academyPrompt = ref.read(academySystemPromptProvider);
+
+  if (lifePrompt != null) {
+    return growCtx != null ? '$lifePrompt\n\n$growCtx' : lifePrompt;
+  }
+  return academyPrompt;
+}
+
+/// After a turn completes, advance the GROW phase if the user is in
+/// "GROW in Chat" mode. Records the user's message against the current
+/// phase, and if the session reaches the review state, persists the
+/// completed session to disk and surfaces a system message in chat.
+/// SPEC-LifeArchitect-v1.0 §7-§8.
+Future<void> _maybeAdvanceGrowPhase(Ref ref, String userText) async {
+  if (!ref.read(growInChatActiveProvider)) return;
+  final notifier = ref.read(growSessionProvider.notifier);
+  notifier.respondToPhase(userText);
+
+  final session = ref.read(growSessionProvider);
+  if (!session.isComplete) return;
+
+  // Persist the completed session and tell the user.
+  try {
+    await GrowSessionHistory().save(session);
+  } catch (_) {/* fail soft — the user already saw the conversation */}
+  ref.read(messagesProvider.notifier).add(ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            '✅ GROW session complete. Your commitments have been saved. '
+            'Say "life review" any time for a weekly synthesis.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ));
+}
+
 Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   final messages = ref.read(messagesProvider.notifier);
   final model = ref.read(selectedModelConfigProvider);
@@ -464,11 +536,18 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
     isStreaming: true,
   ));
 
+  final overlay = _activeSystemPromptOverlay(ref);
+
   try {
-    await for (final token in engine.generateStream(text, maxTokens: 1024)) {
+    await for (final token in engine.generateStream(
+      text,
+      systemPrompt: overlay,
+      maxTokens: 1024,
+    )) {
       messages.appendToLast(token);
     }
     messages.updateLast((m) => m.copyWith(isStreaming: false));
+    await _maybeAdvanceGrowPhase(ref, text);
   } catch (e) {
     messages.updateLast((m) => m.copyWith(
           content: m.content.isEmpty
@@ -542,10 +621,16 @@ Future<void> _processCloud(Ref ref, String text) async {
     // 8192 is generous for modern cloud APIs and covers reasoning
     // models (Gemini 2.5 Pro, GPT-o1, Claude extended thinking) that
     // consume tokens internally before producing user-visible output.
-    await for (final token in engine.generateStream(text, maxTokens: 8192)) {
+    final overlay = _activeSystemPromptOverlay(ref);
+    await for (final token in engine.generateStream(
+      text,
+      systemPrompt: overlay,
+      maxTokens: 8192,
+    )) {
       messages.appendToLast(token);
     }
     messages.updateLast((m) => m.copyWith(isStreaming: false));
+    await _maybeAdvanceGrowPhase(ref, text);
   } catch (e) {
     messages.updateLast((m) => m.copyWith(
           content: m.content.isEmpty
@@ -749,6 +834,15 @@ Future<void> _processHermes(Ref ref, String text) async {
     history.removeLast();
   }
 
+  // Prepend Academy / Life Architect overlay as a system message if
+  // either is active. Hermes is OpenAI-compatible, so a leading
+  // {role: 'system', content: ...} entry steers the model exactly the
+  // way the spec intends.
+  final overlay = _activeSystemPromptOverlay(ref);
+  if (overlay != null && overlay.trim().isNotEmpty) {
+    history.insert(0, {'role': 'system', 'content': overlay});
+  }
+
   final placeholderId = _uuid.v4();
   messages.add(ChatMessage(
     id: placeholderId,
@@ -773,6 +867,7 @@ Future<void> _processHermes(Ref ref, String text) async {
           isStreaming: false,
           clearStatusText: true,
         ));
+    await _maybeAdvanceGrowPhase(ref, text);
   } on HermesApiException catch (e) {
     messages.updateById(placeholderId, (m) => m.copyWith(
           content: e.isAuthError
@@ -890,11 +985,24 @@ Future<void> _processServer(
     statusText: 'Sending…',
   ));
 
+  // OpenClaw `chat.send` has no system-prompt slot, so when an Academy
+  // / Life Architect overlay is active we prepend it to the user's
+  // text as a fenced "Coaching context" block. The agent treats it as
+  // an instruction prefix; the rendered chat bubble still shows just
+  // the user's original question.
+  final overlay = _activeSystemPromptOverlay(ref);
+  final sendText = (overlay != null && overlay.trim().isNotEmpty)
+      ? '[Coaching context — follow these instructions for this turn]\n'
+          '${overlay.trim()}\n'
+          '---\n\n'
+          '$text'
+      : text;
+
   // Send and await the ack so we know the runId.
   String? runId;
   try {
     runId = await client.sendMessage(
-      text,
+      sendText,
       sessionKey: sessionKey,
       attachments: attachments,
     );
@@ -953,6 +1061,7 @@ Future<void> _processServer(
     sub.cancel();
     ref.read(currentRunIdProvider.notifier).state = null;
   }
+  await _maybeAdvanceGrowPhase(ref, text);
 }
 
 
