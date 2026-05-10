@@ -26,7 +26,18 @@ class ChatBubble extends StatefulWidget {
   /// button in the long-press actions bar. Null hides the button.
   final VoidCallback? onRetry;
 
-  const ChatBubble({super.key, required this.message, this.onRetry});
+  /// Set this on assistant messages to surface a Quote button in the
+  /// long-press actions bar. The callback receives the message text
+  /// so the chat screen can drop a `> quoted line` into the input
+  /// field and focus the keyboard for a direct follow-up.
+  final void Function(String text)? onQuote;
+
+  const ChatBubble({
+    super.key,
+    required this.message,
+    this.onRetry,
+    this.onQuote,
+  });
 
   @override
   State<ChatBubble> createState() => _ChatBubbleState();
@@ -66,6 +77,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                 text: message.content,
                 showRetry: widget.onRetry != null,
                 onRetry: widget.onRetry,
+                onQuote: widget.onQuote,
                 onDismiss: _hideActions,
               ),
             ),

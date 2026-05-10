@@ -77,6 +77,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
+  /// Drop a `> quote\n\n` prefix into the input and focus the keyboard
+  /// so the user can ask a direct follow-up tied to that response.
+  /// Truncates long assistant messages so the prefix stays compact.
+  void _quoteIntoInput(String text) {
+    const maxLen = 120;
+    final firstLine = text
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ');
+    final snippet = firstLine.length <= maxLen
+        ? firstLine
+        : '${firstLine.substring(0, maxLen - 1)}…';
+    final existing = _textController.text;
+    final prefix = '> $snippet\n\n';
+    final combined = existing.isEmpty ? prefix : '$prefix$existing';
+    _textController.text = combined;
+    _textController.selection = TextSelection.collapsed(
+      offset: combined.length,
+    );
+    _focusNode.requestFocus();
+  }
+
   void _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty && _pendingImageUrl == null) return;
@@ -699,9 +720,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           if (msg.imageUrl != null)
                             PhotoPreview(imageUrl: msg.imageUrl!),
 
-                          // Message bubble — only the last user message
-                          // gets a non-null onRetry, which surfaces the
-                          // Retry button in the long-press actions bar.
+                          // Message bubble. Last user message gets
+                          // onRetry (Retry in long-press bar);
+                          // assistant messages get onQuote (drops a
+                          // `> quote` into the input and focuses).
                           ChatBubble(
                             message: msg,
                             onRetry: index == lastUserIdx
@@ -711,6 +733,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       imageUrl: msg.imageUrl,
                                     );
                                   }
+                                : null,
+                            onQuote: msg.role == MessageRole.assistant
+                                ? _quoteIntoInput
                                 : null,
                           ),
                         ],

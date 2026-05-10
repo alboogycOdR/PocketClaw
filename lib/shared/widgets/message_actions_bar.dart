@@ -10,6 +10,13 @@ class MessageActionsBar extends StatefulWidget {
   final String text;
   final bool showRetry;
   final VoidCallback? onRetry;
+
+  /// Optional "Quote" action. When provided, the bar shows a Quote
+  /// button that — on tap — passes the message text up so the chat
+  /// screen can prepend it to the input field as a `> quoted line`
+  /// and focus the keyboard. Set this on assistant messages so the
+  /// user can ask a direct follow-up.
+  final void Function(String text)? onQuote;
   final VoidCallback onDismiss;
 
   const MessageActionsBar({
@@ -18,6 +25,7 @@ class MessageActionsBar extends StatefulWidget {
     required this.onDismiss,
     this.showRetry = false,
     this.onRetry,
+    this.onQuote,
   });
 
   @override
@@ -63,13 +71,21 @@ class _MessageActionsBarState extends State<MessageActionsBar> {
             color: _copied ? Colors.tealAccent : Colors.white70,
             onTap: _copy,
           ),
-          if (widget.showRetry && widget.onRetry != null) ...[
-            Container(
-              width: 1,
-              height: 20,
-              color: const Color(0xFF3A3028),
-              margin: const EdgeInsets.symmetric(horizontal: 4),
+          if (widget.onQuote != null) ...[
+            const _Sep(),
+            _ActionButton(
+              icon: Icons.format_quote,
+              label: 'Quote',
+              color: Colors.white70,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onQuote!(widget.text);
+                widget.onDismiss();
+              },
             ),
+          ],
+          if (widget.showRetry && widget.onRetry != null) ...[
+            const _Sep(),
             _ActionButton(
               icon: Icons.refresh,
               label: 'Retry',
@@ -83,6 +99,20 @@ class _MessageActionsBarState extends State<MessageActionsBar> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _Sep extends StatelessWidget {
+  const _Sep();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 20,
+      color: const Color(0xFF3A3028),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }
