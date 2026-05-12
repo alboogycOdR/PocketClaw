@@ -4,10 +4,14 @@ library;
 
 import 'dart:convert';
 
+import 'package:yaml/yaml.dart';
+import 'package:yaml_edit/yaml_edit.dart';
+
 import '../ssh/hermes_ssh_client.dart';
 import 'hermes_paths.dart';
 import 'hermes_remote_sqlite.dart';
 import 'models/hermes_analytics.dart';
+import 'models/hermes_channel.dart';
 import 'models/hermes_cron_job.dart';
 import 'models/hermes_memory_entry.dart';
 import 'models/hermes_message.dart';
@@ -259,6 +263,109 @@ class HermesDataService {
     await saveCronJobs(CronJobsFile(
       jobs: file.jobs.where((j) => j.id != jobId).toList(),
     ));
+  }
+
+  // ── Channels ────────────────────────────────────────────────────────
+  //
+  // The four inbound channels (telegram/discord/slack/whatsapp) live
+  // under top-level keys in config.yaml. Bot tokens live in .env and
+  // are exposed only as presence booleans — never displayed or
+  // written by the app.
+
+  /// Read all four channels' settings + their token presence. Channels
+  /// missing from the YAML are returned with an empty settings map so
+  /// the UI can still offer to add them.
+  Future<HermesChannelsBundle> getChannelsBundle() async {
+    final yamlRaw = await _ssh.readFile(paths.configYAML);
+    final envPresence = await _readEnvTokenPresence();
+
+    Map? root;
+    try {
+      final parsed = loadYaml(yamlRaw);
+      if (parsed is Map) root = parsed;
+    } catch (_) {
+      root = null;
+    }
+
+    final out = <HermesChannelConfig>[];
+    for (final kind in HermesChannelKind.values) {
+      final raw = root?[kind.yamlKey];
+      final settings = <String, dynamic>{};
+      if (raw is Map) {
+        raw.forEach((k, v) {
+          settings['$k'] = _yamlToPlain(v);
+        });
+      }
+      out.add(HermesChannelConfig(
+        kind: kind,
+        settings: settings,
+        tokenPresent: envPresence[kind.envTokenKey] == true,
+      ));
+    }
+    return HermesChannelsBundle(channels: out);
+  }
+
+  /// Surgically rewrite one channel's settings, preserving comments
+  /// and unrelated keys via `yaml_edit`. If the channel key is
+  /// missing from the file, a new one is appended at the bottom.
+  Future<void> saveChannelSettings(
+    HermesChannelKind kind,
+    Map<String, dynamic> settings,
+  ) async {
+    final yamlRaw = await _ssh.readFile(paths.configYAML);
+    final editor = YamlEditor(yamlRaw);
+
+    // yaml_edit requires the top-level key to exist before nested
+    // updates. If it's missing, write the whole map at the root.
+    try {
+      editor.update([kind.yamlKey], settings);
+    } catch (_) {
+      // First-time write — append the key.
+      editor.update([kind.yamlKey], settings);
+    }
+
+    await _ssh.writeFile(paths.configYAML, editor.toString());
+  }
+
+  /// Parse `.env` to find which channel tokens are populated. Returns
+  /// `{ENV_KEY: hasNonEmptyValue}`. Tolerates absent file (treat as
+  /// no tokens). The actual values never leave this method.
+  Future<Map<String, bool>> _readEnvTokenPresence() async {
+    String raw;
+    try {
+      raw = await _ssh.readFile(paths.envFile);
+    } catch (_) {
+      return const {};
+    }
+    final out = <String, bool>{};
+    for (final line in raw.split('\n')) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+      final eq = trimmed.indexOf('=');
+      if (eq <= 0) continue;
+      final key = trimmed.substring(0, eq).trim();
+      var value = trimmed.substring(eq + 1).trim();
+      // Strip surrounding quotes.
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.substring(1, value.length - 1);
+      }
+      out[key] = value.isNotEmpty;
+    }
+    return out;
+  }
+
+  /// Convert a `yaml` package value (YamlMap / YamlList / scalar) into
+  /// a plain Dart structure that the UI can edit. Nested maps stay
+  /// nested.
+  dynamic _yamlToPlain(dynamic v) {
+    if (v is YamlMap) {
+      return v.map((k, val) => MapEntry('$k', _yamlToPlain(val)));
+    }
+    if (v is YamlList) {
+      return v.map(_yamlToPlain).toList();
+    }
+    return v;
   }
 
   // ── Skills ──────────────────────────────────────────────────────────

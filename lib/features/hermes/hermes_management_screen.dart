@@ -19,6 +19,7 @@ import '../../data/providers/ssh_providers.dart';
 import '../../shared/widgets/approvals_panel.dart';
 import '../../shared/widgets/feature_not_available_card.dart';
 import 'hermes_analytics_screen.dart';
+import 'hermes_channels_screen.dart';
 import 'hermes_cron_screen.dart';
 import 'hermes_logs_screen.dart';
 import 'hermes_memory_screen.dart';
@@ -47,6 +48,7 @@ class HermesManagementScreen extends ConsumerWidget {
         Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Skills'),
         Tab(icon: Icon(Icons.terminal, size: 18), text: 'Logs'),
         Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: 'Analytics'),
+        Tab(icon: Icon(Icons.podcasts_outlined, size: 18), text: 'Channels'),
       ],
     );
 
@@ -102,7 +104,7 @@ class HermesManagementScreen extends ConsumerWidget {
 
     if (embeddedMode) {
       return DefaultTabController(
-        length: 6,
+        length: 7,
         child: Column(
           children: [
             // Pending approvals — only visible when there are any.
@@ -121,7 +123,7 @@ class HermesManagementScreen extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 6,
+      length: 7,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -178,6 +180,10 @@ class _GatedTabBarView extends ConsumerWidget {
             ? const HermesAnalyticsTab()
             : const FeatureNotAvailableCard(
                 feature: 'Analytics', featureKey: 'cost'),
+        caps.hasChannels
+            ? const HermesChannelsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Channels', featureKey: 'channels'),
       ],
     );
   }
