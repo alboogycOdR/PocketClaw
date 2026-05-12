@@ -9,6 +9,9 @@ import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/knowledge_base/knowledge_base_screen.dart';
+import '../features/swarm/office_view_screen.dart';
+import '../features/swarm/swarm_compose_screen.dart';
+import '../features/swarm/swarm_monitor_screen.dart';
 // Paperclip "Company" tab hidden 2026-05-08 — keep import out of tree
 // while the surface is parked. Re-enable by restoring the branch +
 // nav destination below if Paperclip earns its slot back.
@@ -78,6 +81,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/knowledge-base',
       builder: (context, state) => const KnowledgeBaseScreen(),
+    ),
+    GoRoute(
+      path: '/swarm',
+      builder: (context, state) => const SwarmMonitorScreen(),
+      routes: [
+        GoRoute(
+          path: 'compose',
+          builder: (context, state) => const SwarmComposeScreen(),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/office',
+      builder: (context, state) => const OfficeViewScreen(),
     ),
     GoRoute(
       path: '/settings/life-architect',

@@ -5,7 +5,7 @@ class AppConstants {
   AppConstants._();
 
   static const String appName = 'ClawCommander';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '2.1.0';
   static const String orgName = 'Nuburo.DIGITAL (PTY) LTD';
 
   // Default Gateway

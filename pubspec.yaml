@@ -1,7 +1,7 @@
 name: clawcommander
 description: "ClawCommander - Mobile AI Agent Command Centre"
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.1.0+3
 
 environment:
   sdk: ^3.11.4

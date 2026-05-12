@@ -32,6 +32,7 @@ import 'models_screen.dart';
 import 'router_memory_settings.dart';
 import 'backup_restore_settings.dart';
 import 'device_info_screen.dart';
+import 'lan_scan_screen.dart';
 import 'security_settings.dart';
 import 'ssh_settings.dart';
 import 'storage_settings_screen.dart';
@@ -137,6 +138,19 @@ class _ConnectionTab extends ConsumerWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SshSettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.wifi_find_outlined),
+                title: const Text('Scan local network'),
+                subtitle: const Text(
+                  'Find Ollama / LM Studio / OpenClaw / Hermes on this WiFi',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LanScanScreen()),
                 ),
               ),
               const _ListDivider(),
@@ -308,6 +322,17 @@ class _WorkspaceTab extends ConsumerWidget {
                 ),
                 trailing: const _Chevron(),
                 onTap: () => context.push('/knowledge-base'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.workspaces_outline),
+                title: const Text('Swarm / Conductor'),
+                subtitle: const Text(
+                  'Launch and monitor multi-worker Hermes missions',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/swarm'),
               ),
             ],
           ),

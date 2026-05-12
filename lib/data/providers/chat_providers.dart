@@ -26,6 +26,7 @@ import '../../core/llm/engines/llama_cpp_engine.dart';
 import '../../core/llm/intent_classifier.dart';
 import '../../core/llm/models/model_format.dart';
 import '../../core/rag/rag_service.dart';
+import '../../core/tools/tool_loop.dart';
 import '../../core/session/session_history.dart';
 import '../../core/session/session_title_generator.dart';
 import '../../data/models/chat_message.dart';
@@ -643,6 +644,32 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
 
   try {
     await runOnce();
+    // Tool calling (Tier 2.4). After the first turn, scan the buffer
+    // for `<tool_call>` tags. Execute up to kMaxToolLoops rounds of
+    // tool calls / re-inference. Each loop appends the result blocks
+    // to the assistant bubble and re-runs the model so it can react.
+    var loops = 0;
+    var totalCalls = 0;
+    while (loops < kMaxToolLoops) {
+      final live = ref.read(messagesProvider);
+      final lastIdx = live.lastIndexWhere((m) => m.id == msgId);
+      if (lastIdx < 0) break;
+      final buffer = live[lastIdx].content;
+      final extraction = extractToolCalls(buffer);
+      if (extraction.calls.isEmpty) break;
+      if (totalCalls + extraction.calls.length > kMaxToolCalls) break;
+      totalCalls += extraction.calls.length;
+      // Replace bubble content with cleanText + executed results.
+      var newContent = extraction.cleanText;
+      for (final call in extraction.calls) {
+        final block = await runAndFormat(call);
+        newContent = '$newContent\n\n$block';
+      }
+      messages.updateById(msgId, (m) => m.copyWith(content: newContent));
+      // Re-run generation so the model can react to the tool results.
+      await runOnce();
+      loops++;
+    }
     messages.updateLast((m) => m.copyWith(isStreaming: false));
     await _maybeAdvanceGrowPhase(ref, text);
   } catch (e) {

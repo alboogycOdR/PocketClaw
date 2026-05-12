@@ -10,6 +10,7 @@ import '../../core/hermes/models/hermes_cron_job.dart';
 import '../../core/hermes/models/hermes_memory_entry.dart';
 import '../../core/hermes/models/hermes_message.dart';
 import '../../core/hermes/models/hermes_session.dart';
+import '../../core/hermes/models/swarm_tree.dart';
 import 'ssh_providers.dart';
 
 /// Resolves the active SSH client (async because it hydrates the password
@@ -28,6 +29,17 @@ final hermesSessionsProvider =
   final svc = await ref.watch(hermesDataServiceProvider.future);
   if (svc == null) return const [];
   return svc.getSessions();
+});
+
+/// Swarm tree (orchestrators + workers grouped by parent_session_id).
+/// Auto-refreshed by Swarm Monitor / Office View screens on a 3s timer.
+final swarmSessionsProvider = FutureProvider<SwarmTree>((ref) async {
+  final svc = await ref.watch(hermesDataServiceProvider.future);
+  if (svc == null) {
+    return const SwarmTree(orchestrators: [], orphans: []);
+  }
+  final sessions = await svc.getSessions(limit: 50);
+  return SwarmTree.build(sessions);
 });
 
 final hermesSessionMessagesProvider =
