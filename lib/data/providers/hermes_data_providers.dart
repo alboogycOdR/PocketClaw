@@ -42,6 +42,27 @@ final swarmSessionsProvider = FutureProvider<SwarmTree>((ref) async {
   return SwarmTree.build(sessions);
 });
 
+/// Flat list of sessions that have been active in the last 5 minutes.
+/// Used by the Office View + Agent Behavior Notifier to decide which
+/// agents appear on the floor.
+final officeSessionsProvider =
+    Provider<AsyncValue<List<HermesSession>>>((ref) {
+  return ref.watch(swarmSessionsProvider).whenData((tree) {
+    final cutoff = DateTime.now().subtract(const Duration(minutes: 5));
+    return [
+      for (final node in tree.orchestrators) ...[
+        node.orchestrator,
+        ...node.workers,
+      ],
+      ...tree.orphans,
+    ].where((s) {
+      final last = s.endedAt ?? s.startedAt;
+      if (last == null) return true;
+      return last.isAfter(cutoff);
+    }).toList();
+  });
+});
+
 final hermesSessionMessagesProvider =
     FutureProvider.family<List<HermesMessage>, String>((ref, sessionId) async {
   final svc = await ref.watch(hermesDataServiceProvider.future);

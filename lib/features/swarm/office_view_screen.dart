@@ -1,58 +1,37 @@
-/// Office View — 2D floorplan showing active swarm agents as
-/// animated avatars. Simplified from the spec's full pixel-art
-/// CustomPainter:
+/// Office View — 2D floorplan showing swarm agents as 16×16 pixel-art
+/// robots that wander between desks, the water cooler, the coffee
+/// machine, lunch, and the meeting table. Position and activity are
+/// driven by [agentBehaviorProvider]; visual rendering is
+/// [PixelAvatarPainter]. Status overrides (running/thinking/
+/// complete/failed) come straight from `HermesSession.swarmStatus`.
 ///
-///   - Floor: CustomPainter drawing a 20×14 checkerboard
-///   - Agents: AnimatedPositioned circle avatars (initials inside),
-///     coloured by SwarmStatus, status pill above the head
-///   - Parent → child connections: dashed lines drawn by another
-///     CustomPainter overlay
-///
-/// Position policy is deterministic so an agent stays put across
-/// rebuilds — hash the session id to grid coordinates inside the
-/// "working area" rectangle.
+/// Why a per-agent Timer was avoided: the behavior notifier owns the
+/// single 1s ticker that updates *all* agents — keeps the office view
+/// rebuilding once a second regardless of how many agents are on
+/// the floor.
 library;
-
-import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../app/theme.dart';
 import '../../core/hermes/models/hermes_session.dart';
 import '../../data/providers/hermes_data_providers.dart';
 import '../../shared/widgets/empty_state.dart';
+import 'agent_behavior_notifier.dart';
+import 'agent_behaviors.dart';
+import 'office_painters.dart';
+import 'pixel_avatar_painter.dart';
 
-class OfficeViewScreen extends ConsumerStatefulWidget {
+class OfficeViewScreen extends ConsumerWidget {
   const OfficeViewScreen({super.key});
 
   @override
-  ConsumerState<OfficeViewScreen> createState() => _OfficeViewScreenState();
-}
-
-class _OfficeViewScreenState extends ConsumerState<OfficeViewScreen> {
-  Timer? _refresh;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh = Timer.periodic(
-      const Duration(seconds: 3),
-      (_) => ref.invalidate(swarmSessionsProvider),
-    );
-  }
-
-  @override
-  void dispose() {
-    _refresh?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tree = ref.watch(swarmSessionsProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final agentsAsync = ref.watch(officeSessionsProvider);
+    // Subscribe so the notifier instance is alive while this screen
+    // is mounted, even though we read `behaviors` per-agent below.
+    final behaviors = ref.watch(agentBehaviorProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -64,47 +43,41 @@ class _OfficeViewScreenState extends ConsumerState<OfficeViewScreen> {
           ),
         ],
       ),
-      body: tree.when(
+      body: agentsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => EmptyState(
           icon: Icons.error_outline,
-          message: 'Failed to load: $e',
+          message: 'Failed to load office: $e',
         ),
-        data: (t) {
-          final agents = <HermesSession>[
-            for (final node in t.orchestrators) ...[
-              node.orchestrator,
-              ...node.workers,
-            ],
-            ...t.orphans,
-          ];
+        data: (agents) {
           if (agents.isEmpty) {
             return const EmptyState(
               icon: Icons.workspaces_outline,
               message: 'Office is empty.\nLaunch a swarm to see agents.',
             );
           }
-          return LayoutBuilder(builder: (_, constraints) {
+          return LayoutBuilder(builder: (context, constraints) {
+            final size = constraints.biggest;
+            final chatLines = _buildChatLines(agents, behaviors);
+
             return Stack(
               children: [
-                // Checker floor.
+                Positioned.fill(
+                  child: CustomPaint(painter: const FloorPainter()),
+                ),
+                Positioned.fill(child: _OfficeFurniture(size: size)),
                 Positioned.fill(
                   child: CustomPaint(
-                    painter: _FloorPainter(),
+                    painter: ChatLinesPainter(lines: chatLines),
                   ),
                 ),
-                // Connection lines.
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _ConnectionPainter(
-                      agents: agents,
-                      size: constraints.biggest,
-                    ),
-                  ),
-                ),
-                // Avatars.
                 for (final agent in agents)
-                  _agentPositioned(agent, constraints.biggest),
+                  _AgentNode(
+                    key: ValueKey('office-${agent.id}'),
+                    agent: agent,
+                    state: behaviors[agent.id],
+                    area: size,
+                  ),
               ],
             );
           });
@@ -113,183 +86,189 @@ class _OfficeViewScreenState extends ConsumerState<OfficeViewScreen> {
     );
   }
 
-  Widget _agentPositioned(HermesSession agent, Size area) {
-    final (xFrac, yFrac) = _positionFor(agent);
-    const avatarSize = 56.0;
-    final left = (area.width * xFrac) - avatarSize / 2;
-    final top = (area.height * yFrac) - avatarSize / 2;
-    return AnimatedPositioned(
-      key: ValueKey('office-${agent.id}'),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
-      left: left,
-      top: top,
-      child: _AgentAvatar(agent: agent),
-    );
-  }
-}
-
-/// Hash session id to a position inside the working area (15-85%
-/// of the screen on each axis). Same id → same spot, every time.
-(double, double) _positionFor(HermesSession s) {
-  final hash = s.id.codeUnits.fold(0, (a, b) => (a * 31 + b) & 0x7FFFFFFF);
-  final xRaw = (hash & 0xFFFF) / 0xFFFF;
-  final yRaw = ((hash >> 16) & 0xFFFF) / 0xFFFF;
-  // Map raw 0..1 into 0.12..0.88 so avatars stay off the edges.
-  final x = 0.12 + xRaw * 0.76;
-  final y = 0.18 + yRaw * 0.62;
-  return (x, y);
-}
-
-class _AgentAvatar extends StatelessWidget {
-  final HermesSession agent;
-  const _AgentAvatar({required this.agent});
-
-  Color _colorFor(SwarmStatus status) => switch (status) {
-        SwarmStatus.running => Colors.deepPurpleAccent,
-        SwarmStatus.thinking => PocketClawTheme.amber,
-        SwarmStatus.complete => PocketClawTheme.success,
-        SwarmStatus.failed => PocketClawTheme.lobsterRed,
-        SwarmStatus.error => PocketClawTheme.lobsterRed,
-        SwarmStatus.idle => Colors.white38,
-      };
-
-  String get _initials {
-    final name = agent.officeDisplayName.trim();
-    if (name.isEmpty) return '·';
-    final parts = name.split(RegExp(r'\s+'));
-    if (parts.length == 1) {
-      return parts.first.substring(0, math.min(2, parts.first.length))
-          .toUpperCase();
+  List<ChatLine> _buildChatLines(
+    List<HermesSession> agents,
+    Map<String, AgentBehaviorState> behaviors,
+  ) {
+    final lines = <ChatLine>[];
+    final byId = {for (final a in agents) a.id: a};
+    for (final a in agents) {
+      final s = behaviors[a.id];
+      if (s == null) continue;
+      final tgt = s.chatTarget;
+      if (tgt == null) continue;
+      final target = byId[tgt];
+      if (target == null) continue;
+      final ts = behaviors[target.id];
+      if (ts == null) continue;
+      lines.add(ChatLine(from: s.position, to: ts.position));
     }
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+    return lines;
   }
+}
+
+/// Static labels for the named office areas (water / coffee / lunch /
+/// meeting) and faint desk markers.
+class _OfficeFurniture extends StatelessWidget {
+  final Size size;
+  const _OfficeFurniture({required this.size});
+
+  static const _spots = <(OfficePoint, String, IconData)>[
+    (kWaterCooler, 'Water', Icons.water_drop_outlined),
+    (kCoffeeMachine, 'Coffee', Icons.coffee_outlined),
+    (kLunchArea, 'Lunch', Icons.lunch_dining_outlined),
+    (kMeetingTable, 'Meeting', Icons.meeting_room_outlined),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(agent.swarmStatus);
-    final isOrch = agent.isOrchestrator;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
       children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withAlpha(38),
-            border: Border.all(color: color, width: isOrch ? 2.5 : 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(64),
-                blurRadius: 12,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _initials,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: color,
+        for (final desk in kDeskPositions)
+          Positioned(
+            left: desk.x / 100 * size.width - 7,
+            top: desk.y / 100 * size.height - 7,
+            child: const _Tag(
+              icon: Icons.desktop_windows_outlined,
+              label: '',
+              dim: true,
             ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(150),
-            borderRadius: BorderRadius.circular(4),
+        for (final spot in _spots)
+          Positioned(
+            left: spot.$1.x / 100 * size.width - 22,
+            top: spot.$1.y / 100 * size.height - 10,
+            child: _Tag(icon: spot.$3, label: spot.$2),
           ),
-          child: Text(
-            agent.officeDisplayName.length > 14
-                ? '${agent.officeDisplayName.substring(0, 13)}…'
-                : agent.officeDisplayName,
-            style: const TextStyle(
-              fontSize: 9,
-              color: Colors.white,
-            ),
-          ),
-        ),
       ],
     );
   }
 }
 
-class _FloorPainter extends CustomPainter {
-  const _FloorPainter();
+class _Tag extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool dim;
+  const _Tag({required this.icon, required this.label, this.dim = false});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final dark = Paint()..color = const Color(0xFF14110D);
-    final light = Paint()..color = const Color(0xFF1A1611);
-    canvas.drawRect(Offset.zero & size, dark);
-
-    const cols = 20;
-    const rows = 14;
-    final cellW = size.width / cols;
-    final cellH = size.height / rows;
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        if ((r + c).isEven) {
-          final rect = Rect.fromLTWH(c * cellW, r * cellH, cellW, cellH);
-          canvas.drawRect(rect, light);
-        }
-      }
-    }
+  Widget build(BuildContext context) {
+    final color = dim ? Colors.white24 : Colors.white38;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        if (label.isNotEmpty) ...[
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: GoogleFonts.jetBrainsMono(fontSize: 9, color: color),
+          ),
+        ],
+      ],
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant _FloorPainter oldDelegate) => false;
 }
 
-class _ConnectionPainter extends CustomPainter {
-  final List<HermesSession> agents;
-  final Size size;
-  const _ConnectionPainter({required this.agents, required this.size});
+class _AgentNode extends StatelessWidget {
+  final HermesSession agent;
+  final AgentBehaviorState? state;
+  final Size area;
+
+  const _AgentNode({
+    super.key,
+    required this.agent,
+    required this.state,
+    required this.area,
+  });
 
   @override
-  void paint(Canvas canvas, Size canvasSize) {
-    final paint = Paint()
-      ..color = Colors.white.withAlpha(50)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+  Widget build(BuildContext context) {
+    final s = state;
+    final colors = personaFor(agent.id);
+    const avatarSize = 56.0;
+    final pos = s?.position ?? _fallback(agent.id);
 
-    final byId = {for (final a in agents) a.id: a};
-    for (final agent in agents) {
-      final parentId = agent.parentSessionId;
-      if (parentId == null) continue;
-      final parent = byId[parentId];
-      if (parent == null) continue;
-      final (cx, cy) = _positionFor(agent);
-      final (px, py) = _positionFor(parent);
-      _drawDashedLine(
-        canvas,
-        Offset(canvasSize.width * px, canvasSize.height * py),
-        Offset(canvasSize.width * cx, canvasSize.height * cy),
-        paint,
-      );
-    }
+    final left = pos.x / 100 * area.width - avatarSize / 2;
+    final top = pos.y / 100 * area.height - avatarSize / 2;
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      left: left,
+      top: top,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (s?.chatMessage != null) _Bubble(text: s!.chatMessage!),
+          SizedBox(
+            width: avatarSize,
+            height: avatarSize,
+            child: CustomPaint(
+              painter: PixelAvatarPainter(
+                bodyColor: colors.body,
+                accentColor: colors.accent,
+                expression: s?.expression ?? AgentExpression.neutral,
+                status: agent.swarmStatus,
+                isWalking: s?.isWalking ?? false,
+                flipHorizontal: s?.isFacingLeft ?? false,
+                walkFrame: s?.walkFrame ?? 0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(160),
+              borderRadius: BorderRadius.circular(3),
+            ),
+            child: Text(
+              agent.officeDisplayName.length > 14
+                  ? '${agent.officeDisplayName.substring(0, 13)}…'
+                  : agent.officeDisplayName,
+              style: const TextStyle(fontSize: 9, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _drawDashedLine(Canvas canvas, Offset a, Offset b, Paint p) {
-    const dash = 6.0;
-    const gap = 4.0;
-    final total = (b - a).distance;
-    final dir = (b - a) / total;
-    var t = 0.0;
-    while (t < total) {
-      final start = a + dir * t;
-      final end = a + dir * math.min(t + dash, total);
-      canvas.drawLine(start, end, p);
-      t += dash + gap;
-    }
+  /// Deterministic fallback while the behavior notifier seeds.
+  OfficePoint _fallback(String id) {
+    final hash =
+        id.codeUnits.fold(0, (a, b) => (a * 31 + b) & 0x7FFFFFFF);
+    final deskIdx = hash % kDeskPositions.length;
+    return kDeskPositions[deskIdx];
   }
+}
+
+class _Bubble extends StatelessWidget {
+  final String text;
+  const _Bubble({required this.text});
 
   @override
-  bool shouldRepaint(covariant _ConnectionPainter oldDelegate) =>
-      oldDelegate.agents != agents || oldDelegate.size != size;
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      constraints: const BoxConstraints(maxWidth: 110),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFBBF24).withAlpha(120)),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 9,
+          color: Color(0xFF1E293B),
+          fontWeight: FontWeight.w500,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
 }
