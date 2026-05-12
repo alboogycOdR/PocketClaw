@@ -82,6 +82,10 @@ class KnowledgeBaseScreen extends ConsumerWidget {
     final indexed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // useSafeArea pushes the sheet above gesture / 3-button nav
+      // bars so the "Pick a file" button isn't overlapped by the
+      // Android system nav.
+      useSafeArea: true,
       builder: (sheet) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(sheet).viewInsets.bottom,

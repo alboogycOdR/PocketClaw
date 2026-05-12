@@ -379,6 +379,8 @@ class _HermesMemoryTabState extends ConsumerState<HermesMemoryTab> {
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
+      // Keep Save above the Android nav bar.
+      useSafeArea: true,
       builder: (sheet) => Padding(
         padding: EdgeInsets.only(
           left: 16,

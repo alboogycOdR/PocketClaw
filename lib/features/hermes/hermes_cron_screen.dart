@@ -76,6 +76,8 @@ class HermesCronTab extends ConsumerWidget {
     final created = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // Keep "Create" out from under the Android nav bar.
+      useSafeArea: true,
       builder: (sheet) => Padding(
         padding: EdgeInsets.only(
           left: 16,

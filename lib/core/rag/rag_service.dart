@@ -83,24 +83,37 @@ class RagService {
 
     if (!ragEmbeddingService.isLoaded) await ragEmbeddingService.load();
 
-    // Embedding may throw UnsupportedError on the current fllama; if
-    // it does on the first chunk, bail with a friendly message and
-    // delete the half-indexed doc so the user can retry once the
-    // backend is in place.
+    // Embedding may throw UnsupportedError when the installed fllama
+    // doesn't expose getEmbedding (0.0.1 today). Treat that as a soft
+    // failure: the document is already in `rag_documents`, its
+    // chunks are already in `rag_chunks`, and the user can SEE them
+    // in the KB list. Semantic search returns no hits until embedding
+    // is wired, but the indexing UX doesn't punish them for the gap.
+    var embeddingSkipped = false;
     for (var i = 0; i < chunks.length; i++) {
       try {
         final vector = await ragEmbeddingService.embed(chunks[i].content);
         await ragDb.insertEmbedding(rowIds[i], docId, vector);
-      } on UnsupportedError catch (e) {
-        await ragDb.deleteDocument(docId);
-        throw Exception(
-            'Embedding backend not yet wired in this build. $e');
+      } on UnsupportedError {
+        embeddingSkipped = true;
+        break; // No point trying every chunk — same error every time.
       }
       onProgress?.call(RagIndexProgress(
         stage: RagIndexStage.embedding,
         message: 'Embedding chunk ${i + 1}/${chunks.length}…',
         fraction: (i + 1) / chunks.length,
       ));
+    }
+
+    if (embeddingSkipped) {
+      onProgress?.call(const RagIndexProgress(
+        stage: RagIndexStage.done,
+        message:
+            'Indexed without vectors — semantic search needs fllama '
+            'with embedding support (upgrade later to enable retrieval).',
+        fraction: 1,
+      ));
+      return docId;
     }
 
     onProgress?.call(const RagIndexProgress(
