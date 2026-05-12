@@ -31,8 +31,11 @@ import 'models_screen.dart';
 // import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
 import 'backup_restore_settings.dart';
+import 'device_info_screen.dart';
 import 'security_settings.dart';
 import 'ssh_settings.dart';
+import 'storage_settings_screen.dart';
+import 'voice_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -295,6 +298,17 @@ class _WorkspaceTab extends ConsumerWidget {
                   ),
                 ),
               ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Knowledge Base'),
+                subtitle: const Text(
+                  'Index docs the local model can cite (RAG)',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/knowledge-base'),
+              ),
             ],
           ),
         ),
@@ -349,6 +363,48 @@ class _AppTab extends StatelessWidget {
               //   onTap: () => context.push('/onboarding/commercial'),
               // ),
               // const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.mic_outlined),
+                title: const Text('Voice & Transcription'),
+                subtitle: const Text(
+                  'Whisper models for offline STT',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const VoiceSettingsScreen()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.storage_outlined),
+                title: const Text('Storage'),
+                subtitle: const Text(
+                  'Models · cache · orphan cleanup',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const StorageSettingsScreen()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.smartphone_outlined),
+                title: const Text('Device Info'),
+                subtitle: const Text(
+                  'Hardware · active model · acceleration',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const DeviceInfoScreen()),
+                ),
+              ),
+              const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.security),
                 title: const Text('Security & Privacy'),

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/knowledge_base/knowledge_base_screen.dart';
 // Paperclip "Company" tab hidden 2026-05-08 — keep import out of tree
 // while the surface is parked. Re-enable by restoring the branch +
 // nav destination below if Paperclip earns its slot back.
@@ -73,6 +74,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/academy',
       builder: (context, state) => const AcademyScreen(),
+    ),
+    GoRoute(
+      path: '/knowledge-base',
+      builder: (context, state) => const KnowledgeBaseScreen(),
     ),
     GoRoute(
       path: '/settings/life-architect',

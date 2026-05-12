@@ -20,8 +20,12 @@ import '../../core/hermes/acp/hermes_acp_client.dart';
 import '../../core/hermes/hermes_client.dart';
 import '../../core/hermes/hermes_sse_parser.dart';
 import '../../core/ssh/hermes_ssh_client.dart';
+import '../../core/llm/context_compaction_service.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
+import '../../core/llm/engines/llama_cpp_engine.dart';
+import '../../core/llm/intent_classifier.dart';
 import '../../core/llm/models/model_format.dart';
+import '../../core/rag/rag_service.dart';
 import '../../core/session/session_history.dart';
 import '../../core/session/session_title_generator.dart';
 import '../../data/models/chat_message.dart';
@@ -594,22 +598,99 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
 
   final overlay = _activeSystemPromptOverlay(ref);
 
+  // Intent classifier (Tier 1.3) — when the user clearly asked for an
+  // image AND a local image model is configured, route there instead
+  // of text. T3.1 image generation isn't wired (native plugin scope);
+  // when no image model is present we silently fall through to text
+  // so today's behaviour doesn't regress.
+  final intent = intentClassifier.classify(text);
+  if (intent == MessageIntent.image) {
+    messages.updateLast((m) => m.copyWith(
+          statusText: 'Image intent detected — routing to text path '
+              '(local image generation not yet wired).',
+        ));
+  }
+
+  // RAG context injection (Tier 1.1). When a project is active and
+  // has indexed docs, embed the user's query and pull the top-5
+  // semantically-similar chunks. The embedding service is currently
+  // stubbed (fllama 0.0.1 has no embedding API), so this call
+  // returns an empty result and falls through harmlessly.
+  String? augmentedSystemPrompt = overlay;
   try {
+    final projectId = ref.read(activeProjectIdProvider);
+    if (projectId != null) {
+      final ragSnippet = await ragService.searchForPrompt(projectId, text);
+      if (ragSnippet.isNotEmpty) {
+        augmentedSystemPrompt = augmentedSystemPrompt == null
+            ? ragSnippet
+            : '$ragSnippet\n\n$augmentedSystemPrompt';
+      }
+    }
+  } catch (_) {
+    // RAG is best-effort — never block a turn on it.
+  }
+
+  Future<void> runOnce() async {
     await for (final token in engine.generateStream(
       text,
-      systemPrompt: overlay,
+      systemPrompt: augmentedSystemPrompt,
       maxTokens: 1024,
     )) {
       messages.appendToLast(token);
     }
+  }
+
+  try {
+    await runOnce();
     messages.updateLast((m) => m.copyWith(isStreaming: false));
     await _maybeAdvanceGrowPhase(ref, text);
   } catch (e) {
+    // Context-full recovery (Tier 1.2). Summarise the older turns,
+    // then retry once with the trimmed window. Any other error
+    // propagates to the existing handler below.
+    if (contextCompactionService.isContextFullError(e) &&
+        engine is LlamaCppEngine) {
+      messages.updateById(msgId, (m) => m.copyWith(
+            statusText: '\u{1F5DC}️ Context full — compacting…',
+          ));
+      try {
+        final compacted = await contextCompactionService.compact(
+          systemPrompt: augmentedSystemPrompt ?? '',
+          allMessages: ref.read(messagesProvider),
+          engine: engine,
+        );
+        messages.updateById(msgId, (m) => m.copyWith(
+              clearStatusText: true,
+              statusText: compacted.summary == null
+                  ? 'Compacted — retrying…'
+                  : 'Compacted (with summary) — retrying…',
+            ));
+        await runOnce();
+        messages.updateLast((m) => m.copyWith(
+              isStreaming: false,
+              clearStatusText: true,
+            ));
+        await _maybeAdvanceGrowPhase(ref, text);
+        return;
+      } catch (retryError) {
+        messages.updateLast((m) => m.copyWith(
+              content: m.content.isEmpty
+                  ? 'Local inference error after compaction: $retryError'
+                  : '${m.content}\n\n[Error after compaction: $retryError]',
+              isStreaming: false,
+              clearStatusText: true,
+            ));
+      }
+      return;
+    }
+    // Non-context-full error path — surface the original failure.
     messages.updateLast((m) => m.copyWith(
           content: m.content.isEmpty
               ? 'Local inference error: $e'
               : '${m.content}\n\n[Error: $e]',
           isStreaming: false,
+          clearStatusText: true,
         ));
   }
 }

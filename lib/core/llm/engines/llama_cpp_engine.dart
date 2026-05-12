@@ -545,6 +545,28 @@ class LlamaCppEngine implements AbstractLLMEngine {
   @override
   String? get loadedModelId => _loadedModelId;
 
+  /// Effective context window for the loaded model. fllama 0.0.1 does
+  /// not expose the actual n_ctx the context was initialised with;
+  /// return a sensible default that matches what most current GGUF
+  /// quants ship with so the context-compaction service has a useful
+  /// budget to plan against. When fllama exposes a real context-size
+  /// getter, replace this with the live value.
+  int? get currentContextSize => _isReady ? 4096 : null;
+
+  /// One-shot summary generation. Wraps [generate] so the
+  /// context-compaction service can keep a clean dependency on the
+  /// engine surface instead of reaching into the raw fllama API.
+  Future<String> generateSummary(
+    String transcript, {
+    String? systemPrompt,
+    int maxTokens = 256,
+  }) =>
+      generate(
+        transcript,
+        systemPrompt: systemPrompt,
+        maxTokens: maxTokens,
+      );
+
   @override
   Future<void> dispose() async {
     await unloadModel();
