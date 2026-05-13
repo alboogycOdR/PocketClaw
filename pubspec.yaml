@@ -1,7 +1,7 @@
 name: clawcommander
 description: "ClawCommander - Mobile AI Agent Command Centre"
 publish_to: 'none'
-version: 2.3.1+6
+version: 2.4.0+7
 
 environment:
   sdk: ^3.11.4
@@ -63,7 +63,13 @@ dependencies:
   # Local LLM — GGUF via fllama only. flutter_gemma removed (see
   # commit log) — was >80MB of native libs, fragile .task format,
   # and GGUF covers the same use cases with a wider model catalogue.
-  fllama: ^0.0.1
+  llamadart: ^0.6.12
+  # NOTE: whisper_ggml_plus 1.2.13 ships a CMakeLists.txt whose
+  # source globs don't match its actual src/src/ layout — Android
+  # build fails at `add_library(whisper ...)` with empty sources.
+  # Using the upstream `whisper_ggml` instead; same API surface,
+  # works on Android.
+  whisper_ggml: ^1.7.0
   http: ^1.2.0
 
   # Math
@@ -79,7 +85,6 @@ dependencies:
   uuid: ^4.5.1
   cryptography: ^2.7.0
   intl: ^0.19.0
-  freezed_annotation: ^2.4.4
   json_annotation: ^4.9.0
   collection: ^1.19.1
   path: ^1.9.1
@@ -91,7 +96,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.4.14
-  freezed: ^2.5.8
   json_serializable: ^6.9.4
   riverpod_generator: ^2.6.3
   flutter_launcher_icons: ^0.14.4

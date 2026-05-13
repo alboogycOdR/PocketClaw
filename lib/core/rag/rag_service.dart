@@ -95,8 +95,15 @@ class RagService {
         final vector = await ragEmbeddingService.embed(chunks[i].content);
         await ragDb.insertEmbedding(rowIds[i], docId, vector);
       } on UnsupportedError {
+        // Old fllama path — embedding not available at all.
         embeddingSkipped = true;
-        break; // No point trying every chunk — same error every time.
+        break;
+      } on StateError {
+        // New llamadart path — no engine bound (no local model
+        // loaded yet). Same UX: keep the doc indexed without vectors;
+        // user can load a model and re-index later.
+        embeddingSkipped = true;
+        break;
       }
       onProgress?.call(RagIndexProgress(
         stage: RagIndexStage.embedding,

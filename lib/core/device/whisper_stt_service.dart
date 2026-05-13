@@ -1,21 +1,20 @@
-/// Whisper STT scaffolding.
+/// Whisper STT — offline audio transcription via `whisper_ggml_plus`.
 ///
-/// Status:
-///   - Model catalogue + download (URL → `{docs}/whisper-models/`) → ✅
-///   - Voice settings screen reads / writes the active model id → ✅
-///   - Audio transcription itself → ❌ requires a Flutter Whisper
-///     binding. Two paths: (a) fllama gains audio transcription
-///     (preferred), (b) add `whisper_dart` to pubspec. Until then,
-///     [transcribeFile] throws a clear UnsupportedError so the
-///     existing Android-online STT path stays the runtime default.
+/// Replaces the v2.3.x stub that always threw UnsupportedError. We keep
+/// our own resume-capable downloader (the package's downloader is
+/// non-resumable and silent on errors) but defer to the package for
+/// the actual transcription call. Models are stored at the location
+/// the package expects so a single file backs both code paths.
 library;
 
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:whisper_ggml/whisper_ggml.dart' as wgg;
 
 class WhisperModel {
   final String id;
@@ -86,17 +85,61 @@ class WhisperSttService {
   static const _activeModelPref = 'whisper_active_model_id';
 
   Directory? _dir;
+  bool _legacyMigrated = false;
 
+  /// Resolve where whisper_ggml_plus expects the models — application
+  /// support dir on Android, library dir on iOS. Using the same path
+  /// means our downloader and the transcribe call share one file.
   Future<Directory> _modelsDir() async {
     if (_dir != null) return _dir!;
-    final docs = await getApplicationDocumentsDirectory();
-    final d = Directory('${docs.path}/whisper-models');
-    if (!d.existsSync()) await d.create(recursive: true);
-    _dir = d;
-    return d;
+    final base = Platform.isAndroid
+        ? await getApplicationSupportDirectory()
+        : await getLibraryDirectory();
+    if (!base.existsSync()) await base.create(recursive: true);
+    _dir = base;
+    return base;
+  }
+
+  /// One-shot move of any models downloaded by v2.3.x into the new
+  /// directory. Old layout was `{docs}/whisper-models/ggml-$id.bin`.
+  Future<void> _migrateLegacyIfNeeded() async {
+    if (_legacyMigrated) return;
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final legacy = Directory('${docs.path}/whisper-models');
+      if (!legacy.existsSync()) {
+        _legacyMigrated = true;
+        return;
+      }
+      final target = await _modelsDir();
+      for (final entry in legacy.listSync()) {
+        if (entry is File && entry.path.endsWith('.bin')) {
+          final name = entry.uri.pathSegments.last;
+          final newPath = '${target.path}/$name';
+          if (!File(newPath).existsSync()) {
+            try {
+              await entry.rename(newPath);
+            } catch (_) {
+              // Cross-volume rename can fail — fall back to copy+delete.
+              await entry.copy(newPath);
+              await entry.delete();
+            }
+          } else {
+            await entry.delete();
+          }
+        }
+      }
+      try {
+        await legacy.delete(recursive: true);
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('WhisperSttService: legacy migration skipped: $e');
+    }
+    _legacyMigrated = true;
   }
 
   Future<String> modelPath(String modelId) async {
+    await _migrateLegacyIfNeeded();
     final d = await _modelsDir();
     return '${d.path}/ggml-$modelId.bin';
   }
@@ -171,18 +214,72 @@ class WhisperSttService {
     if (f.existsSync()) await f.delete();
   }
 
-  /// Returns transcribed text for a wav/m4a file. NOT YET WIRED — the
-  /// installed fllama doesn't expose audio transcription. Add
-  /// `whisper_dart` (or upgrade fllama) and replace this body with
-  /// the real native call.
+  /// Map our catalogue ID to the package's WhisperModel enum.
+  wgg.WhisperModel? _enumFor(String modelId) {
+    switch (modelId) {
+      case 'tiny':
+        return wgg.WhisperModel.tiny;
+      case 'tiny.en':
+        return wgg.WhisperModel.tinyEn;
+      case 'base':
+        return wgg.WhisperModel.base;
+      case 'base.en':
+        return wgg.WhisperModel.baseEn;
+      case 'small':
+        return wgg.WhisperModel.small;
+      case 'small.en':
+        return wgg.WhisperModel.smallEn;
+      case 'medium':
+        return wgg.WhisperModel.medium;
+      case 'medium.en':
+        return wgg.WhisperModel.mediumEn;
+      case 'large':
+        return wgg.WhisperModel.large;
+    }
+    return null;
+  }
+
+  /// Transcribe an audio file (wav/m4a/aac) to text using the on-device
+  /// whisper.cpp build shipped by `whisper_ggml_plus`. Falls back to
+  /// the active model from SharedPreferences when [modelId] is null.
+  ///
+  /// Returns the transcribed text (possibly empty). Throws when the
+  /// requested model isn't downloaded, or when the native call returns
+  /// no result (which the package surfaces as a null return).
   Future<String> transcribeFile(String audioPath, {String? modelId}) async {
-    throw UnsupportedError(
-      'Whisper transcription requires a Flutter Whisper binding. '
-      'Either upgrade fllama to a build that supports audio, or add '
-      '`whisper_dart` to pubspec.yaml and call its transcribe API '
-      'here. Currently the on-device STT path falls back to the '
-      'Android system speech recogniser (online).',
+    final effectiveId = modelId ?? await activeModelId();
+    if (effectiveId == null) {
+      throw StateError(
+        'No Whisper model selected. Pick one in Settings → Voice.',
+      );
+    }
+    final enumModel = _enumFor(effectiveId);
+    if (enumModel == null) {
+      throw StateError('Unknown Whisper model id: $effectiveId');
+    }
+    if (!await isModelDownloaded(effectiveId)) {
+      throw StateError(
+        'Whisper model "$effectiveId" is not downloaded yet. '
+        'Open Settings → Voice and tap Download.',
+      );
+    }
+
+    final controller = wgg.WhisperController();
+    final result = await controller.transcribe(
+      model: enumModel,
+      audioPath: audioPath,
+      // 'auto' isn't supported by whisper.cpp directly — let the model
+      // detect language by passing an empty hint. The English-only
+      // variants ignore this anyway.
+      lang: 'en',
     );
+
+    if (result == null) {
+      throw StateError(
+        'Whisper transcription failed — see debug logs for details.',
+      );
+    }
+    return result.transcription.text.trim();
   }
 }
 
