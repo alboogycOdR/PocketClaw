@@ -200,6 +200,41 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
                   style: TextStyle(
                       color: PocketClawTheme.lobsterRed, fontSize: 12)),
             ),
+          // Behaviour toggles — independent of model-ready state so the
+          // user can flip them ahead of downloading. Auto-speak falls
+          // back to the system TTS engine when Supertonic isn't loaded.
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  value: ref.watch(autoSpeakRepliesProvider),
+                  onChanged: (v) =>
+                      ref.read(autoSpeakRepliesProvider.notifier).set(v),
+                  title: const Text('Speak replies automatically'),
+                  subtitle: const Text(
+                    'Each assistant message is read aloud when it '
+                    "finishes streaming. Doesn't apply while the model "
+                    'is still typing.',
+                    style: TextStyle(fontSize: 11, color: Colors.white54),
+                  ),
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                SwitchListTile(
+                  value: ref.watch(voiceLoopModeProvider),
+                  onChanged: (v) =>
+                      ref.read(voiceLoopModeProvider.notifier).set(v),
+                  title: const Text('Hands-free voice loop'),
+                  subtitle: const Text(
+                    'After mic transcription, auto-send instead of '
+                    'leaving text in the field. Combine with auto-speak '
+                    'above for full hands-free chat.',
+                    style: TextStyle(fontSize: 11, color: Colors.white54),
+                  ),
+                ),
+              ],
+            ),
+          ),
           if (modelsReady) ...[
             const SizedBox(height: 20),
             Text('Voices',

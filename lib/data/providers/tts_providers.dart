@@ -10,6 +10,8 @@ import '../../core/tts/supertonic_tts_service.dart';
 import 'core_providers.dart';
 
 const _activeVoicePrefKey = 'supertonic_voice_id';
+const _autoSpeakPrefKey = 'tts_auto_speak_replies';
+const _voiceLoopPrefKey = 'tts_voice_loop_mode';
 
 final supertonicModelsReadyProvider = FutureProvider<bool>((ref) async {
   return supertonicModelManager.areModelsDownloaded();
@@ -40,6 +42,64 @@ class ActiveVoiceIdNotifier extends StateNotifier<String> {
 final activeVoiceIdProvider =
     StateNotifierProvider<ActiveVoiceIdNotifier, String>((ref) {
   return ActiveVoiceIdNotifier(ref);
+});
+
+/// Auto-speak assistant replies whenever they finish streaming.
+/// Persisted to SharedPreferences. Default off.
+class AutoSpeakRepliesNotifier extends StateNotifier<bool> {
+  AutoSpeakRepliesNotifier(this._ref) : super(_initial(_ref));
+  final Ref _ref;
+
+  static bool _initial(Ref ref) {
+    try {
+      return ref.read(sharedPrefsProvider).getBool(_autoSpeakPrefKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> set(bool value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      await _ref.read(sharedPrefsProvider).setBool(_autoSpeakPrefKey, value);
+    } catch (_) {}
+  }
+}
+
+final autoSpeakRepliesProvider =
+    StateNotifierProvider<AutoSpeakRepliesNotifier, bool>((ref) {
+  return AutoSpeakRepliesNotifier(ref);
+});
+
+/// Voice-loop mode: when the mic widget delivers a final transcription,
+/// auto-send the message instead of leaving it in the input field.
+/// Combined with [autoSpeakRepliesProvider] this closes the hands-free
+/// chat loop. Persisted to SharedPreferences. Default off.
+class VoiceLoopModeNotifier extends StateNotifier<bool> {
+  VoiceLoopModeNotifier(this._ref) : super(_initial(_ref));
+  final Ref _ref;
+
+  static bool _initial(Ref ref) {
+    try {
+      return ref.read(sharedPrefsProvider).getBool(_voiceLoopPrefKey) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> set(bool value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      await _ref.read(sharedPrefsProvider).setBool(_voiceLoopPrefKey, value);
+    } catch (_) {}
+  }
+}
+
+final voiceLoopModeProvider =
+    StateNotifierProvider<VoiceLoopModeNotifier, bool>((ref) {
+  return VoiceLoopModeNotifier(ref);
 });
 
 /// Message id currently being spoken aloud. ChatBubble watches this

@@ -49,6 +49,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   String? _pendingImageUrl;
   bool _isVoiceRecording = false;
+
+  /// Assistant message ids we've already triggered auto-speak for —
+  /// stops the ref.listen below from firing again on every rebuild.
+  final Set<String> _autoSpokenIds = {};
   String _draftText = '';
 
   // Tracks which sessionKey we've already attempted to load history for —
@@ -579,6 +583,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       },
     );
 
+    // Auto-speak: when an assistant message finishes streaming, fire
+    // _toggleSpeak iff the user enabled "Speak replies automatically".
+    // _autoSpokenIds prevents re-speaking on subsequent rebuilds.
+    ref.listen<List<ChatMessage>>(messagesProvider, (_, next) {
+      if (!mounted) return;
+      if (!ref.read(autoSpeakRepliesProvider)) return;
+      if (next.isEmpty) return;
+      final last = next.last;
+      if (last.role != MessageRole.assistant) return;
+      if (last.isStreaming) return;
+      if (last.content.trim().isEmpty) return;
+      if (_autoSpokenIds.contains(last.id)) return;
+      _autoSpokenIds.add(last.id);
+      _toggleSpeak(last.id, last.content);
+    });
+
     // Trigger chat history load once per sessionKey once the real gateway
     // state flips to connected. `connectionStateProvider` above is a local
     // stub — use the live mirror instead.
@@ -934,11 +954,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             onFinalResult: (text) {
               // Final transcription — leave it in the field for the
-              // user to edit or send.
+              // user to edit or send. In hands-free voice-loop mode,
+              // auto-send instead (closes the spoken-message loop).
               _textController.text = text;
               _textController.selection = TextSelection.fromPosition(
                 TextPosition(offset: text.length),
               );
+              if (ref.read(voiceLoopModeProvider) &&
+                  text.trim().isNotEmpty) {
+                _sendMessage();
+              }
             },
             onDone: () {
               // Recording stopped: dismiss the "listening" snackbar.
