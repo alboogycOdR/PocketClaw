@@ -42,6 +42,12 @@ final activeVoiceIdProvider =
   return ActiveVoiceIdNotifier(ref);
 });
 
+/// Message id currently being spoken aloud. ChatBubble watches this
+/// to flip its speaker icon between play and stop states; the chat
+/// screen sets it when the user taps the speaker and clears it when
+/// `TtsService.speak()` resolves. null = nothing speaking.
+final speakingMessageIdProvider = StateProvider<String?>((ref) => null);
+
 /// Watch this from `tts_service.dart` to lazy-load the engine whenever
 /// the active voice or model-readiness state changes. Returns true when
 /// the engine is loaded and ready to synthesise.

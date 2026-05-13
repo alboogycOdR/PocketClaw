@@ -17,6 +17,13 @@ class MessageActionsBar extends StatefulWidget {
   /// and focus the keyboard. Set this on assistant messages so the
   /// user can ask a direct follow-up.
   final void Function(String text)? onQuote;
+
+  /// Optional "Read aloud" action. When provided, the bar shows a
+  /// speaker button that pipes the message text into the active TTS
+  /// engine (Supertonic if loaded, system TTS otherwise). Set this on
+  /// assistant messages.
+  final VoidCallback? onSpeak;
+
   final VoidCallback onDismiss;
 
   const MessageActionsBar({
@@ -26,6 +33,7 @@ class MessageActionsBar extends StatefulWidget {
     this.showRetry = false,
     this.onRetry,
     this.onQuote,
+    this.onSpeak,
   });
 
   @override
@@ -80,6 +88,19 @@ class _MessageActionsBarState extends State<MessageActionsBar> {
               onTap: () {
                 HapticFeedback.lightImpact();
                 widget.onQuote!(widget.text);
+                widget.onDismiss();
+              },
+            ),
+          ],
+          if (widget.onSpeak != null) ...[
+            const _Sep(),
+            _ActionButton(
+              icon: Icons.volume_up_outlined,
+              label: 'Read aloud',
+              color: Colors.white70,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onSpeak!();
                 widget.onDismiss();
               },
             ),

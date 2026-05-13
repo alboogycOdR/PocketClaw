@@ -17,6 +17,7 @@ import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/tts_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
@@ -96,6 +97,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       offset: combined.length,
     );
     _focusNode.requestFocus();
+  }
+
+  /// Toggle read-aloud for a specific assistant message. If this
+  /// message is already speaking, stop. Otherwise hand the text to
+  /// TtsService — Supertonic if loaded, system TTS otherwise — and
+  /// track the active message id so the bubble's speaker icon shows
+  /// the play/stop state.
+  void _toggleSpeak(String messageId, String text) {
+    final tts = ref.read(ttsServiceProvider);
+    final currentId = ref.read(speakingMessageIdProvider);
+    if (currentId == messageId) {
+      // Tap to stop the same message.
+      tts.stop();
+      ref.read(speakingMessageIdProvider.notifier).state = null;
+      return;
+    }
+    ref.read(speakingMessageIdProvider.notifier).state = messageId;
+    // Fire-and-forget; speak() handles its own errors. When the player
+    // naturally completes we clear the provider iff we're still the
+    // active speaker (another tap may have taken over).
+    tts.speak(text).whenComplete(() {
+      if (!mounted) return;
+      if (ref.read(speakingMessageIdProvider) == messageId) {
+        ref.read(speakingMessageIdProvider.notifier).state = null;
+      }
+    });
   }
 
   void _sendMessage() async {
@@ -723,7 +750,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // Message bubble. Last user message gets
                           // onRetry (Retry in long-press bar);
                           // assistant messages get onQuote (drops a
-                          // `> quote` into the input and focuses).
+                          // `> quote` into the input and focuses) plus
+                          // onSpeak (inline speaker icon + Read aloud
+                          // action).
                           ChatBubble(
                             message: msg,
                             onRetry: index == lastUserIdx
@@ -737,6 +766,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             onQuote: msg.role == MessageRole.assistant
                                 ? _quoteIntoInput
                                 : null,
+                            onSpeak: msg.role == MessageRole.assistant
+                                ? () => _toggleSpeak(msg.id, msg.content)
+                                : null,
+                            isSpeaking: ref.watch(
+                                  speakingMessageIdProvider,
+                                ) ==
+                                msg.id,
                           ),
                         ],
                       );
