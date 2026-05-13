@@ -1,22 +1,35 @@
-/// Supertonic ONNX inference + WAV playback.
+/// Supertonic-3 ONNX inference + WAV playback.
 ///
-/// Pipeline (per spec §7 + Supertonic architecture paper):
-///   1. Tokenise text → int64 token IDs
-///   2. Encoder ONNX: tokens + style_ttl → z0 latent + noise
-///   3. Decoder ONNX, N flow-matching steps: z_t + style_dp → z_prev
-///   4. Vocoder pass (final decoder run): latent → waveform float32
-///   5. Convert float32 [-1,1] → int16 PCM → minimal WAV → just_audio
+/// Ported from the reference `py/helper.py` (`TextToSpeech._infer`).
+/// Four-stage pipeline:
 ///
-/// Tensor names below (z0, noise, z_prev, waveform, style_ttl, style_dp)
-/// are taken from the Supertonic reference implementations and the
-/// architecture paper. The spec author flagged in §15 that these MUST
-/// be verified against the actual `encoder.onnx` / `decoder.onnx` with
-/// Netron after first download — if the names differ, adjust the keys
-/// in the three session.run() calls below. The code will throw a clear
-/// "missing output X" error rather than silently produce garbage.
+///   1. Tokenise: ord(char) → unicode_indexer.json lookup → int64 ids
+///      plus a text_mask tensor of shape (B=1, 1, len).
+///   2. Duration predictor (`duration_predictor.onnx`):
+///        inputs:  text_ids, style_dp, text_mask
+///        output:  per-token duration in seconds → scaled by /speed
+///   3. Text encoder (`text_encoder.onnx`):
+///        inputs:  text_ids, style_ttl, text_mask
+///        output:  text_emb (feeds vector estimator each step)
+///   4. Sample noisy latent xt of shape (1, ldim*compress, latent_len)
+///      where latent_len = ceil(sum(durations) * sampleRate / 3072).
+///      Multiply by latent_mask.
+///   5. Vector estimator (`vector_estimator.onnx`), N diffusion steps:
+///        inputs:  noisy_latent (xt), text_emb, style_ttl, text_mask,
+///                 latent_mask, current_step (float32 scalar),
+///                 total_step (float32 scalar)
+///        output:  next xt
+///   6. Vocoder (`vocoder.onnx`):
+///        input:   latent (final xt)
+///        output:  wav float32 → int16 PCM → minimal WAV → just_audio
+///
+/// Sample rate is 44.1 kHz (per tts.json `ae.sample_rate`). Constants
+/// base_chunk_size=512, chunk_compress_factor=6, ldim=24 also come
+/// from that config.
 library;
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -28,20 +41,34 @@ import 'supertonic_chunker.dart';
 import 'supertonic_model_manager.dart';
 import 'supertonic_text_preprocessor.dart';
 
-/// 2 = fastest (RTF ~0.015). Higher = marginally better quality.
-const _kDefaultSteps = 2;
+// Constants pulled from Supertonic-3 tts.json.
+const int _sampleRate = 44100;
+const int _baseChunkSize = 512;
+const int _chunkCompressFactor = 6;
+const int _ldim = 24;
+const int _latentDim = _ldim * _chunkCompressFactor;        // 144
+const int _chunkSize = _baseChunkSize * _chunkCompressFactor; // 3072
 
-/// 1.05 = slightly faster than neutral. Range 0.8–1.3 sensible.
-const _kDefaultSpeed = 1.05;
+/// 8 diffusion steps is a good mobile default — Supertonic recommends
+/// 4–16 depending on target RTF. Higher = slightly better quality at
+/// linear cost.
+const int _kDefaultSteps = 8;
+
+/// 1.05 = slightly faster than neutral. Matches Supertonic helper.py.
+const double _kDefaultSpeed = 1.05;
 
 class SupertonicTtsService {
   final _preprocessor = SupertonicTextPreprocessor();
   final _chunker = SupertonicChunker();
   final _player = AudioPlayer();
+  final _random = math.Random();
 
-  OrtSession? _encoderSession;
-  OrtSession? _decoderSession;
-  Map<String, List<double>>? _voiceStyle;
+  OrtSession? _durationSession;
+  OrtSession? _textEncoderSession;
+  OrtSession? _vectorEstSession;
+  OrtSession? _vocoderSession;
+  SupertonicVoiceStyle? _voiceStyle;
+  Map<int, int>? _unicodeIndexer;
   String _loadedVoiceId = '';
 
   bool _speaking = false;
@@ -49,9 +76,12 @@ class SupertonicTtsService {
   String get loadedVoiceId => _loadedVoiceId;
 
   bool get isLoaded =>
-      _encoderSession != null &&
-      _decoderSession != null &&
-      _voiceStyle != null;
+      _durationSession != null &&
+      _textEncoderSession != null &&
+      _vectorEstSession != null &&
+      _vocoderSession != null &&
+      _voiceStyle != null &&
+      _unicodeIndexer != null;
 
   Future<void> loadModel({String voiceId = 'M1'}) async {
     final mgr = supertonicModelManager;
@@ -65,21 +95,36 @@ class SupertonicTtsService {
           'Voice $voiceId not downloaded. Call SupertonicModelManager.downloadVoice() first.');
     }
 
-    await _encoderSession?.close();
-    await _decoderSession?.close();
+    await _closeSessions();
 
     final ort = OnnxRuntime();
     final opts = OrtSessionOptions(intraOpNumThreads: 2);
 
-    _encoderSession = await ort.createSession(await mgr.encoderPath, options: opts);
-    _decoderSession = await ort.createSession(await mgr.decoderPath, options: opts);
+    _durationSession =
+        await ort.createSession(await mgr.durationPath, options: opts);
+    _textEncoderSession =
+        await ort.createSession(await mgr.textEncoderPath, options: opts);
+    _vectorEstSession =
+        await ort.createSession(await mgr.vectorEstPath, options: opts);
+    _vocoderSession =
+        await ort.createSession(await mgr.vocoderPath, options: opts);
     _voiceStyle = await mgr.loadVoiceStyle(voiceId);
+    _unicodeIndexer = await mgr.loadUnicodeIndexer();
     _loadedVoiceId = voiceId;
   }
 
+  Future<void> _closeSessions() async {
+    await _durationSession?.close();
+    await _textEncoderSession?.close();
+    await _vectorEstSession?.close();
+    await _vocoderSession?.close();
+    _durationSession = null;
+    _textEncoderSession = null;
+    _vectorEstSession = null;
+    _vocoderSession = null;
+  }
+
   /// Speak [text] aloud end-to-end (preprocess → chunk → synth → play).
-  /// Throws [StateError] if no model loaded. Returns early when
-  /// [stop] is called mid-stream.
   Future<void> speak(
     String text, {
     int steps = _kDefaultSteps,
@@ -103,9 +148,7 @@ class SupertonicTtsService {
       }
 
       if (pcmBuffers.isEmpty || !_speaking) return;
-
-      final combined = _concatenate(pcmBuffers);
-      await _play(combined);
+      await _play(_concatenate(pcmBuffers));
     } finally {
       _speaking = false;
     }
@@ -119,97 +162,119 @@ class SupertonicTtsService {
   void dispose() {
     _speaking = false;
     _player.dispose();
-    _encoderSession?.close();
-    _decoderSession?.close();
+    _closeSessions();
   }
+
+  // ── Inference pipeline ─────────────────────────────────────────────
 
   Future<Int16List?> _synthesiseChunk(
     String text, {
     required int steps,
     required double speed,
   }) async {
-    final encoder = _encoderSession!;
-    final decoder = _decoderSession!;
+    final dpSess = _durationSession!;
+    final teSess = _textEncoderSession!;
+    final veSess = _vectorEstSession!;
+    final vocSess = _vocoderSession!;
     final style = _voiceStyle!;
 
     final tokenIds = _tokenise(text);
     if (tokenIds.isEmpty) return null;
 
-    // tokens are int64 per Supertonic encoder spec
-    final tokenTensor = await OrtValue.fromList(
+    final textLen = tokenIds.length;
+    final textIdsTensor = await OrtValue.fromList(
       Int64List.fromList(tokenIds),
-      [1, tokenIds.length],
+      [1, textLen],
     );
-    final styleTtlTensor = await OrtValue.fromList(
-      Float32List.fromList(
-          style['style_ttl']!.map((d) => d.toDouble()).toList()),
-      [1, style['style_ttl']!.length],
+    final textMaskTensor = await OrtValue.fromList(
+      Float32List.fromList(List<double>.filled(textLen, 1.0)),
+      [1, 1, textLen],
     );
+    final styleDpTensor =
+        await OrtValue.fromList(style.dp, [1, ...style.dpDims]);
+    final styleTtlTensor =
+        await OrtValue.fromList(style.ttl, [1, ...style.ttlDims]);
 
-    final encOutputs = await encoder.run({
-      'tokens': tokenTensor,
-      'style_ttl': styleTtlTensor,
-    });
-    final z0 = encOutputs['z0'];
-    final noise = encOutputs['noise'];
-    if (z0 == null || noise == null) {
-      throw StateError(
-          'Encoder produced unexpected outputs ${encOutputs.keys}. '
-          'Expected "z0" and "noise" — inspect encoder.onnx with Netron '
-          'and adjust tensor names in supertonic_tts_service.dart.');
-    }
-
-    final styleDpTensor = await OrtValue.fromList(
-      Float32List.fromList(
-          style['style_dp']!.map((d) => d.toDouble()).toList()),
-      [1, style['style_dp']!.length],
-    );
-    final speedTensor = await OrtValue.fromList(
-      Float32List.fromList([speed]),
-      [1],
-    );
-
-    var zCurrent = z0;
-    final dt = 1.0 / steps;
-
-    for (var i = 0; i < steps; i++) {
-      if (!_speaking) return null;
-      final t = dt * (i + 1);
-      final tTensor = await OrtValue.fromList(Float32List.fromList([t]), [1]);
-
-      final decOutputs = await decoder.run({
-        'z': zCurrent,
-        'noise': noise,
-        't': tTensor,
-        'style_dp': styleDpTensor,
-        'speed': speedTensor,
-      });
-      final zPrev = decOutputs['z_prev'];
-      if (zPrev == null) {
-        throw StateError(
-            'Decoder step output missing "z_prev" — got ${decOutputs.keys}. '
-            'Inspect decoder.onnx with Netron and adjust names.');
-      }
-      zCurrent = zPrev;
-    }
-
-    // Final vocoder pass — `decode: true` triggers waveform output.
-    final vocoderOutputs = await decoder.run({
-      'z': zCurrent,
-      'noise': noise,
-      't': await OrtValue.fromList(Float32List.fromList([1.0]), [1]),
+    // ── 1. Duration predictor ─────────────────────────────────────────
+    final dpOut = await dpSess.run({
+      'text_ids': textIdsTensor,
       'style_dp': styleDpTensor,
-      'speed': speedTensor,
-      'decode': await OrtValue.fromList([true], [1]),
+      'text_mask': textMaskTensor,
     });
+    final durOnnx = dpOut.values.first;
+    final durList = (await durOnnx.asFlattenedList())
+        .map((e) => (e as num).toDouble() / speed)
+        .toList(growable: false);
 
-    final waveformTensor = vocoderOutputs['waveform'];
-    if (waveformTensor == null) {
-      throw StateError(
-          'Vocoder pass missing "waveform" output — got ${vocoderOutputs.keys}.');
+    // ── 2. Text encoder ───────────────────────────────────────────────
+    final teOut = await teSess.run({
+      'text_ids': textIdsTensor,
+      'style_ttl': styleTtlTensor,
+      'text_mask': textMaskTensor,
+    });
+    final textEmb = teOut.values.first;
+
+    // ── 3. Sample noisy latent ────────────────────────────────────────
+    final totalDurSeconds = durList.fold<double>(0, (a, b) => a + b);
+    final wavLenMax = (totalDurSeconds * _sampleRate).ceil();
+    final wavLenSamples = wavLenMax; // bsz=1 so max == only
+    final latentLen =
+        ((wavLenMax + _chunkSize - 1) ~/ _chunkSize).clamp(1, 1 << 30);
+
+    // get_latent_mask(wav_lengths, base_chunk_size, chunk_compress_factor)
+    final latentLengths =
+        (wavLenSamples + _chunkSize - 1) ~/ _chunkSize;
+    final latentMaskFlat = Float32List(latentLen);
+    for (var i = 0; i < latentLen; i++) {
+      latentMaskFlat[i] = i < latentLengths ? 1.0 : 0.0;
     }
-    final raw = await waveformTensor.asFlattenedList();
-    final rawFloats = raw.map((e) => (e as num).toDouble()).toList();
+    final latentMaskTensor =
+        await OrtValue.fromList(latentMaskFlat, [1, 1, latentLen]);
+
+    // Random Gaussian noise (1, latentDim, latentLen), masked.
+    var xtFlat = Float32List(_latentDim * latentLen);
+    for (var i = 0; i < xtFlat.length; i++) {
+      xtFlat[i] = _gaussian();
+    }
+    for (var d = 0; d < _latentDim; d++) {
+      for (var t = 0; t < latentLen; t++) {
+        xtFlat[d * latentLen + t] *= latentMaskFlat[t];
+      }
+    }
+    var xtTensor =
+        await OrtValue.fromList(xtFlat, [1, _latentDim, latentLen]);
+
+    // ── 4. Diffusion loop ─────────────────────────────────────────────
+    final totalStepTensor =
+        await OrtValue.fromList(Float32List.fromList([steps.toDouble()]), [1]);
+
+    for (var step = 0; step < steps; step++) {
+      if (!_speaking) return null;
+      final currentStepTensor = await OrtValue.fromList(
+        Float32List.fromList([step.toDouble()]),
+        [1],
+      );
+
+      final veOut = await veSess.run({
+        'noisy_latent': xtTensor,
+        'text_emb': textEmb,
+        'style_ttl': styleTtlTensor,
+        'text_mask': textMaskTensor,
+        'latent_mask': latentMaskTensor,
+        'current_step': currentStepTensor,
+        'total_step': totalStepTensor,
+      });
+      // The output name varies — take the first (matches helper.py's
+      // `xt, *_ = ...`).
+      xtTensor = veOut.values.first;
+    }
+
+    // ── 5. Vocoder ────────────────────────────────────────────────────
+    final vocOut = await vocSess.run({'latent': xtTensor});
+    final wav = vocOut.values.first;
+    final rawFloats = (await wav.asFlattenedList())
+        .map((e) => (e as num).toDouble())
+        .toList(growable: false);
 
     final pcm = Int16List(rawFloats.length);
     for (var i = 0; i < rawFloats.length; i++) {
@@ -218,23 +283,36 @@ class SupertonicTtsService {
     return pcm;
   }
 
-  // Character-level tokeniser. Vocab matches Supertonic py/helper.py.
-  // Characters not in the vocab are skipped.
-  // ignore: unused_field
-  static const _pad = 0;
-  static const _vocab = ' !"#\$%&\'()*+,-./0123456789:;<=>?@'
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`'
-      'abcdefghijklmnopqrstuvwxyz{|}~';
+  // ── Tokeniser ──────────────────────────────────────────────────────
 
+  /// Per Supertonic helper.py: ord(char) → unicode_indexer lookup.
+  /// Characters not in the indexer are skipped (helper.py does the
+  /// same with a default to 0 — we drop instead so PAD only appears
+  /// when explicitly intended).
   List<int> _tokenise(String text) {
-    final result = <int>[];
-    for (final code in text.codeUnits) {
-      final char = String.fromCharCode(code);
-      final idx = _vocab.indexOf(char);
-      if (idx >= 0) result.add(idx + 1); // +1 because 0 is PAD
+    final idx = _unicodeIndexer!;
+    final out = <int>[];
+    for (final code in text.runes) {
+      final tok = idx[code];
+      if (tok != null) out.add(tok);
     }
-    return result;
+    return out;
   }
+
+  // ── Random Gaussian (Box-Muller) ───────────────────────────────────
+
+  double _gaussian() {
+    // Marsaglia polar method — avoids the cos/sin of plain Box-Muller.
+    double u, v, s;
+    do {
+      u = _random.nextDouble() * 2 - 1;
+      v = _random.nextDouble() * 2 - 1;
+      s = u * u + v * v;
+    } while (s >= 1 || s == 0);
+    return u * math.sqrt(-2 * math.log(s) / s);
+  }
+
+  // ── PCM utils ──────────────────────────────────────────────────────
 
   Int16List _concatenate(List<Int16List> buffers) {
     final total = buffers.fold<int>(0, (sum, b) => sum + b.length);
@@ -250,7 +328,7 @@ class SupertonicTtsService {
   Future<void> _play(Int16List pcm) async {
     final tmpDir = await getTemporaryDirectory();
     final wavFile = File('${tmpDir.path}/supertonic_output.wav');
-    await wavFile.writeAsBytes(_buildWav(pcm, sampleRate: 22050));
+    await wavFile.writeAsBytes(_buildWav(pcm, sampleRate: _sampleRate));
 
     try {
       await _player.setFilePath(wavFile.path);
@@ -263,8 +341,7 @@ class SupertonicTtsService {
     }
   }
 
-  /// Minimal 16-bit mono PCM-WAV. Supertonic outputs 22050 Hz mono.
-  Uint8List _buildWav(Int16List pcm, {int sampleRate = 22050}) {
+  Uint8List _buildWav(Int16List pcm, {required int sampleRate}) {
     final dataBytes = pcm.length * 2;
     final buf = ByteData(44 + dataBytes);
     var o = 0;

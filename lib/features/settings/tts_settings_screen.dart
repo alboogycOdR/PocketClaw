@@ -140,8 +140,10 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     modelsReady
-                        ? 'On-device · Offline · Natural text handling'
-                        : 'Download Supertonic for offline, natural speech.',
+                        ? 'On-device · Offline · 31 languages · Natural prosody'
+                        : 'Supertonic-3 is a 4-stage on-device TTS — bigger '
+                            'download than typical (~400 MB) but completely '
+                            'offline once installed.',
                     style: const TextStyle(fontSize: 12, color: Colors.white54),
                   ),
                   if (!modelsReady && !_downloading) ...[
@@ -149,10 +151,15 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
                     FilledButton.icon(
                       onPressed: _downloadModels,
                       icon: const Icon(Icons.download, size: 16),
-                      label: const Text('Download (~75 MB)'),
+                      label: const Text('Download (~400 MB)'),
                       style: FilledButton.styleFrom(
                         backgroundColor: PocketClawTheme.bronze,
                       ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Tip: run this on Wi-Fi.',
+                      style: TextStyle(fontSize: 11, color: Colors.white38),
                     ),
                   ],
                 ],

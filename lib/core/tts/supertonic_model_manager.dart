@@ -1,9 +1,16 @@
-/// Manages Supertonic ONNX model + voice style downloads.
+/// Manages Supertonic-3 ONNX model + voice style downloads.
 ///
-/// Models live at `{app docs}/supertonic/` — keeps them separate from
-/// the GGUF chat models (`{app docs}/models/gguf/`) and the Whisper
-/// models (`{app support}/ggml-*.bin`). Voice style JSONs sit alongside
-/// the encoder/decoder so the user can browse + delete one bundle.
+/// Supertonic-3 is a 4-stage TTS pipeline (duration_predictor →
+/// text_encoder → vector_estimator (N diffusion steps) → vocoder).
+/// Models live under `huggingface.co/Supertone/supertonic-3` and are
+/// downloaded into `{app docs}/supertonic/` alongside the two config
+/// files (`tts.json`, `unicode_indexer.json`) and per-voice style
+/// JSONs.
+///
+/// Total bundle is ~400 MB — heavier than the v1 spec advertised
+/// because the published model is a 31-language diffusion model rather
+/// than the lightweight 2-stage one the original spec was written
+/// against. APK stays unaffected; this is all on-device download.
 library;
 
 import 'dart:convert';
@@ -13,7 +20,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
-const _hfBase = 'https://huggingface.co/Supertone/supertonic-2/resolve/main';
+const _hfBase = 'https://huggingface.co/Supertone/supertonic-3/resolve/main';
 
 class SupertonicVoice {
   final String id;
@@ -31,14 +38,38 @@ const kSupertonicVoices = [
   SupertonicVoice(id: 'M1', displayName: 'Male 1 — Natural', gender: 'male'),
   SupertonicVoice(id: 'M2', displayName: 'Male 2 — Warm', gender: 'male'),
   SupertonicVoice(id: 'M3', displayName: 'Male 3 — Crisp', gender: 'male'),
+  SupertonicVoice(id: 'M4', displayName: 'Male 4 — Deep', gender: 'male'),
+  SupertonicVoice(id: 'M5', displayName: 'Male 5 — Bright', gender: 'male'),
   SupertonicVoice(id: 'F1', displayName: 'Female 1 — Natural', gender: 'female'),
   SupertonicVoice(id: 'F2', displayName: 'Female 2 — Warm', gender: 'female'),
   SupertonicVoice(id: 'F3', displayName: 'Female 3 — Clear', gender: 'female'),
+  SupertonicVoice(id: 'F4', displayName: 'Female 4 — Soft', gender: 'female'),
+  SupertonicVoice(id: 'F5', displayName: 'Female 5 — Bright', gender: 'female'),
 ];
 
+/// Loaded voice style — both vectors come as flat Float32 arrays plus
+/// the original tensor shape from the JSON `dims` field.
+class SupertonicVoiceStyle {
+  final Float32List ttl;
+  final List<int> ttlDims;
+  final Float32List dp;
+  final List<int> dpDims;
+
+  SupertonicVoiceStyle({
+    required this.ttl,
+    required this.ttlDims,
+    required this.dp,
+    required this.dpDims,
+  });
+}
+
 class SupertonicModelManager {
-  static const _encoderFile = 'supertonic_encoder.onnx';
-  static const _decoderFile = 'supertonic_decoder.onnx';
+  static const _durationFile = 'duration_predictor.onnx';
+  static const _textEncoderFile = 'text_encoder.onnx';
+  static const _vectorEstFile = 'vector_estimator.onnx';
+  static const _vocoderFile = 'vocoder.onnx';
+  static const _ttsConfigFile = 'tts.json';
+  static const _unicodeIndexerFile = 'unicode_indexer.json';
 
   Future<Directory> get _modelDir async {
     final base = await getApplicationDocumentsDirectory();
@@ -47,19 +78,29 @@ class SupertonicModelManager {
     return dir;
   }
 
-  Future<String> get encoderPath async =>
-      '${(await _modelDir).path}/$_encoderFile';
+  Future<String> _pathFor(String name) async =>
+      '${(await _modelDir).path}/$name';
 
-  Future<String> get decoderPath async =>
-      '${(await _modelDir).path}/$_decoderFile';
-
-  Future<String> voicePath(String voiceId) async =>
-      '${(await _modelDir).path}/voice_$voiceId.json';
+  Future<String> get durationPath => _pathFor(_durationFile);
+  Future<String> get textEncoderPath => _pathFor(_textEncoderFile);
+  Future<String> get vectorEstPath => _pathFor(_vectorEstFile);
+  Future<String> get vocoderPath => _pathFor(_vocoderFile);
+  Future<String> get ttsConfigPath => _pathFor(_ttsConfigFile);
+  Future<String> get unicodeIndexerPath => _pathFor(_unicodeIndexerFile);
+  Future<String> voicePath(String voiceId) => _pathFor('voice_$voiceId.json');
 
   Future<bool> areModelsDownloaded() async {
-    final encoder = File(await encoderPath);
-    final decoder = File(await decoderPath);
-    return encoder.existsSync() && decoder.existsSync();
+    for (final p in [
+      await durationPath,
+      await textEncoderPath,
+      await vectorEstPath,
+      await vocoderPath,
+      await ttsConfigPath,
+      await unicodeIndexerPath,
+    ]) {
+      if (!File(p).existsSync()) return false;
+    }
+    return true;
   }
 
   Future<bool> isVoiceDownloaded(String voiceId) async {
@@ -76,21 +117,35 @@ class SupertonicModelManager {
     return total;
   }
 
+  /// Downloads the six core files (4 ONNX + 2 JSONs). Voice styles are
+  /// downloaded separately via [downloadVoice]. Reports progress as a
+  /// label string + 0..1 fraction over the whole sequence.
   Future<void> downloadModels({
     void Function(String label, double progress)? onProgress,
     VoidCallback? onComplete,
   }) async {
-    await _downloadFile(
-      url: '$_hfBase/encoder.onnx',
-      dest: File(await encoderPath),
-      onProgress: (p) => onProgress?.call('Downloading encoder…', p * 0.5),
-    );
-    await _downloadFile(
-      url: '$_hfBase/decoder.onnx',
-      dest: File(await decoderPath),
-      onProgress: (p) =>
-          onProgress?.call('Downloading decoder…', 0.5 + p * 0.5),
-    );
+    // Weighted by approximate size: vector_estimator 257 MB > vocoder
+    // 101 MB > text_encoder 36 MB > duration 3.7 MB > configs (~280 KB).
+    final steps = <(String label, String url, File dest, double weight)>[
+      ('Duration predictor (3.7 MB)…',  '$_hfBase/onnx/$_durationFile',     File(await durationPath),      0.01),
+      ('Text encoder (36 MB)…',         '$_hfBase/onnx/$_textEncoderFile',  File(await textEncoderPath),   0.09),
+      ('Vector estimator (257 MB)…',    '$_hfBase/onnx/$_vectorEstFile',    File(await vectorEstPath),     0.65),
+      ('Vocoder (101 MB)…',             '$_hfBase/onnx/$_vocoderFile',      File(await vocoderPath),       0.24),
+      ('TTS config…',                   '$_hfBase/onnx/$_ttsConfigFile',    File(await ttsConfigPath),     0.005),
+      ('Unicode indexer…',              '$_hfBase/onnx/$_unicodeIndexerFile', File(await unicodeIndexerPath), 0.005),
+    ];
+
+    var doneWeight = 0.0;
+    for (final step in steps) {
+      final start = doneWeight;
+      await _downloadFile(
+        url: step.$2,
+        dest: step.$3,
+        onProgress: (p) =>
+            onProgress?.call(step.$1, start + p * step.$4),
+      );
+      doneWeight += step.$4;
+    }
     onComplete?.call();
   }
 
@@ -130,7 +185,6 @@ class SupertonicModelManager {
         received += chunk.length;
         if (total > 0) onProgress?.call(received / total);
       }
-
       await sink.close();
       await tmp.rename(dest.path);
     } finally {
@@ -138,18 +192,64 @@ class SupertonicModelManager {
     }
   }
 
-  /// Loads voice style vectors from the downloaded JSON file.
-  Future<Map<String, List<double>>> loadVoiceStyle(String voiceId) async {
+  /// Reads the voice style JSON — Supertonic-3 wraps each vector with
+  /// `{"data": [...], "dims": [...]}` so we preserve both.
+  Future<SupertonicVoiceStyle> loadVoiceStyle(String voiceId) async {
     final file = File(await voicePath(voiceId));
     if (!file.existsSync()) {
       throw Exception(
           'Voice $voiceId not downloaded. Call downloadVoice() first.');
     }
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-    return {
-      'style_ttl': (json['style_ttl'] as List).cast<num>().map((n) => n.toDouble()).toList(),
-      'style_dp': (json['style_dp'] as List).cast<num>().map((n) => n.toDouble()).toList(),
-    };
+
+    Float32List flatten(dynamic raw) {
+      // Recursively flatten nested lists into a single flat Float32List.
+      final out = <double>[];
+      void walk(dynamic v) {
+        if (v is List) {
+          for (final e in v) {
+            walk(e);
+          }
+        } else if (v is num) {
+          out.add(v.toDouble());
+        }
+      }
+      walk(raw);
+      return Float32List.fromList(out);
+    }
+
+    final ttlSection = json['style_ttl'] as Map<String, dynamic>;
+    final dpSection = json['style_dp'] as Map<String, dynamic>;
+
+    return SupertonicVoiceStyle(
+      ttl: flatten(ttlSection['data']),
+      ttlDims: (ttlSection['dims'] as List).cast<int>(),
+      dp: flatten(dpSection['data']),
+      dpDims: (dpSection['dims'] as List).cast<int>(),
+    );
+  }
+
+  /// Loads `unicode_indexer.json` — maps each Unicode codepoint (as a
+  /// string key) to a token ID. Keys are decimal codepoints in the
+  /// shipped indexer.
+  Future<Map<int, int>> loadUnicodeIndexer() async {
+    final file = File(await unicodeIndexerPath);
+    if (!file.existsSync()) {
+      throw Exception(
+          'unicode_indexer.json not downloaded. Run downloadModels() first.');
+    }
+    final raw = jsonDecode(await file.readAsString());
+    final out = <int, int>{};
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        final key = int.tryParse(entry.key.toString());
+        final val = entry.value;
+        if (key != null && val is num) {
+          out[key] = val.toInt();
+        }
+      }
+    }
+    return out;
   }
 
   Future<void> deleteAll() async {
