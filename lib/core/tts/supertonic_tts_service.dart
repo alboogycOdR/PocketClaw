@@ -28,6 +28,7 @@
 /// from that config.
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -71,6 +72,16 @@ class SupertonicTtsService {
   List<int>? _unicodeIndexer;
   String _loadedVoiceId = '';
 
+  /// Serialises overlapping `loadModel` calls. Concurrent calls would
+  /// otherwise interleave their `_closeSessions` and `createSession`
+  /// steps and produce a state where the OrtSession references in our
+  /// fields don't match the live sessions on the native side — leading
+  /// to `PlatformException(INVALID_SESSION, "Session not found")` at
+  /// the first `session.run`. The lock is acquired synchronously
+  /// (no awaits between the null-check and the assignment) so the
+  /// Dart single-threaded event loop guarantees mutual exclusion.
+  Future<void>? _loadInFlight;
+
   bool _speaking = false;
   bool get isSpeaking => _speaking;
   String get loadedVoiceId => _loadedVoiceId;
@@ -84,33 +95,51 @@ class SupertonicTtsService {
       _unicodeIndexer != null;
 
   Future<void> loadModel({String voiceId = 'M1'}) async {
-    final mgr = supertonicModelManager;
-
-    if (!await mgr.areModelsDownloaded()) {
-      throw StateError(
-          'Supertonic models not downloaded. Call SupertonicModelManager.downloadModels() first.');
+    // Wait for any in-flight load to finish before deciding what to do.
+    while (_loadInFlight != null) {
+      await _loadInFlight;
     }
-    if (!await mgr.isVoiceDownloaded(voiceId)) {
-      throw StateError(
-          'Voice $voiceId not downloaded. Call SupertonicModelManager.downloadVoice() first.');
+    // If the previous load left us in the desired state, this is a
+    // no-op. Cheap idempotency for "Use → ▶" on the same voice.
+    if (isLoaded && _loadedVoiceId == voiceId) return;
+
+    // Claim the lock synchronously — no awaits between the null check
+    // above and the assignment below, so Dart's single-threaded event
+    // loop guarantees only one caller wins.
+    final completer = Completer<void>();
+    _loadInFlight = completer.future;
+    try {
+      final mgr = supertonicModelManager;
+
+      if (!await mgr.areModelsDownloaded()) {
+        throw StateError(
+            'Supertonic models not downloaded. Call SupertonicModelManager.downloadModels() first.');
+      }
+      if (!await mgr.isVoiceDownloaded(voiceId)) {
+        throw StateError(
+            'Voice $voiceId not downloaded. Call SupertonicModelManager.downloadVoice() first.');
+      }
+
+      await _closeSessions();
+
+      final ort = OnnxRuntime();
+      final opts = OrtSessionOptions(intraOpNumThreads: 2);
+
+      _durationSession =
+          await ort.createSession(await mgr.durationPath, options: opts);
+      _textEncoderSession =
+          await ort.createSession(await mgr.textEncoderPath, options: opts);
+      _vectorEstSession =
+          await ort.createSession(await mgr.vectorEstPath, options: opts);
+      _vocoderSession =
+          await ort.createSession(await mgr.vocoderPath, options: opts);
+      _voiceStyle = await mgr.loadVoiceStyle(voiceId);
+      _unicodeIndexer = await mgr.loadUnicodeIndexer();
+      _loadedVoiceId = voiceId;
+    } finally {
+      _loadInFlight = null;
+      completer.complete();
     }
-
-    await _closeSessions();
-
-    final ort = OnnxRuntime();
-    final opts = OrtSessionOptions(intraOpNumThreads: 2);
-
-    _durationSession =
-        await ort.createSession(await mgr.durationPath, options: opts);
-    _textEncoderSession =
-        await ort.createSession(await mgr.textEncoderPath, options: opts);
-    _vectorEstSession =
-        await ort.createSession(await mgr.vectorEstPath, options: opts);
-    _vocoderSession =
-        await ort.createSession(await mgr.vocoderPath, options: opts);
-    _voiceStyle = await mgr.loadVoiceStyle(voiceId);
-    _unicodeIndexer = await mgr.loadUnicodeIndexer();
-    _loadedVoiceId = voiceId;
   }
 
   Future<void> _closeSessions() async {
