@@ -190,10 +190,13 @@ class SupertonicTtsService {
       Float32List.fromList(List<double>.filled(textLen, 1.0)),
       [1, 1, textLen],
     );
-    final styleDpTensor =
-        await OrtValue.fromList(style.dp, [1, ...style.dpDims]);
-    final styleTtlTensor =
-        await OrtValue.fromList(style.ttl, [1, ...style.ttlDims]);
+    // The voice JSON's `dims` field is the FULL tensor shape, including
+    // the batch dimension. helper.py does `ttl_data.reshape(ttl_dims)`
+    // — no extra batch dim is prepended. v2.6.1 prepended [1, ...] here
+    // which produced wrong-rank tensors → silent audio (the vocoder ran
+    // but its conditioning was nonsense).
+    final styleDpTensor = await OrtValue.fromList(style.dp, style.dpDims);
+    final styleTtlTensor = await OrtValue.fromList(style.ttl, style.ttlDims);
 
     // ── 1. Duration predictor ─────────────────────────────────────────
     final dpOut = await dpSess.run({
@@ -276,12 +279,33 @@ class SupertonicTtsService {
         .map((e) => (e as num).toDouble())
         .toList(growable: false);
 
+    // Peak amplitude is the cheapest "did synthesis actually produce
+    // something" sanity check. Surfaced via lastDiagnostic so the UI
+    // can show it after Test Voice.
+    var peak = 0.0;
+    for (final v in rawFloats) {
+      final a = v.abs();
+      if (a > peak) peak = a;
+    }
+    _lastDiagnostic = SupertonicDiagnostic(
+      tokenCount: textLen,
+      durationSeconds: totalDurSeconds,
+      latentLen: latentLen,
+      wavSampleCount: rawFloats.length,
+      peakAmplitude: peak,
+    );
+
     final pcm = Int16List(rawFloats.length);
     for (var i = 0; i < rawFloats.length; i++) {
       pcm[i] = (rawFloats[i].clamp(-1.0, 1.0) * 32767).round();
     }
     return pcm;
   }
+
+  /// Snapshot of the last synthesis pass — useful diagnostic when
+  /// the audio is silent or distorted. Populated inside _synthesiseChunk.
+  SupertonicDiagnostic? _lastDiagnostic;
+  SupertonicDiagnostic? get lastDiagnostic => _lastDiagnostic;
 
   // ── Tokeniser ──────────────────────────────────────────────────────
 
@@ -373,3 +397,26 @@ class SupertonicTtsService {
 }
 
 final supertonicTtsService = SupertonicTtsService();
+
+/// Last-pass synthesis diagnostic. Surfaced via the TTS settings
+/// screen's Test Voice action so we can see what the pipeline
+/// produced even when playback is silent.
+class SupertonicDiagnostic {
+  final int tokenCount;
+  final double durationSeconds;
+  final int latentLen;
+  final int wavSampleCount;
+  final double peakAmplitude;
+
+  const SupertonicDiagnostic({
+    required this.tokenCount,
+    required this.durationSeconds,
+    required this.latentLen,
+    required this.wavSampleCount,
+    required this.peakAmplitude,
+  });
+
+  String toLine() =>
+      'toks=$tokenCount dur=${durationSeconds.toStringAsFixed(2)}s '
+      'lat=$latentLen wav=$wavSampleCount peak=${peakAmplitude.toStringAsFixed(3)}';
+}

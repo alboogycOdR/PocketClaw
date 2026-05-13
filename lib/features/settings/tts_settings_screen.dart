@@ -84,17 +84,33 @@ class _TtsSettingsScreenState extends ConsumerState<TtsSettingsScreen> {
   }
 
   Future<void> _testVoice(String voiceId) async {
+    String? errorMsg;
     try {
       await supertonicTtsService.loadModel(voiceId: voiceId);
       await supertonicTtsService.speak(
           'XAUUSD at \$3,234.50. The session closed at 4:45 PM Wed Apr 3.');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      errorMsg = e.toString();
     }
+    if (!mounted) return;
+    // Always show a snackbar — success or failure. Synthesis can complete
+    // without throwing but with no audible output if the conditioning
+    // tensors are wrong; the diagnostic line is the only way to see that.
+    final diag = supertonicTtsService.lastDiagnostic;
+    final text = errorMsg != null
+        ? 'Error: $errorMsg'
+        : diag == null
+            ? 'No diagnostic captured — synthesis may have aborted early.'
+            : diag.peakAmplitude < 0.001
+                ? 'Silent output (peak ${diag.peakAmplitude.toStringAsFixed(4)}). '
+                    'Pipeline ran but vocoder produced near-zero audio. '
+                    'Stats: ${diag.toLine()}'
+                : 'Played ${diag.wavSampleCount} samples '
+                    '(${(diag.wavSampleCount / 44100).toStringAsFixed(2)}s, '
+                    'peak ${diag.peakAmplitude.toStringAsFixed(3)}).';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), duration: const Duration(seconds: 8)),
+    );
   }
 
   @override
