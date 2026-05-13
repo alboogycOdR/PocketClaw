@@ -229,27 +229,24 @@ class SupertonicModelManager {
     );
   }
 
-  /// Loads `unicode_indexer.json` — maps each Unicode codepoint (as a
-  /// string key) to a token ID. Keys are decimal codepoints in the
-  /// shipped indexer.
-  Future<Map<int, int>> loadUnicodeIndexer() async {
+  /// Loads `unicode_indexer.json` — a flat JSON array where the array
+  /// position IS the Unicode codepoint and the value is the token ID
+  /// (-1 means "no mapping, skip this character"). Matches the layout
+  /// `self.indexer = json.load(f)` in py/helper.py where the
+  /// subsequent `self.indexer[ord(char)]` is positional indexing.
+  Future<List<int>> loadUnicodeIndexer() async {
     final file = File(await unicodeIndexerPath);
     if (!file.existsSync()) {
       throw Exception(
           'unicode_indexer.json not downloaded. Run downloadModels() first.');
     }
     final raw = jsonDecode(await file.readAsString());
-    final out = <int, int>{};
-    if (raw is Map) {
-      for (final entry in raw.entries) {
-        final key = int.tryParse(entry.key.toString());
-        final val = entry.value;
-        if (key != null && val is num) {
-          out[key] = val.toInt();
-        }
-      }
+    if (raw is List) {
+      return [for (final v in raw) (v is num) ? v.toInt() : -1];
     }
-    return out;
+    throw Exception(
+        'unicode_indexer.json was not a JSON array (got ${raw.runtimeType}). '
+        'Expected `[..int_tokens..]` indexed by Unicode codepoint.');
   }
 
   Future<void> deleteAll() async {

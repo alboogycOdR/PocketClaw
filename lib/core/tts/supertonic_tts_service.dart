@@ -68,7 +68,7 @@ class SupertonicTtsService {
   OrtSession? _vectorEstSession;
   OrtSession? _vocoderSession;
   SupertonicVoiceStyle? _voiceStyle;
-  Map<int, int>? _unicodeIndexer;
+  List<int>? _unicodeIndexer;
   String _loadedVoiceId = '';
 
   bool _speaking = false;
@@ -179,7 +179,18 @@ class SupertonicTtsService {
     final style = _voiceStyle!;
 
     final tokenIds = _tokenise(text);
-    if (tokenIds.isEmpty) return null;
+    if (tokenIds.isEmpty) {
+      _lastDiagnostic = const SupertonicDiagnostic(
+        tokenCount: 0,
+        durationSeconds: 0,
+        latentLen: 0,
+        wavSampleCount: 0,
+        peakAmplitude: 0,
+      );
+      throw StateError(
+          'Tokeniser produced no IDs for "${text.length > 40 ? "${text.substring(0, 40)}…" : text}" '
+          '— unicode_indexer mismatch. Indexer length=${_unicodeIndexer!.length}.');
+    }
 
     final textLen = tokenIds.length;
     final textIdsTensor = await OrtValue.fromList(
@@ -309,16 +320,17 @@ class SupertonicTtsService {
 
   // ── Tokeniser ──────────────────────────────────────────────────────
 
-  /// Per Supertonic helper.py: ord(char) → unicode_indexer lookup.
-  /// Characters not in the indexer are skipped (helper.py does the
-  /// same with a default to 0 — we drop instead so PAD only appears
-  /// when explicitly intended).
+  /// Per Supertonic helper.py: codepoint → indexer[codepoint] where the
+  /// indexer is a flat array with `-1` for "no mapping". We skip those
+  /// rather than emit PAD so unmapped characters don't insert silence
+  /// or noise tokens into the synthesis.
   List<int> _tokenise(String text) {
     final idx = _unicodeIndexer!;
     final out = <int>[];
     for (final code in text.runes) {
+      if (code < 0 || code >= idx.length) continue;
       final tok = idx[code];
-      if (tok != null) out.add(tok);
+      if (tok >= 0) out.add(tok);
     }
     return out;
   }
