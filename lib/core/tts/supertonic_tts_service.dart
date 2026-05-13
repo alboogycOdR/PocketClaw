@@ -50,10 +50,10 @@ const int _ldim = 24;
 const int _latentDim = _ldim * _chunkCompressFactor;        // 144
 const int _chunkSize = _baseChunkSize * _chunkCompressFactor; // 3072
 
-/// 8 diffusion steps is a good mobile default — Supertonic recommends
-/// 4–16 depending on target RTF. Higher = slightly better quality at
-/// linear cost.
-const int _kDefaultSteps = 8;
+/// 4 diffusion steps cuts the vector-estimator loop in half versus the
+/// 8 used by the reference Python helper. Audible quality drop is
+/// minimal for short utterances; latency drop is roughly linear.
+const int _kDefaultSteps = 4;
 
 /// 1.05 = slightly faster than neutral. Matches Supertonic helper.py.
 const double _kDefaultSpeed = 1.05;
@@ -123,7 +123,21 @@ class SupertonicTtsService {
       await _closeSessions();
 
       final ort = OnnxRuntime();
-      final opts = OrtSessionOptions(intraOpNumThreads: 2);
+      // 6 threads keeps the diffusion loop CPU-bound across modern
+      // octa-core phones without thrashing the scheduler.
+      // Provider chain: NNAPI first (hardware NPU/DSP if available),
+      // XNNPACK as a CPU-optimised fallback, plain CPU last. ORT walks
+      // the list and uses the first provider that can serve the op
+      // graph — so the chain degrades gracefully on devices without
+      // hardware acceleration.
+      final opts = OrtSessionOptions(
+        intraOpNumThreads: 6,
+        providers: const [
+          OrtProvider.NNAPI,
+          OrtProvider.XNNPACK,
+          OrtProvider.CPU,
+        ],
+      );
 
       _durationSession =
           await ort.createSession(await mgr.durationPath, options: opts);
@@ -168,16 +182,35 @@ class SupertonicTtsService {
 
       final processed = _preprocessor.process(text);
       final chunks = _chunker.chunk(processed);
+      if (chunks.isEmpty) return;
 
-      final pcmBuffers = <Int16List>[];
-      for (final chunk in chunks) {
+      // Pipeline: synthesise chunk N+1 in parallel with playback of
+      // chunk N. The first chunk pays the full synth cost, then we
+      // amortise: while the user hears chunk i, the vector estimator
+      // is already chewing on chunk i+1. For single-chunk utterances
+      // this collapses to the simple "synth then play" path.
+      Future<Int16List?>? nextSynth =
+          _synthesiseChunk(chunks[0], steps: steps, speed: speed);
+
+      for (var i = 0; i < chunks.length; i++) {
         if (!_speaking) break;
-        final pcm = await _synthesiseChunk(chunk, steps: steps, speed: speed);
-        if (pcm != null) pcmBuffers.add(pcm);
-      }
+        final pcm = await nextSynth;
 
-      if (pcmBuffers.isEmpty || !_speaking) return;
-      await _play(_concatenate(pcmBuffers));
+        // Kick off the next chunk BEFORE playback starts.
+        if (i + 1 < chunks.length && _speaking) {
+          nextSynth = _synthesiseChunk(
+            chunks[i + 1],
+            steps: steps,
+            speed: speed,
+          );
+        } else {
+          nextSynth = null;
+        }
+
+        if (pcm != null && _speaking) {
+          await _playPcm(pcm);
+        }
+      }
     } finally {
       _speaking = false;
     }
@@ -379,20 +412,16 @@ class SupertonicTtsService {
 
   // ── PCM utils ──────────────────────────────────────────────────────
 
-  Int16List _concatenate(List<Int16List> buffers) {
-    final total = buffers.fold<int>(0, (sum, b) => sum + b.length);
-    final out = Int16List(total);
-    var offset = 0;
-    for (final buf in buffers) {
-      out.setRange(offset, offset + buf.length, buf);
-      offset += buf.length;
-    }
-    return out;
-  }
+  /// Counter so concurrent chunks don't fight over the same on-disk
+  /// WAV file. Wraps at ~2^31 which is fine.
+  int _wavCounter = 0;
 
-  Future<void> _play(Int16List pcm) async {
+  Future<void> _playPcm(Int16List pcm) async {
     final tmpDir = await getTemporaryDirectory();
-    final wavFile = File('${tmpDir.path}/supertonic_output.wav');
+    // Per-chunk filenames so the previous chunk's bytes can't get
+    // partly overwritten while just_audio is still reading them.
+    final wavFile =
+        File('${tmpDir.path}/supertonic_${_wavCounter++}.wav');
     await wavFile.writeAsBytes(_buildWav(pcm, sampleRate: _sampleRate));
 
     try {
@@ -403,6 +432,12 @@ class SupertonicTtsService {
     } catch (e) {
       debugPrint('SupertonicTtsService: playback failed: $e');
       rethrow;
+    } finally {
+      // Reclaim the temp file once we're done with it. Best-effort —
+      // skip if anything goes wrong.
+      try {
+        if (wavFile.existsSync()) wavFile.deleteSync();
+      } catch (_) {}
     }
   }
 
