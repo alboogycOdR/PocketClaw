@@ -44,7 +44,7 @@ void main() {
     if (!kIsWeb) {
       try {
         SystemChrome.setSystemUIOverlayStyle(
-          const SystemUiOverlayStyle(
+          SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.light,
             systemNavigationBarColor: PocketClawTheme.deepCharcoal,
@@ -106,7 +106,7 @@ Widget _buildErrorWidget(FlutterErrorDetails details) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline,
+          Icon(Icons.error_outline,
               size: 48, color: PocketClawTheme.lobsterRed),
           const SizedBox(height: 16),
           const Text(

@@ -285,7 +285,7 @@ class _GatewayConfigState extends ConsumerState<GatewayConfig> {
                     label: const Text('Restart Gateway'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: PocketClawTheme.lobsterRed,
-                      side: const BorderSide(
+                      side: BorderSide(
                         color: PocketClawTheme.lobsterRed,
                       ),
                     ),

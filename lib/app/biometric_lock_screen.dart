@@ -87,7 +87,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
             ),
             const SizedBox(height: 32),
             if (_authenticating)
-              const CircularProgressIndicator(
+              CircularProgressIndicator(
                 color: PocketClawTheme.electricTeal,
               )
             else ...[
@@ -108,7 +108,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
               const SizedBox(height: 16),
               Text(
                 _error!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: PocketClawTheme.lobsterRed,
                   fontSize: 13,
                 ),

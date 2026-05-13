@@ -57,7 +57,7 @@ class GatewayDownBanner extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.cloud_off, size: 18, color: PocketClawTheme.warning),
+          Icon(Icons.cloud_off, size: 18, color: PocketClawTheme.warning),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -65,7 +65,7 @@ class GatewayDownBanner extends ConsumerWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: PocketClawTheme.warning,

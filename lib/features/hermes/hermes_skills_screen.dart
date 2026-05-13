@@ -63,7 +63,7 @@ class _SkillTile extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       child: ListTile(
-        leading: const Icon(
+        leading: Icon(
           Icons.extension_outlined,
           color: PocketClawTheme.electricTeal,
         ),

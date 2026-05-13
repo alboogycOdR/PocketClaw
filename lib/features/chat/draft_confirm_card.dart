@@ -163,7 +163,7 @@ class DraftConfirmCard extends StatelessWidget {
                     label: const Text('Edit'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: PocketClawTheme.electricTeal,
-                      side: const BorderSide(
+                      side: BorderSide(
                         color: PocketClawTheme.electricTeal,
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 10),

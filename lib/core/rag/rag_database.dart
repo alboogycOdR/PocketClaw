@@ -21,6 +21,26 @@ class RagDocument {
   final DateTime createdAt;
   final bool enabled;
 
+  /// Number of `rag_chunks` rows for this document. Populated by
+  /// `getDocumentsByProject` via a grouped JOIN. Zero for documents
+  /// that haven't completed the chunking phase (shouldn't happen in
+  /// practice — indexing wraps both inserts in the same code path).
+  final int chunkCount;
+
+  /// Number of `rag_embeddings` rows for this document. The badge on
+  /// the KB list compares this against [chunkCount] to label the doc
+  /// as Indexed / Partial / Text-only.
+  final int embeddingCount;
+
+  /// True when every chunk has an embedding — the document is queryable
+  /// via semantic search.
+  bool get isFullyIndexed => chunkCount > 0 && embeddingCount >= chunkCount;
+
+  /// True when chunks exist but no embeddings — the document was
+  /// indexed without a local model loaded (v2.3.x behaviour, or a
+  /// v2.4.x add with no GGUF active).
+  bool get isTextOnly => chunkCount > 0 && embeddingCount == 0;
+
   const RagDocument({
     required this.id,
     required this.projectId,
@@ -29,6 +49,8 @@ class RagDocument {
     required this.size,
     required this.createdAt,
     required this.enabled,
+    this.chunkCount = 0,
+    this.embeddingCount = 0,
   });
 
   factory RagDocument.fromMap(Map<String, dynamic> m) => RagDocument(
@@ -39,6 +61,8 @@ class RagDocument {
         size: m['size'] as int,
         createdAt: DateTime.parse(m['created_at'] as String),
         enabled: (m['enabled'] as int) == 1,
+        chunkCount: (m['chunk_count'] as int?) ?? 0,
+        embeddingCount: (m['embedding_count'] as int?) ?? 0,
       );
 }
 
@@ -171,12 +195,20 @@ class RagDatabase {
 
   Future<List<RagDocument>> getDocumentsByProject(String projectId) async {
     await ensureReady();
-    final rows = await _d.query(
-      'rag_documents',
-      where: 'project_id = ?',
-      whereArgs: [projectId],
-      orderBy: 'created_at DESC',
-    );
+    // Single round-trip: pull each document's chunk and embedding
+    // counts via correlated subqueries so the KB list can render the
+    // "Indexed / Text-only / Partial X/Y" badge without an N+1.
+    final rows = await _d.rawQuery('''
+      SELECT
+        d.*,
+        (SELECT COUNT(*) FROM rag_chunks c WHERE c.doc_id = d.id)
+            AS chunk_count,
+        (SELECT COUNT(*) FROM rag_embeddings e WHERE e.doc_id = d.id)
+            AS embedding_count
+      FROM rag_documents d
+      WHERE d.project_id = ?
+      ORDER BY d.created_at DESC
+    ''', [projectId]);
     return rows.map(RagDocument.fromMap).toList();
   }
 

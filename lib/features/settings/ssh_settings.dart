@@ -153,7 +153,7 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.terminal,
+                      Icon(Icons.terminal,
                           color: PocketClawTheme.electricTeal),
                       const SizedBox(width: 8),
                       Text(

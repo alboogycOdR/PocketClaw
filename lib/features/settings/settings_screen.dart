@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../app/theme_provider.dart';
 import '../../core/coaching/grow_state_machine.dart';
 import '../../data/models/openclaw_models.dart';
 import '../../data/providers/academy_providers.dart';
@@ -344,11 +345,12 @@ class _WorkspaceTab extends ConsumerWidget {
 
 // ── Tab 4: App (Modes · Security · About) ────────────────────────────────
 
-class _AppTab extends StatelessWidget {
+class _AppTab extends ConsumerWidget {
   const _AppTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeId = ref.watch(themeIdProvider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -356,6 +358,17 @@ class _AppTab extends StatelessWidget {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('Theme'),
+                subtitle: Text(
+                  themeId.displayName,
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => _pickTheme(context, ref, themeId),
+              ),
+              const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.school_outlined),
                 title: const Text('Academy Mode'),
@@ -501,6 +514,48 @@ class _AppTab extends StatelessWidget {
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  Future<void> _pickTheme(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeId current,
+  ) async {
+    final picked = await showModalBottomSheet<ThemeId>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Choose a theme',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              for (final id in ThemeId.values)
+                RadioListTile<ThemeId>(
+                  value: id,
+                  groupValue: current,
+                  title: Text(id.displayName),
+                  onChanged: (v) => Navigator.of(sheet).pop(v),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      await ref.read(themeIdProvider.notifier).setTheme(picked);
+    }
   }
 }
 
@@ -671,7 +726,7 @@ class _AcademyStatusLine extends ConsumerWidget {
     return Text(
       '${state.subject} · ${state.level}'
       '${state.streakDays > 0 ? " · ${state.streakDays}🔥" : ""}',
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         color: PocketClawTheme.electricTeal,
       ),
@@ -697,7 +752,7 @@ class _LifeArchitectStatusLine extends ConsumerWidget {
         : '';
     return Text(
       'Active · GROW: ${grow.currentPhase.name.toUpperCase()}$facetSuffix',
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         color: PocketClawTheme.electricTeal,
       ),

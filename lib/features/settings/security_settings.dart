@@ -160,7 +160,7 @@ class _SecuritySettingsState extends ConsumerState<SecuritySettings> {
           Card(
             margin: EdgeInsets.zero,
             child: ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.delete_forever,
                 color: PocketClawTheme.lobsterRed,
               ),

@@ -75,7 +75,7 @@ class HermesManagementScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
                 size: 36,
                 color: PocketClawTheme.lobsterRed,

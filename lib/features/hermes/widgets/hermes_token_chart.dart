@@ -75,9 +75,9 @@ class _Chart extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: const [
+          children: [
             _LegendDot(color: PocketClawTheme.electricTeal, label: 'Input'),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             _LegendDot(color: PocketClawTheme.lobsterRed, label: 'Output'),
           ],
         ),

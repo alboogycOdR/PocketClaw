@@ -324,7 +324,7 @@ class _AssistantMarkdown extends StatelessWidget {
         codeblockPadding: const EdgeInsets.all(12),
         codeblockAlign: WrapAlignment.start,
         // Links
-        a: const TextStyle(
+        a: TextStyle(
           color: PocketClawTheme.electricTeal,
           decoration: TextDecoration.underline,
         ),

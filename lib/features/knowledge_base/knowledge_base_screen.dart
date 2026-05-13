@@ -99,6 +99,57 @@ class KnowledgeBaseScreen extends ConsumerWidget {
   }
 }
 
+/// Small status chip rendered next to the document size on the KB list.
+/// Tells the user at a glance whether semantic search will actually
+/// hit this doc:
+///   - "Indexed"   (green)  — every chunk has an embedding
+///   - "Text only" (amber)  — chunks exist, zero embeddings (no model
+///                            was loaded when the doc was indexed)
+///   - "Partial N/M" (amber) — embedding pass was interrupted partway
+class _IndexStatusBadge extends StatelessWidget {
+  final RagDocument doc;
+  const _IndexStatusBadge({required this.doc});
+
+  @override
+  Widget build(BuildContext context) {
+    final String label;
+    final Color color;
+    if (doc.chunkCount == 0) {
+      // Document row exists but no chunks. Shouldn't happen in practice
+      // — index() inserts chunks before embeddings — but handle gracefully.
+      label = 'No chunks';
+      color = PocketClawTheme.lobsterRed;
+    } else if (doc.isFullyIndexed) {
+      label = 'Indexed';
+      color = PocketClawTheme.success;
+    } else if (doc.isTextOnly) {
+      label = 'Text only';
+      color = PocketClawTheme.warning;
+    } else {
+      label = 'Partial ${doc.embeddingCount}/${doc.chunkCount}';
+      color = PocketClawTheme.warning;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(40),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(120), width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
 class _DocCard extends ConsumerWidget {
   final RagDocument doc;
   final String projectId;
@@ -170,13 +221,23 @@ class _DocCard extends ConsumerWidget {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      '${formatBytes(doc.size)} · '
-                      '${doc.enabled ? "enabled" : "disabled"}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.white54,
-                      ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _IndexStatusBadge(doc: doc),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '${formatBytes(doc.size)} · '
+                            '${doc.enabled ? "enabled" : "disabled"}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white54,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
