@@ -1,7 +1,7 @@
 name: clawcommander
 description: "ClawCommander - Mobile AI Agent Command Centre"
 publish_to: 'none'
-version: 2.5.0+9
+version: 2.6.0+10
 
 environment:
   sdk: ^3.11.4
@@ -70,6 +70,14 @@ dependencies:
   # Using the upstream `whisper_ggml` instead; same API surface,
   # works on Android.
   whisper_ggml: ^1.7.0
+
+  # Supertonic TTS (on-device ONNX). Replaces flutter_tts as the
+  # primary TTS engine when models are downloaded; flutter_tts stays
+  # as the cold-start fallback. ProGuard keep rule for
+  # `ai.onnxruntime.**` lives in android/app/proguard-rules.pro.
+  flutter_onnxruntime: ^1.7.0
+  just_audio: ^0.9.40
+
   http: ^1.2.0
 
   # Math

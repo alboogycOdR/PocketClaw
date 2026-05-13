@@ -38,6 +38,7 @@ import 'security_settings.dart';
 import 'ssh_settings.dart';
 import 'storage_settings_screen.dart';
 import 'voice_settings_screen.dart';
+import '../../data/providers/tts_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -416,6 +417,14 @@ class _AppTab extends ConsumerWidget {
               ),
               const _ListDivider(),
               ListTile(
+                leading: const Icon(Icons.record_voice_over_outlined),
+                title: const Text('Voice & TTS'),
+                subtitle: const _TtsStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/tts'),
+              ),
+              const _ListDivider(),
+              ListTile(
                 leading: const Icon(Icons.storage_outlined),
                 title: const Text('Storage'),
                 subtitle: const Text(
@@ -729,6 +738,26 @@ class _AcademyStatusLine extends ConsumerWidget {
       style: TextStyle(
         fontSize: 12,
         color: PocketClawTheme.electricTeal,
+      ),
+    );
+  }
+}
+
+class _TtsStatusLine extends ConsumerWidget {
+  const _TtsStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final readyAsync = ref.watch(supertonicModelsReadyProvider);
+    final voice = ref.watch(activeVoiceIdProvider);
+    final ready = readyAsync.valueOrNull ?? false;
+    return Text(
+      ready
+          ? 'Supertonic · $voice · Offline'
+          : 'System TTS · Tap to upgrade',
+      style: TextStyle(
+        fontSize: 12,
+        color: ready ? PocketClawTheme.electricTeal : Colors.white54,
       ),
     );
   }

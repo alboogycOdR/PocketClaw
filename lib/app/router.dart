@@ -28,6 +28,7 @@ import '../features/mission_control/dashboard_screen.dart';
 import '../features/mission_control/sessions_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/tts_settings_screen.dart';
 import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
 import '../features/skills/skills_screen.dart';
@@ -77,6 +78,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/academy',
       builder: (context, state) => const AcademyScreen(),
+    ),
+    GoRoute(
+      path: '/settings/tts',
+      builder: (context, state) => const TtsSettingsScreen(),
     ),
     GoRoute(
       path: '/knowledge-base',

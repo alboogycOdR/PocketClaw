@@ -1,60 +1,78 @@
-/// Wraps flutter_tts for text-to-speech output
+/// Text-to-speech service — hybrid Supertonic + flutter_tts.
+///
+/// Uses Supertonic (on-device ONNX) when models are downloaded and the
+/// engine is loaded. Falls back to flutter_tts (Android system TTS)
+/// otherwise. Call sites (`speak`, `stop`, `dispose`) are unchanged —
+/// they work identically regardless of which engine is active.
 library;
 
 import 'package:flutter_tts/flutter_tts.dart';
 
 import '../local_agent/tool_executor.dart';
+import '../tts/supertonic_tts_service.dart';
 
 class TtsService {
-  final FlutterTts _tts = FlutterTts();
-  bool _initialised = false;
+  final FlutterTts _systemTts = FlutterTts();
+  bool _systemInitialised = false;
 
-  Future<void> _ensureInit() async {
-    if (_initialised) return;
+  bool get _useSupertonic => supertonicTtsService.isLoaded;
 
-    await _tts.setVolume(1.0);
-    await _tts.setSpeechRate(0.5);
-    await _tts.setPitch(1.0);
-
-    _initialised = true;
-  }
-
-  /// Speaks [text] aloud using the device TTS engine.
-  ///
-  /// [language] is a BCP-47 language tag (e.g. "en-US", "af-ZA", "zu-ZA").
   Future<ToolResult> speak(String text, {String language = 'en'}) async {
+    if (text.trim().isEmpty) return ToolResult.ok('Nothing to speak.');
+
     try {
-      await _ensureInit();
-
-      // Attempt to set the requested language; fall back silently.
-      final langResult = await _tts.setLanguage(language);
-      if (langResult != 1) {
-        // Language not available — try a broader match.
-        final base = language.split('-').first;
-        await _tts.setLanguage(base);
+      if (_useSupertonic) {
+        await supertonicTtsService.speak(text);
+        final wordCount = text.split(RegExp(r'\s+')).length;
+        return ToolResult.ok(
+          'Speaking $wordCount words via Supertonic.',
+          data: {'wordCount': wordCount, 'engine': 'supertonic'},
+        );
       }
-
-      final speakResult = await _tts.speak(text);
-      if (speakResult != 1) {
-        return ToolResult.error('TTS engine refused to speak.');
-      }
-
-      final wordCount = text.split(RegExp(r'\s+')).length;
-      return ToolResult.ok(
-        'Speaking $wordCount words in $language.',
-        data: {'wordCount': wordCount, 'language': language},
-      );
+      return await _speakSystem(text, language: language);
     } catch (e) {
+      // If Supertonic fails mid-speak, fall back to the system engine
+      // for THIS call so the user still hears something. Don't
+      // permanently disable Supertonic — the next call retries it.
+      if (_useSupertonic) {
+        try {
+          return await _speakSystem(text, language: language);
+        } catch (_) {}
+      }
       return ToolResult.error('Text-to-speech failed: $e');
     }
   }
 
-  /// Stops any ongoing speech.
   Future<void> stop() async {
-    await _tts.stop();
+    if (_useSupertonic) {
+      await supertonicTtsService.stop();
+    } else {
+      await _systemTts.stop();
+    }
   }
 
   void dispose() {
-    _tts.stop();
+    supertonicTtsService.dispose();
+    _systemTts.stop();
+  }
+
+  Future<ToolResult> _speakSystem(String text, {String language = 'en'}) async {
+    if (!_systemInitialised) {
+      await _systemTts.setVolume(1.0);
+      await _systemTts.setSpeechRate(0.5);
+      await _systemTts.setPitch(1.0);
+      _systemInitialised = true;
+    }
+    final langResult = await _systemTts.setLanguage(language);
+    if (langResult != 1) {
+      await _systemTts.setLanguage(language.split('-').first);
+    }
+    final result = await _systemTts.speak(text);
+    if (result != 1) return ToolResult.error('System TTS refused to speak.');
+    final wordCount = text.split(RegExp(r'\s+')).length;
+    return ToolResult.ok(
+      'Speaking $wordCount words via system TTS.',
+      data: {'wordCount': wordCount, 'engine': 'system'},
+    );
   }
 }

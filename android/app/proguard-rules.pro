@@ -62,6 +62,17 @@
 -dontwarn com.arthenica.**
 
 # ═══════════════════════════════════════════════════════════════════════════
+# flutter_onnxruntime + Supertonic TTS (added 2026-05-13, v2.6.0). ONNX
+# Runtime registers JNI methods on `ai.onnxruntime.*` classes — stripping
+# them via R8 hangs the app on splash the same way whisper_ggml did.
+# ═══════════════════════════════════════════════════════════════════════════
+-keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** {
+    native <methods>;
+}
+-dontwarn ai.onnxruntime.**
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Play Core (referenced by Flutter's deferred components even when unused)
 # ═══════════════════════════════════════════════════════════════════════════
 -dontwarn com.google.android.play.core.splitcompat.**
