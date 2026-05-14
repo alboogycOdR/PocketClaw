@@ -6,20 +6,37 @@ import 'package:flutter/material.dart';
 class SoundChannel {
   final String id;
   final String label;
-  final String assetFile; // relative to assets/sounds/
+
+  /// Relative path under `assets/sounds/`. Null when the channel is
+  /// procedurally generated (see [proceduralKind]).
+  final String? assetFile;
+
+  /// When non-null, the engine synthesises this kind of noise on-device
+  /// at first play instead of loading a bundled asset. Valid values are
+  /// in `NoiseGenerator.supportedNoiseKinds` — currently `white`,
+  /// `pink`, `brown`, `low`, `mid`, `high`.
+  final String? proceduralKind;
+
   final double defaultVolume;
 
   const SoundChannel({
     required this.id,
     required this.label,
-    required this.assetFile,
     required this.defaultVolume,
-  });
+    this.assetFile,
+    this.proceduralKind,
+  }) : assert(
+          assetFile != null || proceduralKind != null,
+          'SoundChannel needs either an assetFile or a proceduralKind',
+        );
+
+  bool get isProcedural => proceduralKind != null;
 
   factory SoundChannel.fromJson(Map<String, dynamic> json) => SoundChannel(
         id: json['id'] as String,
         label: json['label'] as String,
-        assetFile: json['file'] as String,
+        assetFile: json['file'] as String?,
+        proceduralKind: json['procedural'] as String?,
         defaultVolume: (json['defaultVolume'] as num).toDouble(),
       );
 }

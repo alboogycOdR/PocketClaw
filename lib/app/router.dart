@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
+import '../features/ambient/ambient_mini_player.dart';
 import '../features/ambient/ambient_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/knowledge_base/knowledge_base_screen.dart';
@@ -240,7 +241,13 @@ class _AppShell extends ConsumerWidget {
 
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mini-player — sits above the nav bar when Focus or Radio
+          // is active. Collapses to zero height otherwise.
+          const AmbientMiniPlayer(),
+          NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
           navigationShell.goBranch(
@@ -280,6 +287,8 @@ class _AppShell extends ConsumerWidget {
             selectedIcon: Icon(Icons.spa),
             label: 'Ambient',
           ),
+        ],
+      ),
         ],
       ),
     );

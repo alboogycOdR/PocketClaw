@@ -18,6 +18,20 @@ import '../../features/ambient/models/radio_models.dart';
 class RadioGardenService {
   static const _base = 'https://radio.garden/api';
 
+  /// Browser-like headers. The site's edge (Cloudflare) returns HTTP
+  /// 403 to the bare `Dart/<version>` User-Agent the http package
+  /// sends by default. Mimicking a real Chrome on Android + sending
+  /// the matching Referer gets through. If they crack down further
+  /// we may need to rotate UAs or move to a proxy.
+  static const Map<String, String> _headers = {
+    'User-Agent':
+        'Mozilla/5.0 (Linux; Android 14; ClawCommander) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://radio.garden/',
+  };
+
   final http.Client _http;
   List<RadioPlace>? _placesCache;
   DateTime? _placesCacheAt;
@@ -33,7 +47,10 @@ class RadioGardenService {
         DateTime.now().difference(_placesCacheAt!) < const Duration(hours: 24)) {
       return _placesCache!;
     }
-    final res = await _http.get(Uri.parse('$_base/ara/content/places'));
+    final res = await _http.get(
+      Uri.parse('$_base/ara/content/places'),
+      headers: _headers,
+    );
     if (res.statusCode != 200) {
       throw Exception('Radio Garden: HTTP ${res.statusCode} on /places');
     }
@@ -51,8 +68,10 @@ class RadioGardenService {
 
   /// Channels (stations) broadcasting from a specific place.
   Future<List<RadioChannel>> channelsForPlace(String placeId) async {
-    final res = await _http
-        .get(Uri.parse('$_base/ara/content/page/$placeId/channels'));
+    final res = await _http.get(
+      Uri.parse('$_base/ara/content/page/$placeId/channels'),
+      headers: _headers,
+    );
     if (res.statusCode != 200) {
       throw Exception(
           'Radio Garden: HTTP ${res.statusCode} on /page/$placeId/channels');
@@ -83,6 +102,7 @@ class RadioGardenService {
     if (trimmed.isEmpty) return const [];
     final res = await _http.get(
       Uri.parse('$_base/search?q=${Uri.encodeQueryComponent(trimmed)}'),
+      headers: _headers,
     );
     if (res.statusCode != 200) {
       throw Exception('Radio Garden: HTTP ${res.statusCode} on /search');

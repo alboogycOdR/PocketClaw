@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../../features/ambient/models/sound_scene.dart';
+import 'noise_generator.dart';
 
 class FocusSoundEngine {
   static const int kChannelCount = 10;
@@ -59,10 +60,18 @@ class FocusSoundEngine {
       try {
         await player.setVolume(_volumes[i] * _masterVolume);
         await player.setReleaseMode(ReleaseMode.loop);
-        await player.play(AssetSource('sounds/${channel.assetFile}'));
+
+        final Source source;
+        if (channel.isProcedural) {
+          final path = await NoiseGenerator.wavPathFor(channel.proceduralKind!);
+          source = DeviceFileSource(path);
+        } else {
+          source = AssetSource('sounds/${channel.assetFile}');
+        }
+        await player.play(source);
       } catch (e) {
-        // Missing audio asset is the v2.8.0 expected state — keep
-        // the rest of the scene playing.
+        // Missing audio asset is the v2.8.0 expected state for the
+        // bundled scenes — keep the rest of the scene playing.
         debugPrint('FocusSoundEngine: channel $i (${channel.label}) failed: $e');
       }
     }

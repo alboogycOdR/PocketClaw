@@ -69,7 +69,9 @@ class FocusSoundSection extends ConsumerWidget {
           ),
         ),
 
-        // Notice: audio assets not bundled.
+        // Notice: only the procedural scene is fully wired today.
+        // Asset-backed scenes (Rain, Coffee Shop, etc.) still need
+        // MP3 files at assets/sounds/<scene>/*.mp3.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Container(
@@ -86,9 +88,9 @@ class FocusSoundSection extends ConsumerWidget {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Audio loops aren\'t bundled yet. The mixer is '
-                    'wired — drop MP3 files at '
-                    'assets/sounds/<scene>/<channel>.mp3 to activate.',
+                    'Only "Noise Bands" plays out of the box (synthesised '
+                    'on-device). Other scenes need MP3 loops at '
+                    'assets/sounds/<scene>/<channel>.mp3.',
                     style: TextStyle(
                         fontSize: 11, color: Colors.white70, height: 1.4),
                   ),

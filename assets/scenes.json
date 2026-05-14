@@ -2,6 +2,22 @@
   "version": "1.0.0",
   "scenes": [
     {
+      "id": "procedural_noise",
+      "displayName": "Noise Bands",
+      "emoji": "Noise",
+      "description": "On-device noise synthesis — white, pink, brown plus low / mid / high bands. Plays immediately, no asset download.",
+      "category": "focus",
+      "color": "#6B6B6B",
+      "channels": [
+        { "id": "ch0", "label": "White",      "procedural": "white", "defaultVolume": 0.35 },
+        { "id": "ch1", "label": "Pink",       "procedural": "pink",  "defaultVolume": 0.45 },
+        { "id": "ch2", "label": "Brown",      "procedural": "brown", "defaultVolume": 0.5  },
+        { "id": "ch3", "label": "Low",        "procedural": "low",   "defaultVolume": 0.25 },
+        { "id": "ch4", "label": "Mid",        "procedural": "mid",   "defaultVolume": 0.2  },
+        { "id": "ch5", "label": "High",       "procedural": "high",  "defaultVolume": 0.15 }
+      ]
+    },
+    {
       "id": "rain_on_glass",
       "displayName": "Rain on Glass",
       "emoji": "Rain",
