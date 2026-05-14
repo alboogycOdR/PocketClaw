@@ -21,6 +21,7 @@ import '../../data/providers/tts_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
+import '../../shared/widgets/settings_gear_button.dart';
 import 'chat_bubble.dart';
 import 'chat_mode_selector.dart';
 import 'command_catalog.dart';
@@ -647,6 +648,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
+          const SettingsGearButton(),
           // Active server picker — tappable AgentScopeBadge opens a
           // bottom-sheet to switch OpenClaw / Hermes / Local from any
           // tab.

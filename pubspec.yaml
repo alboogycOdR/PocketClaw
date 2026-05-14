@@ -1,7 +1,7 @@
 name: clawcommander
 description: "ClawCommander - Mobile AI Agent Command Centre"
 publish_to: 'none'
-version: 2.7.1+18
+version: 2.8.0+19
 
 environment:
   sdk: ^3.11.4
@@ -78,6 +78,15 @@ dependencies:
   flutter_onnxruntime: ^1.7.0
   just_audio: ^0.9.40
 
+  # Ambient tab — multi-channel Focus Sound mixer + World Radio (v2.8.0).
+  # audioplayers handles N simultaneous channels per scene; just_audio
+  # (already loaded for Supertonic TTS) handles the radio stream.
+  # audio_session coordinates ducking between Focus, Radio, and TTS.
+  audioplayers: ^6.6.0
+  audio_session: ^0.1.25  # pinned by just_audio 0.9.x
+  flutter_map: ^8.3.0
+  latlong2: ^0.9.1  # pinned by flutter_map 8.3.0
+
   http: ^1.2.0
 
   # Math
@@ -116,6 +125,7 @@ flutter:
     - assets/skills/
     - assets/images/.gitkeep
     - assets/model_allowlist.json
+    - assets/scenes.json
 
   fonts:
     - family: JetBrainsMono

@@ -15,6 +15,7 @@ import '../../data/providers/core_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
+import '../../shared/widgets/settings_gear_button.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../hermes/hermes_memory_screen.dart';
 import 'note_editor.dart';
@@ -153,6 +154,7 @@ class _OpenClawMemoryScreenState extends ConsumerState<_OpenClawMemoryScreen>
               );
             },
           ),
+          const SettingsGearButton(),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -616,6 +618,7 @@ class _LocalMemoryView extends ConsumerWidget {
               );
             },
           ),
+          const SettingsGearButton(),
         ],
       ),
       body: _LocalNotesGrid(),

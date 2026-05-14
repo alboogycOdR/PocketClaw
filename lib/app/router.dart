@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
+import '../features/ambient/ambient_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/knowledge_base/knowledge_base_screen.dart';
 import '../features/swarm/office_view_screen.dart';
@@ -82,6 +83,13 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/tts',
       builder: (context, state) => const TtsSettingsScreen(),
+    ),
+    // Settings root — pushed onto the shell from the AppBar gear icon
+    // on every top-level screen. Moved out of the bottom nav in v2.8.0
+    // to make room for the Ambient tab.
+    GoRoute(
+      path: '/settings',
+      builder: (context, state) => const SettingsScreen(),
     ),
     GoRoute(
       path: '/knowledge-base',
@@ -204,12 +212,15 @@ final GoRouter appRouter = GoRouter(
         //   ],
         // ),
 
-        // Settings tab
+        // Ambient tab — Focus Sounds + World Radio. Replaces the
+        // old Settings shell branch as of v2.8.0; Settings moved out
+        // of the bottom nav to a per-screen AppBar gear icon (and a
+        // top-level /settings route outside the shell).
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/settings',
-              builder: (context, state) => const SettingsScreen(),
+              path: '/ambient',
+              builder: (context, state) => const AmbientScreen(),
             ),
           ],
         ),
@@ -265,9 +276,9 @@ class _AppShell extends ConsumerWidget {
             label: 'Skills',
           ),
           const NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: Icon(Icons.spa_outlined),
+            selectedIcon: Icon(Icons.spa),
+            label: 'Ambient',
           ),
         ],
       ),

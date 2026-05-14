@@ -1,0 +1,45 @@
+{
+  "version": "1.0.0",
+  "scenes": [
+    {
+      "id": "rain_on_glass",
+      "displayName": "Rain on Glass",
+      "emoji": "Rain",
+      "description": "Deep rain, distant thunder, window patter",
+      "category": "calm",
+      "color": "#4A6FA5",
+      "channels": [
+        { "id": "ch0", "label": "Heavy Rain",   "file": "rain/heavy.mp3",      "defaultVolume": 0.6 },
+        { "id": "ch1", "label": "Light Rain",   "file": "rain/light.mp3",      "defaultVolume": 0.4 },
+        { "id": "ch2", "label": "Thunder",      "file": "rain/thunder.mp3",    "defaultVolume": 0.2 },
+        { "id": "ch3", "label": "Window",       "file": "rain/window.mp3",     "defaultVolume": 0.5 },
+        { "id": "ch4", "label": "Drips",        "file": "rain/drips.mp3",      "defaultVolume": 0.3 },
+        { "id": "ch5", "label": "Wind",         "file": "rain/wind.mp3",       "defaultVolume": 0.2 },
+        { "id": "ch6", "label": "Puddles",      "file": "rain/puddles.mp3",    "defaultVolume": 0.1 },
+        { "id": "ch7", "label": "Gutters",      "file": "rain/gutters.mp3",    "defaultVolume": 0.2 },
+        { "id": "ch8", "label": "Far Thunder",  "file": "rain/far_thunder.mp3","defaultVolume": 0.1 },
+        { "id": "ch9", "label": "Calm Hum",     "file": "rain/hum.mp3",        "defaultVolume": 0.3 }
+      ]
+    },
+    {
+      "id": "coffee_shop",
+      "displayName": "Coffee Shop",
+      "emoji": "Cafe",
+      "description": "Soft chatter, espresso machines, ambient warmth",
+      "category": "work",
+      "color": "#8B5E3C",
+      "channels": [
+        { "id": "ch0", "label": "Chatter",   "file": "coffee_shop/chatter.mp3",  "defaultVolume": 0.5 },
+        { "id": "ch1", "label": "Espresso",  "file": "coffee_shop/espresso.mp3", "defaultVolume": 0.3 },
+        { "id": "ch2", "label": "Cups",      "file": "coffee_shop/cups.mp3",     "defaultVolume": 0.2 },
+        { "id": "ch3", "label": "Music",     "file": "coffee_shop/music.mp3",    "defaultVolume": 0.4 },
+        { "id": "ch4", "label": "Door",      "file": "coffee_shop/door.mp3",     "defaultVolume": 0.1 },
+        { "id": "ch5", "label": "HVAC",      "file": "coffee_shop/hvac.mp3",     "defaultVolume": 0.3 },
+        { "id": "ch6", "label": "Rain Out",  "file": "coffee_shop/rain.mp3",     "defaultVolume": 0.2 },
+        { "id": "ch7", "label": "Street",    "file": "coffee_shop/street.mp3",   "defaultVolume": 0.1 },
+        { "id": "ch8", "label": "Steps",     "file": "coffee_shop/steps.mp3",    "defaultVolume": 0.1 },
+        { "id": "ch9", "label": "Warmth",    "file": "coffee_shop/warmth.mp3",   "defaultVolume": 0.5 }
+      ]
+    }
+  ]
+}
