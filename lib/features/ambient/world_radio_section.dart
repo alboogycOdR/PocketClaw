@@ -6,6 +6,8 @@
 /// place-browser + player.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +15,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../core/ambient/radio_garden_service.dart';
 import '../../data/providers/ambient_providers.dart';
+import 'models/favorite_station.dart';
 import 'models/radio_models.dart';
 
 class WorldRadioSection extends ConsumerStatefulWidget {
@@ -24,10 +27,12 @@ class WorldRadioSection extends ConsumerStatefulWidget {
 
 class _WorldRadioSectionState extends ConsumerState<WorldRadioSection> {
   final _searchController = TextEditingController();
+  StreamSubscription? _icySub;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _icySub?.cancel();
     super.dispose();
   }
 
@@ -35,6 +40,24 @@ class _WorldRadioSectionState extends ConsumerState<WorldRadioSection> {
   Widget build(BuildContext context) {
     final query = ref.watch(radioSearchQueryProvider);
     final activeChannel = ref.watch(activeRadioChannelProvider);
+
+    // Subscribe to ICY metadata (artist/song info embedded in some
+    // streams) whenever the active channel flips. Broadcasters either
+    // send this every ~10s or not at all; the now-playing line on the
+    // card just hides when nothing has arrived.
+    ref.listen<RadioChannel?>(activeRadioChannelProvider, (prev, next) {
+      _icySub?.cancel();
+      _icySub = null;
+      ref.read(radioNowPlayingProvider.notifier).state = null;
+      if (next == null) return;
+      final player = ref.read(radioPlayerProvider);
+      _icySub = player.icyMetadataStream.listen((meta) {
+        final title = meta?.info?.title;
+        if (title == null || title.isEmpty) return;
+        if (!mounted) return;
+        ref.read(radioNowPlayingProvider.notifier).state = title;
+      });
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,11 +116,93 @@ class _WorldRadioSectionState extends ConsumerState<WorldRadioSection> {
 
         const SizedBox(height: 8),
 
+        // Favorites — only renders when there's anything starred.
+        const _FavoritesSection(),
+
         // Results / browse list
         if (query.trim().length >= 2)
           _SearchResults(query: query)
         else
           const _PopularPlaces(),
+      ],
+    );
+  }
+}
+
+class _FavoritesSection extends ConsumerWidget {
+  const _FavoritesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favs = ref.watch(radioFavoritesProvider);
+    if (favs.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          child: Row(
+            children: [
+              Icon(Icons.star,
+                  size: 14, color: PocketClawTheme.electricTeal),
+              const SizedBox(width: 6),
+              Text(
+                'Favorites',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: PocketClawTheme.onSurfaceMuted,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (final fav in favs)
+          ListTile(
+            dense: true,
+            leading: Icon(Icons.radio,
+                size: 18, color: PocketClawTheme.electricTeal),
+            title: Text(fav.title,
+                style: const TextStyle(fontSize: 13)),
+            subtitle: Text(
+              '${fav.placeTitle}${fav.country.isEmpty ? '' : ' · ${fav.country}'}',
+              style: const TextStyle(fontSize: 10, color: Colors.white54),
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  iconSize: 18,
+                  icon: const Icon(Icons.star, color: Colors.amber),
+                  tooltip: 'Unfavorite',
+                  onPressed: () => ref
+                      .read(radioFavoritesProvider.notifier)
+                      .remove(fav.channelId),
+                ),
+                Icon(Icons.play_arrow,
+                    color: PocketClawTheme.electricTeal),
+              ],
+            ),
+            onTap: () async {
+              final channel = RadioChannel(
+                id: fav.channelId,
+                title: fav.title,
+                country: fav.country,
+                placeTitle: fav.placeTitle,
+              );
+              final player = ref.read(radioPlayerProvider);
+              ref.read(activeRadioChannelProvider.notifier).state = channel;
+              try {
+                await player.setUrl(channel.streamUrl);
+                await player.play();
+              } catch (_) {
+                ref.read(activeRadioChannelProvider.notifier).state = null;
+              }
+            },
+          ),
+        const SizedBox(height: 4),
+        const Divider(height: 1, indent: 16, endIndent: 16),
       ],
     );
   }
@@ -110,6 +215,9 @@ class _NowPlayingCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final player = ref.watch(radioPlayerProvider);
+    final nowPlaying = ref.watch(radioNowPlayingProvider);
+    final isFav =
+        ref.watch(radioFavoritesProvider).any((f) => f.channelId == channel.id);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -127,14 +235,54 @@ class _NowPlayingCard extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                   Text(
-                    '${channel.placeTitle} · ${channel.country}',
+                    channel.country.isEmpty
+                        ? channel.placeTitle
+                        : '${channel.placeTitle} · ${channel.country}',
                     style: const TextStyle(
                         fontSize: 11, color: Colors.white54),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (nowPlaying != null && nowPlaying.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.music_note,
+                            size: 11,
+                            color: PocketClawTheme.electricTeal),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            nowPlaying,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: PocketClawTheme.electricTeal,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
+            ),
+            IconButton(
+              icon: Icon(isFav ? Icons.star : Icons.star_border),
+              color: isFav ? Colors.amber : Colors.white54,
+              tooltip: isFav ? 'Unfavorite' : 'Add to favorites',
+              onPressed: () =>
+                  ref.read(radioFavoritesProvider.notifier).toggle(
+                        FavoriteStation(
+                          channelId: channel.id,
+                          title: channel.title,
+                          placeTitle: channel.placeTitle,
+                          country: channel.country,
+                          savedAt: DateTime.now(),
+                        ),
+                      ),
             ),
             IconButton(
               icon: const Icon(Icons.stop_circle_outlined),
@@ -315,28 +463,7 @@ class _PlaceChannelSheet extends ConsumerWidget {
                   itemCount: channels.length,
                   itemBuilder: (_, i) {
                     final ch = channels[i];
-                    return ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.radio, size: 18),
-                      title: Text(ch.title,
-                          style: const TextStyle(fontSize: 13)),
-                      trailing: Icon(Icons.play_arrow,
-                          color: PocketClawTheme.electricTeal),
-                      onTap: () async {
-                        final player = ref.read(radioPlayerProvider);
-                        ref.read(activeRadioChannelProvider.notifier).state =
-                            ch;
-                        try {
-                          await player.setUrl(ch.streamUrl);
-                          await player.play();
-                          if (context.mounted) Navigator.of(context).pop();
-                        } catch (_) {
-                          ref
-                              .read(activeRadioChannelProvider.notifier)
-                              .state = null;
-                        }
-                      },
-                    );
+                    return _ChannelRow(channel: ch);
                   },
                 );
               },
@@ -344,6 +471,66 @@ class _PlaceChannelSheet extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Channel row used inside the place-detail sheet. Tap the row to
+/// play the station; tap the star to (un)favorite without dismissing
+/// the sheet.
+class _ChannelRow extends ConsumerWidget {
+  final RadioChannel channel;
+  const _ChannelRow({required this.channel});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isFav = ref
+        .watch(radioFavoritesProvider)
+        .any((f) => f.channelId == channel.id);
+    return ListTile(
+      dense: true,
+      leading: const Icon(Icons.radio, size: 18),
+      title: Text(channel.title, style: const TextStyle(fontSize: 13)),
+      subtitle: channel.country.isEmpty
+          ? null
+          : Text(channel.country,
+              style: const TextStyle(fontSize: 10, color: Colors.white54)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(),
+            icon: Icon(isFav ? Icons.star : Icons.star_border),
+            color: isFav ? Colors.amber : Colors.white54,
+            tooltip: isFav ? 'Unfavorite' : 'Add to favorites',
+            onPressed: () =>
+                ref.read(radioFavoritesProvider.notifier).toggle(
+                      FavoriteStation(
+                        channelId: channel.id,
+                        title: channel.title,
+                        placeTitle: channel.placeTitle,
+                        country: channel.country,
+                        savedAt: DateTime.now(),
+                      ),
+                    ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.play_arrow, color: PocketClawTheme.electricTeal),
+        ],
+      ),
+      onTap: () async {
+        final player = ref.read(radioPlayerProvider);
+        ref.read(activeRadioChannelProvider.notifier).state = channel;
+        try {
+          await player.setUrl(channel.streamUrl);
+          await player.play();
+          if (context.mounted) Navigator.of(context).pop();
+        } catch (_) {
+          ref.read(activeRadioChannelProvider.notifier).state = null;
+        }
+      },
     );
   }
 }
