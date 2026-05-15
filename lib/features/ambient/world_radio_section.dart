@@ -368,10 +368,20 @@ class _PopularPlaces extends ConsumerWidget {
         ),
       ),
       data: (places) {
-        // Sort by station count descending, take the top 50 so the
-        // browse list isn't 30k entries on first open.
-        final top = [...places]..sort((a, b) => b.size.compareTo(a.size));
-        final shown = top.take(50).toList();
+        // Top cities by station count for the quick-pick row, then
+        // every country alphabetised below so anywhere off the global
+        // top-N (South Africa, NZ, smaller-market countries) is still
+        // one tap away.
+        final byStations = [...places]..sort((a, b) => b.size.compareTo(a.size));
+        final topCities = byStations.take(30).toList();
+
+        final byCountry = <String, List<RadioPlace>>{};
+        for (final p in places) {
+          if (p.country.isEmpty) continue;
+          byCountry.putIfAbsent(p.country, () => []).add(p);
+        }
+        final countries = byCountry.keys.toList()..sort();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -385,7 +395,7 @@ class _PopularPlaces extends ConsumerWidget {
                     letterSpacing: 0.5),
               ),
             ),
-            for (final place in shown)
+            for (final place in topCities)
               ListTile(
                 dense: true,
                 leading: const Icon(Icons.location_city, size: 18),
@@ -407,9 +417,117 @@ class _PopularPlaces extends ConsumerWidget {
                   ),
                 ),
               ),
+            const SizedBox(height: 8),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                'Browse by country',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: PocketClawTheme.onSurfaceMuted,
+                    letterSpacing: 0.5),
+              ),
+            ),
+            for (final country in countries)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.public, size: 18),
+                title: Text(country,
+                    style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                  '${byCountry[country]!.length} cities · '
+                  '${byCountry[country]!.fold<int>(0, (s, p) => s + p.size)} stations',
+                  style:
+                      const TextStyle(fontSize: 10, color: Colors.white54),
+                ),
+                trailing:
+                    const Icon(Icons.chevron_right, color: Colors.white38),
+                onTap: () => showModalBottomSheet<void>(
+                  context: context,
+                  useSafeArea: true,
+                  isScrollControlled: true,
+                  builder: (_) => _CountryCitySheet(
+                    country: country,
+                    cities: byCountry[country]!,
+                  ),
+                ),
+              ),
           ],
         );
       },
+    );
+  }
+}
+
+class _CountryCitySheet extends ConsumerWidget {
+  final String country;
+  final List<RadioPlace> cities;
+  const _CountryCitySheet({required this.country, required this.cities});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sorted = [...cities]..sort((a, b) => b.size.compareTo(a.size));
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, controller) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.public, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(country,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.builder(
+              controller: controller,
+              itemCount: sorted.length,
+              itemBuilder: (_, i) {
+                final place = sorted[i];
+                return ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.location_city, size: 18),
+                  title: Text(place.title,
+                      style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(
+                    '${place.size} stations',
+                    style: const TextStyle(
+                        fontSize: 10, color: Colors.white54),
+                  ),
+                  trailing:
+                      const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    showModalBottomSheet<void>(
+                      context: context,
+                      useSafeArea: true,
+                      builder: (_) => _PlaceChannelSheet(
+                        placeId: place.id,
+                        title: place.title,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

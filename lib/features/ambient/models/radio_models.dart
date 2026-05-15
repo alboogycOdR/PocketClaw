@@ -80,11 +80,18 @@ class RadioChannel {
 class RadioSearchHit {
   /// Type of the search hit: 'channel' | 'place' | 'country'.
   final String type;
+
+  /// For place results: the place ID (used to fetch channels).
+  /// For channel results: the channel ID (used to stream).
+  /// For country results: the country ID.
   final String id;
+
   final String title;
   final String subtitle;
+
+  /// Channels only: the parent place ID, so a channel hit can jump
+  /// either to "play this station" or "open this city".
   final String? placeId;
-  final String? channelHref;
 
   const RadioSearchHit({
     required this.type,
@@ -92,20 +99,50 @@ class RadioSearchHit {
     required this.title,
     required this.subtitle,
     this.placeId,
-    this.channelHref,
   });
 
-  factory RadioSearchHit.fromJson(Map<String, dynamic> json) {
-    final page = (json['page'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final href = (json['href'] as String?) ?? '';
-    final id = href.isNotEmpty ? href.split('/').last : '';
+  /// Search response item shape (verified live 2026-05-15 against
+  /// /api/search?q=…):
+  ///   _source: {
+  ///     code, type, page: {
+  ///       url, title, subtitle,
+  ///       map,                              // for places: the place id
+  ///       place: { id, title },             // for channels
+  ///       country: { id, title },           // for channels
+  ///     }
+  ///   }
+  factory RadioSearchHit.fromJson(Map<String, dynamic> source) {
+    final type = source['type'] as String? ?? '';
+    final page = (source['page'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final url = page['url'] as String? ?? '';
+    final lastSegment = url.isNotEmpty ? url.split('/').last : '';
+
+    String id;
+    String? parentPlace;
+    switch (type) {
+      case 'place':
+        // Place id lives on `page.map`, with the url path as a fallback.
+        id = (page['map'] as String?) ??
+            (lastSegment.isNotEmpty ? lastSegment : '');
+        parentPlace = null;
+        break;
+      case 'channel':
+        id = lastSegment;
+        final placeMap =
+            (page['place'] as Map?)?.cast<String, dynamic>() ?? const {};
+        parentPlace = placeMap['id'] as String?;
+        break;
+      default:
+        id = lastSegment;
+        parentPlace = null;
+    }
+
     return RadioSearchHit(
-      type: json['type'] as String? ?? '',
+      type: type,
       id: id,
-      title: json['title'] as String? ?? '',
-      subtitle: page['title'] as String? ?? page['country'] as String? ?? '',
-      placeId: page['place'] as String?,
-      channelHref: href,
+      title: page['title'] as String? ?? '',
+      subtitle: page['subtitle'] as String? ?? '',
+      placeId: parentPlace,
     );
   }
 }
