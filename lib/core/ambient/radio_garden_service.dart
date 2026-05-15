@@ -79,17 +79,16 @@ class RadioGardenService {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     final data = body['data'] as Map<String, dynamic>?;
     final content = (data?['content'] as List?) ?? const [];
-    // The channels API returns a list of sections each containing an
-    // `items` array. Flatten any item that has an `href` containing
-    // `/channel/`.
+    // Real shape: data.content is a list of sections; each section has
+    // `itemsType: "channel"` and `items: [{page: {url, title, place,
+    // country, …}}, …]`. Take items from any channel-typed section.
     final channels = <RadioChannel>[];
     for (final section in content) {
       if (section is! Map) continue;
+      if (section['itemsType'] != 'channel') continue;
       final items = (section['items'] as List?) ?? const [];
       for (final item in items) {
         if (item is! Map) continue;
-        final href = item['href'] as String? ?? '';
-        if (!href.contains('/channel/')) continue;
         channels.add(RadioChannel.fromJson(item.cast<String, dynamic>()));
       }
     }

@@ -56,15 +56,23 @@ class RadioChannel {
   String get streamUrl =>
       'https://radio.garden/api/ara/content/listen/$id/channel.mp3';
 
+  /// Real channel shape (verified live 2026-05-15 against
+  /// /api/ara/content/page/<placeId>/channels):
+  ///   { page: { url: "/listen/<slug>/<id>", title, place:{id,title},
+  ///             country:{id,title}, ... } }
   factory RadioChannel.fromJson(Map<String, dynamic> json) {
-    final href = json['href'] as String? ?? '';
-    final id = href.isNotEmpty ? href.split('/').last : '';
     final page = (json['page'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final url = page['url'] as String? ?? '';
+    final id = url.isNotEmpty ? url.split('/').last : '';
+    final placeMap =
+        (page['place'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final countryMap =
+        (page['country'] as Map?)?.cast<String, dynamic>() ?? const {};
     return RadioChannel(
       id: id,
-      title: json['title'] as String? ?? '',
-      country: page['country'] as String? ?? '',
-      placeTitle: page['title'] as String? ?? '',
+      title: page['title'] as String? ?? '',
+      placeTitle: placeMap['title'] as String? ?? '',
+      country: countryMap['title'] as String? ?? '',
     );
   }
 }
