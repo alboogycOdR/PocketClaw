@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/device/battery_optimization_service.dart';
 import '../core/gateway/proactive_notifier.dart';
 import '../data/providers/core_providers.dart';
+import 'app_flavor.dart';
 import 'biometric_lock_screen.dart';
 import 'router.dart';
 import 'theme.dart';
@@ -104,7 +105,7 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
     PocketClawTheme.setActive(themeId);
 
     return MaterialApp.router(
-      title: 'ClawCommander',
+      title: appFlavorName,
       debugShowCheckedModeBanner: false,
       theme: PocketClawTheme.themeData,
       routerConfig: appRouter,

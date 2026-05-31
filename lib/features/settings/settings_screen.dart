@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/app_flavor.dart';
 import '../../app/theme.dart';
 import '../../app/theme_provider.dart';
 import '../../core/coaching/grow_state_machine.dart';
@@ -45,22 +46,27 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (kHermesOnlyMode) return const _HermesSettingsScreen();
+
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Settings'),
-          actions: const [
-            AgentScopeBadge(),
-            SizedBox(width: 8),
-          ],
+          actions: const [AgentScopeBadge(), SizedBox(width: 8)],
           bottom: const TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(icon: Icon(Icons.cable_outlined, size: 18), text: 'Connection'),
+              Tab(
+                icon: Icon(Icons.cable_outlined, size: 18),
+                text: 'Connection',
+              ),
               Tab(icon: Icon(Icons.memory_outlined, size: 18), text: 'Models'),
-              Tab(icon: Icon(Icons.workspaces_outlined, size: 18), text: 'Workspace'),
+              Tab(
+                icon: Icon(Icons.workspaces_outlined, size: 18),
+                text: 'Workspace',
+              ),
               Tab(icon: Icon(Icons.tune, size: 18), text: 'App'),
             ],
           ),
@@ -75,6 +81,229 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+class _HermesSettingsScreen extends ConsumerWidget {
+  const _HermesSettingsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+          actions: const [AgentScopeBadge(), SizedBox(width: 8)],
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.cable_outlined, size: 18), text: 'Hermes'),
+              Tab(icon: Icon(Icons.tune, size: 18), text: 'App'),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          children: [_HermesConnectionTab(), _HermesAppTab()],
+        ),
+      ),
+    );
+  }
+}
+
+class _HermesConnectionTab extends ConsumerWidget {
+  const _HermesConnectionTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.psychology_outlined,
+                  color: Color(0xFF7C3AED),
+                ),
+                title: const Text('Hermes REST'),
+                subtitle: const _HermesStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HermesSettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.terminal),
+                title: const Text('Hermes SSH / ACP'),
+                subtitle: const _SshStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SshSettings())),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HermesAppTab extends ConsumerWidget {
+  const _HermesAppTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeId = ref.watch(themeIdProvider);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('Theme'),
+                subtitle: Text(
+                  themeId.displayName,
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => _pickHermesTheme(context, ref, themeId),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.mic_outlined),
+                title: const Text('Voice & Transcription'),
+                subtitle: const Text(
+                  'Speech input and offline transcription',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const VoiceSettingsScreen(),
+                  ),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.record_voice_over_outlined),
+                title: const Text('Voice & TTS'),
+                subtitle: const _TtsStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/tts'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.spa_outlined),
+                title: const Text('Ambient Audio'),
+                subtitle: const Text(
+                  'Focus sounds and world radio',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.go('/ambient'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.security),
+                title: const Text('Security & Privacy'),
+                subtitle: const Text(
+                  'Biometric lock, clear data',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SecuritySettings()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.psychology_outlined,
+                  size: 40,
+                  color: Color(0xFF7C3AED),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  AppConstants.appName,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'v${AppConstants.appVersion}',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
+                    color: Colors.white38,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  AppConstants.orgName,
+                  style: const TextStyle(fontSize: 12, color: Colors.white38),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Future<void> _pickHermesTheme(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeId current,
+  ) async {
+    final picked = await showModalBottomSheet<ThemeId>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Choose a theme',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+              for (final id in ThemeId.values)
+                RadioListTile<ThemeId>(
+                  value: id,
+                  groupValue: current,
+                  title: Text(id.displayName),
+                  onChanged: (v) => Navigator.of(sheet).pop(v),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      await ref.read(themeIdProvider.notifier).setTheme(picked);
+    }
   }
 }
 
@@ -138,9 +367,9 @@ class _ConnectionTab extends ConsumerWidget {
                 title: const Text('Server SSH'),
                 subtitle: const _SshStatusLine(),
                 trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SshSettings()),
-                ),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const SshSettings())),
               ),
               const _ListDivider(),
               ListTile(
@@ -201,9 +430,9 @@ class _ModelsTab extends ConsumerWidget {
 
     final catalogue = ref.watch(modelCatalogueProvider);
     final selectedModel = catalogue.cast<dynamic>().firstWhere(
-          (m) => m.id == selectedId,
-          orElse: () => null,
-        );
+      (m) => m.id == selectedId,
+      orElse: () => null,
+    );
     final modelLabel = selectedModel?.displayName ?? selectedId;
 
     return ListView(
@@ -218,13 +447,16 @@ class _ModelsTab extends ConsumerWidget {
                 title: const Text('OpenClaw Models'),
                 subtitle: const _OpenClawModelsStatusLine(),
                 trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ModelsScreen()),
-                ),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ModelsScreen())),
               ),
               const _ListDivider(),
               ListTile(
-                leading: Icon(Icons.memory, color: PocketClawTheme.electricTeal),
+                leading: Icon(
+                  Icons.memory,
+                  color: PocketClawTheme.electricTeal,
+                ),
                 title: const Text('Local Model'),
                 subtitle: Text(
                   '$modelLabel  ·  ${catalogue.length} available',
@@ -234,9 +466,9 @@ class _ModelsTab extends ConsumerWidget {
                   ),
                 ),
                 trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ModelConfig()),
-                ),
+                onTap: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const ModelConfig())),
               ),
               const _ListDivider(),
               ListTile(
@@ -412,7 +644,8 @@ class _AppTab extends ConsumerWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const VoiceSettingsScreen()),
+                    builder: (_) => const VoiceSettingsScreen(),
+                  ),
                 ),
               ),
               const _ListDivider(),
@@ -434,7 +667,8 @@ class _AppTab extends ConsumerWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const StorageSettingsScreen()),
+                    builder: (_) => const StorageSettingsScreen(),
+                  ),
                 ),
               ),
               const _ListDivider(),
@@ -447,8 +681,7 @@ class _AppTab extends ConsumerWidget {
                 ),
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const DeviceInfoScreen()),
+                  MaterialPageRoute(builder: (_) => const DeviceInfoScreen()),
                 ),
               ),
               const _ListDivider(),
@@ -475,7 +708,8 @@ class _AppTab extends ConsumerWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                      builder: (_) => const BackupRestoreSettings()),
+                    builder: (_) => const BackupRestoreSettings(),
+                  ),
                 ),
               ),
             ],
@@ -543,10 +777,7 @@ class _AppTab extends ConsumerWidget {
                 padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
                 child: Text(
                   'Choose a theme',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
               for (final id in ThemeId.values)
@@ -594,8 +825,9 @@ class _HermesStatusLine extends ConsumerWidget {
     final configured = url.isNotEmpty;
     return reachable.when(
       data: (ok) {
-        final label =
-            !configured ? 'Not configured' : (ok ? 'Connected' : 'Unreachable');
+        final label = !configured
+            ? 'Not configured'
+            : (ok ? 'Connected' : 'Unreachable');
         final color = ok ? Colors.tealAccent : Colors.white54;
         return Text(label, style: TextStyle(fontSize: 12, color: color));
       },
@@ -735,10 +967,7 @@ class _AcademyStatusLine extends ConsumerWidget {
     return Text(
       '${state.subject} · ${state.level}'
       '${state.streakDays > 0 ? " · ${state.streakDays}🔥" : ""}',
-      style: TextStyle(
-        fontSize: 12,
-        color: PocketClawTheme.electricTeal,
-      ),
+      style: TextStyle(fontSize: 12, color: PocketClawTheme.electricTeal),
     );
   }
 }
@@ -752,9 +981,7 @@ class _TtsStatusLine extends ConsumerWidget {
     final voice = ref.watch(activeVoiceIdProvider);
     final ready = readyAsync.valueOrNull ?? false;
     return Text(
-      ready
-          ? 'Supertonic · $voice · Offline'
-          : 'System TTS · Tap to upgrade',
+      ready ? 'Supertonic · $voice · Offline' : 'System TTS · Tap to upgrade',
       style: TextStyle(
         fontSize: 12,
         color: ready ? PocketClawTheme.electricTeal : Colors.white54,
@@ -781,10 +1008,7 @@ class _LifeArchitectStatusLine extends ConsumerWidget {
         : '';
     return Text(
       'Active · GROW: ${grow.currentPhase.name.toUpperCase()}$facetSuffix',
-      style: TextStyle(
-        fontSize: 12,
-        color: PocketClawTheme.electricTeal,
-      ),
+      style: TextStyle(fontSize: 12, color: PocketClawTheme.electricTeal),
     );
   }
 }

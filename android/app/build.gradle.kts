@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.carmen.clawcommander"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "29.0.13113456"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -18,6 +18,12 @@ android {
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    externalNativeBuild {
+        cmake {
+            version = "3.31.0"
+        }
     }
 
     defaultConfig {
@@ -35,6 +41,17 @@ android {
         }
     }
 
+    flavorDimensions += "app"
+    productFlavors {
+        create("claw") {
+            dimension = "app"
+        }
+        create("hermes") {
+            dimension = "app"
+            applicationId = "com.carmen.hermescommander"
+        }
+    }
+
     // Force the APK to contain ONLY arm64-v8a native libraries.
     // Flutter's --target-platform flag only controls the Dart snapshot
     // (libapp.so) — plugin AARs bundle libs for all ABIs regardless.
@@ -45,6 +62,7 @@ android {
     // dropped along with the flutter_gemma dependency itself.
     packaging {
         jniLibs {
+            keepDebugSymbols += listOf("**/*.so")
             excludes += listOf(
                 "lib/armeabi-v7a/**",
                 "lib/x86/**",
@@ -67,6 +85,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":android_intent_plus"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

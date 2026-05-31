@@ -5,11 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_flavor.dart';
 import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
 import '../features/ambient/ambient_mini_player.dart';
 import '../features/ambient/ambient_screen.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/hermes/hermes_analytics_screen.dart';
+import '../features/hermes/hermes_cron_screen.dart';
+import '../features/hermes/hermes_logs_screen.dart';
+import '../features/hermes/hermes_memory_screen.dart';
+import '../features/hermes/hermes_sessions_screen.dart';
+import '../features/hermes/hermes_skills_screen.dart';
 import '../features/knowledge_base/knowledge_base_screen.dart';
 import '../features/swarm/office_view_screen.dart';
 import '../features/swarm/swarm_compose_screen.dart';
@@ -34,9 +41,11 @@ import '../features/settings/tts_settings_screen.dart';
 import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
 import '../features/skills/skills_screen.dart';
+import '../shared/widgets/approvals_panel.dart';
 
-final GlobalKey<NavigatorState> rootNavigatorKey =
-    GlobalKey<NavigatorState>(debugLabel: 'root');
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 final GlobalKey<NavigatorState> _rootNavigatorKey = rootNavigatorKey;
 
 /// Set by `main()` from SharedPreferences before the router is built.
@@ -65,9 +74,8 @@ final GoRouter appRouter = GoRouter(
     // Pack picker (outside shell — used from Company Overview + onboarding)
     GoRoute(
       path: '/packs',
-      builder: (context, state) => PackPickerScreen(
-        onComplete: () => Navigator.of(context).pop(),
-      ),
+      builder: (context, state) =>
+          PackPickerScreen(onComplete: () => Navigator.of(context).pop()),
     ),
 
     // Hermes management used to live at /hermes; Phase 2 made it a
@@ -77,10 +85,11 @@ final GoRouter appRouter = GoRouter(
 
     // Academy Mode + Life Architect — coaching overlays. Full-screen
     // outside the bottom-nav shell so they own the chrome.
-    GoRoute(
-      path: '/settings/academy',
-      builder: (context, state) => const AcademyScreen(),
-    ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/settings/academy',
+        builder: (context, state) => const AcademyScreen(),
+      ),
     GoRoute(
       path: '/settings/tts',
       builder: (context, state) => const TtsSettingsScreen(),
@@ -92,28 +101,31 @@ final GoRouter appRouter = GoRouter(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
     ),
-    GoRoute(
-      path: '/knowledge-base',
-      builder: (context, state) => const KnowledgeBaseScreen(),
-    ),
-    GoRoute(
-      path: '/swarm',
-      builder: (context, state) => const SwarmMonitorScreen(),
-      routes: [
-        GoRoute(
-          path: 'compose',
-          builder: (context, state) => const SwarmComposeScreen(),
-        ),
-      ],
-    ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/knowledge-base',
+        builder: (context, state) => const KnowledgeBaseScreen(),
+      ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/swarm',
+        builder: (context, state) => const SwarmMonitorScreen(),
+        routes: [
+          GoRoute(
+            path: 'compose',
+            builder: (context, state) => const SwarmComposeScreen(),
+          ),
+        ],
+      ),
     GoRoute(
       path: '/office',
       builder: (context, state) => const OfficeViewScreen(),
     ),
-    GoRoute(
-      path: '/settings/life-architect',
-      builder: (context, state) => const LifeArchitectScreen(),
-    ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/settings/life-architect',
+        builder: (context, state) => const LifeArchitectScreen(),
+      ),
 
     // Main app shell with bottom navigation
     StatefulShellRoute.indexedStack(
@@ -124,10 +136,7 @@ final GoRouter appRouter = GoRouter(
         // Chat tab
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: '/',
-              builder: (context, state) => const ChatScreen(),
-            ),
+            GoRoute(path: '/', builder: (context, state) => const ChatScreen()),
           ],
         ),
 
@@ -138,67 +147,144 @@ final GoRouter appRouter = GoRouter(
               path: '/control',
               builder: (context, state) => const DashboardScreen(),
               routes: [
-                GoRoute(
-                  path: 'agents',
-                  builder: (context, state) => const AgentsScreen(),
-                ),
-                GoRoute(
-                  path: 'sessions',
-                  builder: (context, state) => const SessionsScreen(),
-                ),
-                GoRoute(
-                  path: 'cost',
-                  builder: (context, state) => const CostScreen(),
-                ),
-                GoRoute(
-                  path: 'cron',
-                  builder: (context, state) => const CronScreen(),
-                ),
-                GoRoute(
-                  path: 'activity',
-                  builder: (context, state) => const ActivityScreen(),
-                ),
-                GoRoute(
-                  path: 'channels',
-                  builder: (context, state) => const ChannelsScreen(),
-                ),
+                if (kHermesOnlyMode) ...[
+                  GoRoute(
+                    path: 'sessions',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Sessions',
+                      child: HermesSessionsTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'memory',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Memory',
+                      child: HermesMemoryTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'cron',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Cron',
+                      child: HermesCronTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'skills',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Skills',
+                      child: HermesSkillsTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'logs',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Logs',
+                      child: HermesLogsTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'analytics',
+                    builder: (context, state) => const _HermesControlScaffold(
+                      title: 'Analytics',
+                      child: HermesAnalyticsTab(),
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'approvals',
+                    builder: (context, state) => const _HermesApprovalsScreen(),
+                  ),
+                ] else ...[
+                  GoRoute(
+                    path: 'agents',
+                    builder: (context, state) => const AgentsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'sessions',
+                    builder: (context, state) => const SessionsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'cost',
+                    builder: (context, state) => const CostScreen(),
+                  ),
+                  GoRoute(
+                    path: 'cron',
+                    builder: (context, state) => const CronScreen(),
+                  ),
+                  GoRoute(
+                    path: 'activity',
+                    builder: (context, state) => const ActivityScreen(),
+                  ),
+                  GoRoute(
+                    path: 'channels',
+                    builder: (context, state) => const ChannelsScreen(),
+                  ),
+                ],
               ],
             ),
           ],
         ),
 
         // Memory tab
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/memory',
-              builder: (context, state) => const MemoryScreen(),
-            ),
-          ],
-        ),
+        if (!kHermesOnlyMode)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/memory',
+                builder: (context, state) => const MemoryScreen(),
+              ),
+            ],
+          ),
 
         // Skills tab
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/skills',
-              builder: (context, state) => const SkillsScreen(),
-              routes: [
-                GoRoute(
-                  path: 'clawhub',
-                  builder: (context, state) => const ClawHubBrowser(),
-                ),
-                GoRoute(
-                  path: ':name',
-                  builder: (context, state) {
-                    final name = state.pathParameters['name'] ?? '';
-                    return SkillDetailScreen(skillName: name);
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
+        if (!kHermesOnlyMode)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/skills',
+                builder: (context, state) => const SkillsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'clawhub',
+                    builder: (context, state) => const ClawHubBrowser(),
+                  ),
+                  GoRoute(
+                    path: ':name',
+                    builder: (context, state) {
+                      final name = state.pathParameters['name'] ?? '';
+                      return SkillDetailScreen(skillName: name);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+        if (kHermesOnlyMode)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/swarm',
+                builder: (context, state) => const SwarmMonitorScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'compose',
+                    builder: (context, state) => const SwarmComposeScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+        if (kHermesOnlyMode)
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/intel',
+                builder: (context, state) => const _IntelPlaceholderScreen(),
+              ),
+            ],
+          ),
 
         // Company tab — HIDDEN 2026-05-08. Paperclip is parked while we
         // focus on OpenClaw + Hermes polish. Restore by uncommenting
@@ -248,48 +334,112 @@ class _AppShell extends ConsumerWidget {
           // is active. Collapses to zero height otherwise.
           const AmbientMiniPlayer(),
           NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) {
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.chat_outlined),
-            selectedIcon: Icon(Icons.chat),
-            label: 'Chat',
-          ),
-          NavigationDestination(
-            icon: _NavIconWithBadge(
-              icon: Icons.dashboard_outlined,
-              count: approvalCount,
-            ),
-            selectedIcon: _NavIconWithBadge(
-              icon: Icons.dashboard,
-              count: approvalCount,
-            ),
-            label: 'Control',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.memory_outlined),
-            selectedIcon: Icon(Icons.memory),
-            label: 'Memory',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.extension_outlined),
-            selectedIcon: Icon(Icons.extension),
-            label: 'Skills',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.spa_outlined),
-            selectedIcon: Icon(Icons.spa),
-            label: 'Ambient',
+            selectedIndex: navigationShell.currentIndex,
+            onDestinationSelected: (index) {
+              navigationShell.goBranch(
+                index,
+                initialLocation: index == navigationShell.currentIndex,
+              );
+            },
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.chat_outlined),
+                selectedIcon: Icon(Icons.chat),
+                label: 'Chat',
+              ),
+              NavigationDestination(
+                icon: _NavIconWithBadge(
+                  icon: Icons.dashboard_outlined,
+                  count: approvalCount,
+                ),
+                selectedIcon: _NavIconWithBadge(
+                  icon: Icons.dashboard,
+                  count: approvalCount,
+                ),
+                label: 'Control',
+              ),
+              if (kHermesOnlyMode) ...[
+                const NavigationDestination(
+                  icon: Icon(Icons.account_tree_outlined),
+                  selectedIcon: Icon(Icons.account_tree),
+                  label: 'Swarm',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.travel_explore_outlined),
+                  selectedIcon: Icon(Icons.travel_explore),
+                  label: 'Intel',
+                ),
+              ] else ...[
+                const NavigationDestination(
+                  icon: Icon(Icons.memory_outlined),
+                  selectedIcon: Icon(Icons.memory),
+                  label: 'Memory',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.extension_outlined),
+                  selectedIcon: Icon(Icons.extension),
+                  label: 'Skills',
+                ),
+              ],
+              const NavigationDestination(
+                icon: Icon(Icons.spa_outlined),
+                selectedIcon: Icon(Icons.spa),
+                label: 'Ambient',
+              ),
+            ],
           ),
         ],
       ),
-        ],
+    );
+  }
+}
+
+class _HermesControlScaffold extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _HermesControlScaffold({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: child,
+    );
+  }
+}
+
+class _HermesApprovalsScreen extends StatelessWidget {
+  const _HermesApprovalsScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Approvals')),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(children: [ApprovalsPanel(), SizedBox(height: 96)]),
+      ),
+    );
+  }
+}
+
+class _IntelPlaceholderScreen extends StatelessWidget {
+  const _IntelPlaceholderScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Intel')),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Osiris intelligence surfaces will appear here once wired.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white54),
+          ),
+        ),
       ),
     );
   }
@@ -313,8 +463,7 @@ class _NavIconWithBadge extends StatelessWidget {
           right: -6,
           top: -4,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
               color: const Color(0xFFE53935),
               borderRadius: BorderRadius.circular(8),

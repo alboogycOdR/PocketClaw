@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/app_flavor.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
 import '../../data/providers/server_providers.dart';
@@ -26,17 +27,14 @@ class AgentScopeBadge extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ActionChip(
         avatar: Icon(icon, size: 12, color: color),
-        label: Text(
-          label,
-          style: TextStyle(fontSize: 10, color: color),
-        ),
+        label: Text(label, style: TextStyle(fontSize: 10, color: color)),
         backgroundColor: color.withAlpha(31),
         side: BorderSide(color: color.withAlpha(102)),
         padding: EdgeInsets.zero,
         labelPadding: const EdgeInsets.symmetric(horizontal: 4),
         visualDensity: VisualDensity.compact,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        onPressed: () => _showPicker(context),
+        onPressed: kHermesOnlyMode ? null : () => _showPicker(context),
       ),
     );
   }
@@ -48,24 +46,23 @@ class AgentScopeBadge extends ConsumerWidget {
     );
   }
 
-  static (IconData, Color, String) _appearance(ActiveServer s) =>
-      switch (s) {
-        ActiveServer.openclaw => (
-            Icons.rss_feed,
-            const Color(0xFFE53935),
-            'OpenClaw'
-          ),
-        ActiveServer.hermes => (
-            Icons.psychology_outlined,
-            const Color(0xFF7C3AED),
-            'Hermes'
-          ),
-        ActiveServer.local => (
-            Icons.phone_android,
-            const Color(0xFF00E5CC),
-            'Local'
-          ),
-      };
+  static (IconData, Color, String) _appearance(ActiveServer s) => switch (s) {
+    ActiveServer.openclaw => (
+      Icons.rss_feed,
+      const Color(0xFFE53935),
+      'OpenClaw',
+    ),
+    ActiveServer.hermes => (
+      Icons.psychology_outlined,
+      const Color(0xFF7C3AED),
+      'Hermes',
+    ),
+    ActiveServer.local => (
+      Icons.phone_android,
+      const Color(0xFF00E5CC),
+      'Local',
+    ),
+  };
 }
 
 class _ServerPickerSheet extends ConsumerWidget {

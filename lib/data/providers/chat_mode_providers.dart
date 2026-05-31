@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_flavor.dart';
 import '../../core/chat/chat_mode.dart';
 import '../../core/llm/models/local_model_config.dart' as llm;
 import 'core_providers.dart';
@@ -20,6 +21,8 @@ import 'server_providers.dart';
 /// user hasn't picked one explicitly, derive from the active server so
 /// chat routes to whichever agent the rest of the app is showing.
 final chatModeProvider = StateProvider<ChatMode>((ref) {
+  if (kHermesOnlyMode) return ChatMode.hermes;
+
   final prefs = ref.watch(sharedPrefsProvider);
   final stored = prefs.getString('chat_mode');
   if (stored != null) {
@@ -41,8 +44,10 @@ final chatModeProvider = StateProvider<ChatMode>((ref) {
 
 /// Per-mode session key. Stored per mode in prefs.
 /// Returns null if no session has been started in this mode yet.
-final sessionKeyForModeProvider =
-    StateProvider.family<String?, ChatMode>((ref, mode) {
+final sessionKeyForModeProvider = StateProvider.family<String?, ChatMode>((
+  ref,
+  mode,
+) {
   final prefs = ref.watch(sharedPrefsProvider);
   return prefs.getString(mode.storageKey);
 });
@@ -50,8 +55,10 @@ final sessionKeyForModeProvider =
 /// Whether each mode is currently *available* (configured + ready).
 /// A mode that is unavailable can still be selected, but the send
 /// pipeline will show a clear error pointing to the missing config.
-final modeAvailabilityProvider =
-    Provider.family<ModeAvailability, ChatMode>((ref, mode) {
+final modeAvailabilityProvider = Provider.family<ModeAvailability, ChatMode>((
+  ref,
+  mode,
+) {
   return switch (mode) {
     ChatMode.local => _localAvailable(ref),
     ChatMode.openclaw => _openclawAvailable(ref),
@@ -92,9 +99,7 @@ ModeAvailability _openclawAvailable(Ref ref) {
         'OpenClaw gateway token missing.',
       );
     }
-    return const ModeAvailability.available(
-      subtitle: 'Agent team',
-    );
+    return const ModeAvailability.available(subtitle: 'Agent team');
   } catch (_) {
     return const ModeAvailability.unavailable(
       'Configure OpenClaw in Settings.',
@@ -120,9 +125,7 @@ ModeAvailability _hermesAvailable(Ref ref) {
       subtitle: 'Hermes toolset · streaming',
     );
   } catch (_) {
-    return const ModeAvailability.unavailable(
-      'Configure Hermes in Settings.',
-    );
+    return const ModeAvailability.unavailable('Configure Hermes in Settings.');
   }
 }
 
@@ -133,14 +136,12 @@ class ModeAvailability {
   final String? reasonUnavailable;
   final llm.LocalModelConfig? modelConfig;
 
-  const ModeAvailability.available({
-    this.subtitle,
-    this.modelConfig,
-  })  : isAvailable = true,
-        reasonUnavailable = null;
+  const ModeAvailability.available({this.subtitle, this.modelConfig})
+    : isAvailable = true,
+      reasonUnavailable = null;
 
   const ModeAvailability.unavailable(this.reasonUnavailable)
-      : isAvailable = false,
-        subtitle = null,
-        modelConfig = null;
+    : isAvailable = false,
+      subtitle = null,
+      modelConfig = null;
 }

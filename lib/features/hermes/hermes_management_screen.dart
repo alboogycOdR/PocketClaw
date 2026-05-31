@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/app_flavor.dart';
 import '../../app/theme.dart';
 import '../../data/providers/capability_providers.dart';
 import '../../data/providers/ssh_providers.dart';
@@ -27,7 +28,7 @@ import 'hermes_logs_screen.dart';
 // Kept after Memory tab removal in v2.6.5 for the HermesNotConfigured
 // fallback widget defined in this file — used when SSH host is set but
 // the client failed to connect.
-import 'hermes_memory_screen.dart' show HermesNotConfigured;
+import 'hermes_memory_screen.dart';
 import 'hermes_sessions_screen.dart';
 import 'hermes_skills_screen.dart';
 
@@ -43,18 +44,27 @@ class HermesManagementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sshAsync = ref.watch(sshClientProvider);
 
-    const tabs = TabBar(
+    final tabs = TabBar(
       isScrollable: true,
       tabAlignment: TabAlignment.start,
-      tabs: [
+      tabs: const [
         Tab(icon: Icon(Icons.history, size: 18), text: 'Sessions'),
+        if (kHermesOnlyMode)
+          Tab(
+            icon: Icon(Icons.psychology_alt_outlined, size: 18),
+            text: 'Memory',
+          ),
         Tab(icon: Icon(Icons.schedule, size: 18), text: 'Cron'),
         Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Skills'),
         Tab(icon: Icon(Icons.terminal, size: 18), text: 'Logs'),
         Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: 'Analytics'),
-        Tab(icon: Icon(Icons.podcasts_outlined, size: 18), text: 'Channels'),
+        if (kHermesOnlyMode)
+          Tab(icon: Icon(Icons.pending_actions, size: 18), text: 'Approvals')
+        else
+          Tab(icon: Icon(Icons.podcasts_outlined, size: 18), text: 'Channels'),
       ],
     );
+    const tabCount = kHermesOnlyMode ? 7 : 6;
 
     final body = sshAsync.when(
       data: (client) {
@@ -87,17 +97,12 @@ class HermesManagementScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               Text(
                 'SSH unavailable',
-                style: GoogleFonts.jetBrainsMono(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
                 '$e',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white54,
-                ),
+                style: const TextStyle(fontSize: 12, color: Colors.white54),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -108,7 +113,7 @@ class HermesManagementScreen extends ConsumerWidget {
 
     if (embeddedMode) {
       return DefaultTabController(
-        length: 6,
+        length: tabCount,
         child: Column(
           children: [
             // Pending approvals — only visible when there are any.
@@ -116,10 +121,7 @@ class HermesManagementScreen extends ConsumerWidget {
               padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
               child: ApprovalsPanel(),
             ),
-            Material(
-              color: PocketClawTheme.surfaceContainer,
-              child: tabs,
-            ),
+            Material(color: PocketClawTheme.surfaceContainer, child: tabs),
             Expanded(child: body),
           ],
         ),
@@ -127,7 +129,7 @@ class HermesManagementScreen extends ConsumerWidget {
     }
 
     return DefaultTabController(
-      length: 6,
+      length: tabCount,
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -163,28 +165,62 @@ class _GatedTabBarView extends ConsumerWidget {
         caps.hasSessions
             ? const HermesSessionsTab()
             : const FeatureNotAvailableCard(
-                feature: 'Sessions', featureKey: 'sessions'),
+                feature: 'Sessions',
+                featureKey: 'sessions',
+              ),
+        if (kHermesOnlyMode)
+          caps.hasMemory
+              ? const HermesMemoryTab()
+              : const FeatureNotAvailableCard(
+                  feature: 'Memory',
+                  featureKey: 'memory',
+                ),
         caps.hasCron
             ? const HermesCronTab()
             : const FeatureNotAvailableCard(
-                feature: 'Cron', featureKey: 'cron'),
+                feature: 'Cron',
+                featureKey: 'cron',
+              ),
         caps.hasSkills
             ? const HermesSkillsTab()
             : const FeatureNotAvailableCard(
-                feature: 'Skills', featureKey: 'skills'),
+                feature: 'Skills',
+                featureKey: 'skills',
+              ),
         caps.hasLogs
             ? const HermesLogsTab()
             : const FeatureNotAvailableCard(
-                feature: 'Logs', featureKey: 'logs'),
+                feature: 'Logs',
+                featureKey: 'logs',
+              ),
         caps.hasCost
             ? const HermesAnalyticsTab()
             : const FeatureNotAvailableCard(
-                feature: 'Analytics', featureKey: 'cost'),
-        caps.hasChannels
-            ? const HermesChannelsTab()
-            : const FeatureNotAvailableCard(
-                feature: 'Channels', featureKey: 'channels'),
+                feature: 'Analytics',
+                featureKey: 'cost',
+              ),
+        if (kHermesOnlyMode)
+          const _HermesApprovalsTab()
+        else
+          caps.hasChannels
+              ? const HermesChannelsTab()
+              : const FeatureNotAvailableCard(
+                  feature: 'Channels',
+                  featureKey: 'channels',
+                ),
       ],
+    );
+  }
+}
+
+class _HermesApprovalsTab extends StatelessWidget {
+  const _HermesApprovalsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Column(children: [ApprovalsPanel(), SizedBox(height: 96)]),
     );
   }
 }

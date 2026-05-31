@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/app_flavor.dart';
 import '../../app/theme.dart';
 import '../../core/chat/chat_mode.dart';
 import '../../data/providers/chat_mode_providers.dart';
@@ -21,13 +22,29 @@ class ChatModeSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(chatModeProvider);
 
+    if (kHermesOnlyMode) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: PocketClawTheme.surfaceContainer,
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).colorScheme.outline.withAlpha(80),
+            ),
+          ),
+        ),
+        child: const _ActiveModeSubtitle(mode: ChatMode.hermes),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: PocketClawTheme.surfaceContainer,
         border: Border(
           bottom: BorderSide(
-              color: Theme.of(context).colorScheme.outline.withAlpha(80)),
+            color: Theme.of(context).colorScheme.outline.withAlpha(80),
+          ),
         ),
       ),
       child: Column(
@@ -35,18 +52,20 @@ class ChatModeSelector extends ConsumerWidget {
         children: [
           Row(
             children: ChatMode.values
-                .map((m) => Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: m == ChatMode.values.last ? 0 : 6,
-                        ),
-                        child: _ModeButton(
-                          mode: m,
-                          isActive: mode == m,
-                          onTap: () => _onModeTap(context, ref, m),
-                        ),
+                .map(
+                  (m) => Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: m == ChatMode.values.last ? 0 : 6,
                       ),
-                    ))
+                      child: _ModeButton(
+                        mode: m,
+                        isActive: mode == m,
+                        onTap: () => _onModeTap(context, ref, m),
+                      ),
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           const SizedBox(height: 6),
@@ -65,8 +84,10 @@ class ChatModeSelector extends ConsumerWidget {
     if (!availability.isAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(availability.reasonUnavailable ??
-              '${mode.displayName} mode unavailable.'),
+          content: Text(
+            availability.reasonUnavailable ??
+                '${mode.displayName} mode unavailable.',
+          ),
           duration: const Duration(seconds: 4),
         ),
       );
@@ -157,10 +178,7 @@ class _ModeButton extends ConsumerWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: borderColor,
-            width: isActive ? 1.5 : 1,
-          ),
+          border: Border.all(color: borderColor, width: isActive ? 1.5 : 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

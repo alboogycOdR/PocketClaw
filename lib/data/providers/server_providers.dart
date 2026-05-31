@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_flavor.dart';
 import 'core_providers.dart';
 import 'hermes_providers.dart';
 
@@ -16,16 +17,18 @@ enum ActiveServer { openclaw, hermes, local }
 
 extension ActiveServerLabel on ActiveServer {
   String get displayName => switch (this) {
-        ActiveServer.openclaw => 'OpenClaw',
-        ActiveServer.hermes => 'Hermes',
-        ActiveServer.local => 'Local',
-      };
+    ActiveServer.openclaw => 'OpenClaw',
+    ActiveServer.hermes => 'Hermes',
+    ActiveServer.local => 'Local',
+  };
 }
 
 /// The currently active server. Persisted in SharedPreferences. If the
 /// user has not made an explicit choice, auto-detect from configured
 /// servers — OpenClaw beats Hermes beats Local.
 final activeServerProvider = StateProvider<ActiveServer>((ref) {
+  if (kHermesOnlyMode) return ActiveServer.hermes;
+
   final prefs = ref.watch(sharedPrefsProvider);
 
   final stored = prefs.getString('active_server');
@@ -59,6 +62,14 @@ ActiveServer _detectActiveServer(Ref ref) {
 /// state. Use this from anywhere that needs to switch — picker sheet,
 /// chat-mode selector, etc.
 Future<void> setActiveServer(WidgetRef ref, ActiveServer server) async {
+  if (kHermesOnlyMode) {
+    await ref
+        .read(sharedPrefsProvider)
+        .setString('active_server', ActiveServer.hermes.name);
+    ref.read(activeServerProvider.notifier).state = ActiveServer.hermes;
+    return;
+  }
+
   await ref.read(sharedPrefsProvider).setString('active_server', server.name);
   ref.read(activeServerProvider.notifier).state = server;
 }

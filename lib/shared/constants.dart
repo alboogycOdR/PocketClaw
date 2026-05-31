@@ -1,10 +1,12 @@
 /// ClawCommander constants
 library;
 
+import '../app/app_flavor.dart';
+
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'ClawCommander';
+  static String get appName => appFlavorName;
   static const String appVersion = '2.8.5';
   static const String orgName = 'Nuburo.DIGITAL (PTY) LTD';
 
