@@ -30,14 +30,47 @@
 -dontwarn com.google.protobuf.**
 
 # ═══════════════════════════════════════════════════════════════════════════
-# fllama (llama.cpp JNI) — keep JNI bindings so the native library can
-# resolve its Java callbacks.
+# llamadart (replaces fllama, 2026-05-13) — pure-Dart FFI plugin using
+# native-assets bundling. No JNI classes to keep on the Java side, but
+# the package writes through to ggml/llama.cpp internals, so we suppress
+# any reflective-call warnings.
 # ═══════════════════════════════════════════════════════════════════════════
--keep class com.peanut.fllama.** { *; }
--keepclassmembers class com.peanut.fllama.** {
+-dontwarn dev.donato.llamadart.**
+
+# ═══════════════════════════════════════════════════════════════════════════
+# whisper_ggml + ffmpeg_kit_flutter_new_min (added 2026-05-13) — both ship
+# native libraries that register JNI callbacks via JNI_OnLoad. Stripping
+# their plugin classes breaks GeneratedPluginRegistrant and the app hangs
+# on the Android splash before Flutter reaches runApp(). Keep the plugin
+# registration surface + every native method declaration.
+# ═══════════════════════════════════════════════════════════════════════════
+-keep class com.devac.whisper_ggml.** { *; }
+-keepclassmembers class com.devac.whisper_ggml.** {
     native <methods>;
 }
--dontwarn com.peanut.fllama.**
+-dontwarn com.devac.whisper_ggml.**
+
+-keep class com.antonkarpenko.ffmpegkit.** { *; }
+-keepclassmembers class com.antonkarpenko.ffmpegkit.** {
+    native <methods>;
+}
+-keep class com.arthenica.** { *; }
+-keepclassmembers class com.arthenica.** {
+    native <methods>;
+}
+-dontwarn com.antonkarpenko.ffmpegkit.**
+-dontwarn com.arthenica.**
+
+# ═══════════════════════════════════════════════════════════════════════════
+# flutter_onnxruntime + Supertonic TTS (added 2026-05-13, v2.6.0). ONNX
+# Runtime registers JNI methods on `ai.onnxruntime.*` classes — stripping
+# them via R8 hangs the app on splash the same way whisper_ggml did.
+# ═══════════════════════════════════════════════════════════════════════════
+-keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** {
+    native <methods>;
+}
+-dontwarn ai.onnxruntime.**
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Play Core (referenced by Flutter's deferred components even when unused)

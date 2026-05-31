@@ -48,7 +48,7 @@ class HermesCostLedger extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (paid.isNotEmpty) ...[
-              const _SectionHeader(
+              _SectionHeader(
                 label: 'PAID',
                 color: PocketClawTheme.lobsterRed,
               ),

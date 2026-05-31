@@ -200,7 +200,7 @@ class _ActiveModelCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 defaultEntry.lastError!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: PocketClawTheme.lobsterRed,
                 ),

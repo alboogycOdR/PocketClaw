@@ -84,7 +84,7 @@ class _FunctionCallIndicatorState extends State<FunctionCallIndicator>
               height: 14,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: const AlwaysStoppedAnimation<Color>(
+                valueColor: AlwaysStoppedAnimation<Color>(
                   PocketClawTheme.electricTeal,
                 ),
               ),

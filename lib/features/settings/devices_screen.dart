@@ -409,7 +409,7 @@ class _DeviceCard extends StatelessWidget {
                       label: const Text('Revoke'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: PocketClawTheme.lobsterRed,
-                        side: const BorderSide(
+                        side: BorderSide(
                           color: PocketClawTheme.lobsterRed,
                         ),
                       ),

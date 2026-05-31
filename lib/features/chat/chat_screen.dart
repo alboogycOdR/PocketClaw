@@ -17,9 +17,11 @@ import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/tts_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
+import '../../shared/widgets/settings_gear_button.dart';
 import 'chat_bubble.dart';
 import 'chat_mode_selector.dart';
 import 'command_catalog.dart';
@@ -48,6 +50,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   String? _pendingImageUrl;
   bool _isVoiceRecording = false;
+
+  /// Assistant message ids we've already triggered auto-speak for —
+  /// stops the ref.listen below from firing again on every rebuild.
+  final Set<String> _autoSpokenIds = {};
   String _draftText = '';
 
   // Tracks which sessionKey we've already attempted to load history for —
@@ -96,6 +102,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       offset: combined.length,
     );
     _focusNode.requestFocus();
+  }
+
+  /// Toggle read-aloud for a specific assistant message. If this
+  /// message is already speaking, stop. Otherwise hand the text to
+  /// TtsService — Supertonic if loaded, system TTS otherwise — and
+  /// track the active message id so the bubble's speaker icon shows
+  /// the play/stop state.
+  void _toggleSpeak(String messageId, String text) {
+    final tts = ref.read(ttsServiceProvider);
+    final currentId = ref.read(speakingMessageIdProvider);
+    if (currentId == messageId) {
+      // Tap to stop the same message.
+      tts.stop();
+      ref.read(speakingMessageIdProvider.notifier).state = null;
+      return;
+    }
+    ref.read(speakingMessageIdProvider.notifier).state = messageId;
+    // Fire-and-forget; speak() handles its own errors. When the player
+    // naturally completes we clear the provider iff we're still the
+    // active speaker (another tap may have taken over).
+    tts.speak(text).whenComplete(() {
+      if (!mounted) return;
+      if (ref.read(speakingMessageIdProvider) == messageId) {
+        ref.read(speakingMessageIdProvider.notifier).state = null;
+      }
+    });
   }
 
   void _sendMessage() async {
@@ -552,6 +584,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       },
     );
 
+    // Auto-speak: when an assistant message finishes streaming, fire
+    // _toggleSpeak iff the user enabled "Speak replies automatically".
+    // _autoSpokenIds prevents re-speaking on subsequent rebuilds.
+    ref.listen<List<ChatMessage>>(messagesProvider, (_, next) {
+      if (!mounted) return;
+      if (!ref.read(autoSpeakRepliesProvider)) return;
+      if (next.isEmpty) return;
+      final last = next.last;
+      if (last.role != MessageRole.assistant) return;
+      if (last.isStreaming) return;
+      if (last.content.trim().isEmpty) return;
+      if (_autoSpokenIds.contains(last.id)) return;
+      _autoSpokenIds.add(last.id);
+      _toggleSpeak(last.id, last.content);
+    });
+
     // Trigger chat history load once per sessionKey once the real gateway
     // state flips to connected. `connectionStateProvider` above is a local
     // stub — use the live mirror instead.
@@ -600,6 +648,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
+          const SettingsGearButton(),
           // Active server picker — tappable AgentScopeBadge opens a
           // bottom-sheet to switch OpenClaw / Hermes / Local from any
           // tab.
@@ -723,7 +772,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // Message bubble. Last user message gets
                           // onRetry (Retry in long-press bar);
                           // assistant messages get onQuote (drops a
-                          // `> quote` into the input and focuses).
+                          // `> quote` into the input and focuses) plus
+                          // onSpeak (inline speaker icon + Read aloud
+                          // action).
                           ChatBubble(
                             message: msg,
                             onRetry: index == lastUserIdx
@@ -737,6 +788,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             onQuote: msg.role == MessageRole.assistant
                                 ? _quoteIntoInput
                                 : null,
+                            onSpeak: msg.role == MessageRole.assistant
+                                ? () => _toggleSpeak(msg.id, msg.content)
+                                : null,
+                            isSpeaking: ref.watch(
+                                  speakingMessageIdProvider,
+                                ) ==
+                                msg.id,
                           ),
                         ],
                       );
@@ -898,11 +956,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             onFinalResult: (text) {
               // Final transcription — leave it in the field for the
-              // user to edit or send.
+              // user to edit or send. In hands-free voice-loop mode,
+              // auto-send instead (closes the spoken-message loop).
               _textController.text = text;
               _textController.selection = TextSelection.fromPosition(
                 TextPosition(offset: text.length),
               );
+              if (ref.read(voiceLoopModeProvider) &&
+                  text.trim().isNotEmpty) {
+                _sendMessage();
+              }
             },
             onDone: () {
               // Recording stopped: dismiss the "listening" snackbar.

@@ -350,7 +350,7 @@ class _SuccessCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.check_circle,
+                Icon(Icons.check_circle,
                     color: PocketClawTheme.success, size: 20),
                 const SizedBox(width: 8),
                 Text(

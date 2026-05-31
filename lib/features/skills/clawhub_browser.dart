@@ -218,7 +218,7 @@ class _HubHitCardState extends ConsumerState<_HubHitCard> {
             ),
             const SizedBox(width: 8),
             if (_installed)
-              const Icon(Icons.check_circle,
+              Icon(Icons.check_circle,
                   size: 20, color: PocketClawTheme.success)
             else if (_installing)
               const SizedBox(

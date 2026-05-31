@@ -220,17 +220,17 @@ class _NoTokenBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.warning_amber_rounded,
+            Icon(Icons.warning_amber_rounded,
                 size: 20, color: PocketClawTheme.warning),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'HuggingFace token required for model downloads. '
                 'Tap here to add your token.',
-                style: const TextStyle(fontSize: 12, color: PocketClawTheme.warning),
+                style: TextStyle(fontSize: 12, color: PocketClawTheme.warning),
               ),
             ),
-            const Icon(Icons.chevron_right,
+            Icon(Icons.chevron_right,
                 size: 18, color: PocketClawTheme.warning),
           ],
         ),
@@ -454,7 +454,7 @@ class _MultiModelCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: downloadProgress > 0 ? downloadProgress : null,
                   backgroundColor: PocketClawTheme.surfaceContainerLow,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
+                  valueColor: AlwaysStoppedAnimation<Color>(
                     PocketClawTheme.electricTeal,
                   ),
                   minHeight: 4,

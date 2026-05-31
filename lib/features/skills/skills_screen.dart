@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../shared/widgets/settings_gear_button.dart';
 import '../../data/models/skill.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/server_providers.dart';
@@ -41,7 +42,8 @@ class SkillsScreen extends ConsumerWidget {
           title: const Text('Skills'),
           actions: const [
             AgentScopeBadge(),
-            SizedBox(width: 8),
+            SizedBox(width: 4),
+            SettingsGearButton(),
           ],
         ),
         body: const Center(
@@ -53,7 +55,8 @@ class SkillsScreen extends ConsumerWidget {
           title: const Text('Skills'),
           actions: const [
             AgentScopeBadge(),
-            SizedBox(width: 8),
+            SizedBox(width: 4),
+            SettingsGearButton(),
           ],
         ),
         body: Center(
@@ -98,6 +101,7 @@ class _SkillsList extends ConsumerWidget {
         actions: [
           const AgentScopeBadge(),
           const SizedBox(width: 4),
+          const SettingsGearButton(),
           IconButton(
             icon: const Icon(Icons.refresh, size: 20),
             tooltip: 'Refresh server skills',

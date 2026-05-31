@@ -284,7 +284,7 @@ class _CommercialWizardScreenState
                       ),
                     ),
                     if (selected)
-                      const Icon(Icons.check_circle,
+                      Icon(Icons.check_circle,
                           color: PocketClawTheme.bronze, size: 22),
                   ],
                 ),

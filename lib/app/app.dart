@@ -13,6 +13,7 @@ import '../data/providers/core_providers.dart';
 import 'biometric_lock_screen.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'theme_provider.dart';
 
 class PocketClawApp extends ConsumerStatefulWidget {
   const PocketClawApp({super.key});
@@ -95,10 +96,17 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
     ref.watch(proactiveNotifierProvider);
     final showLock = biometricEnabled && !_unlocked;
 
+    // Resolve the active theme and swap the palette BEFORE building
+    // MaterialApp. Hand-painted widgets that read PocketClawTheme.bronze
+    // / .deepCharcoal / etc. directly will see the new colours in the
+    // same frame as the new ThemeData.
+    final themeId = ref.watch(themeIdProvider);
+    PocketClawTheme.setActive(themeId);
+
     return MaterialApp.router(
       title: 'ClawCommander',
       debugShowCheckedModeBanner: false,
-      theme: PocketClawTheme.darkTheme,
+      theme: PocketClawTheme.themeData,
       routerConfig: appRouter,
       builder: (context, child) {
         if (showLock) {

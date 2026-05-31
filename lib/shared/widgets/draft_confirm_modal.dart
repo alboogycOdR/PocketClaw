@@ -30,9 +30,11 @@ class DraftConfirmModal extends StatelessWidget {
     required this.onCancel,
   });
 
-  static const _lowColor = PocketClawTheme.success;
-  static const _mediumColor = PocketClawTheme.warning;
-  static const _highColor = PocketClawTheme.lobsterRed;
+  // Not const — PocketClawTheme accents resolve through the active
+  // palette, which is mutable across theme switches.
+  static Color get _lowColor => PocketClawTheme.success;
+  static Color get _mediumColor => PocketClawTheme.warning;
+  static Color get _highColor => PocketClawTheme.lobsterRed;
 
   Color get _riskColor => switch (riskLevel) {
         RiskLevel.low => _lowColor,
@@ -106,7 +108,7 @@ class DraftConfirmModal extends StatelessWidget {
               color: PocketClawTheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: PocketClawTheme.colorScheme.outline.withAlpha(80),
+                color: Theme.of(context).colorScheme.outline.withAlpha(80),
               ),
             ),
             child: SingleChildScrollView(

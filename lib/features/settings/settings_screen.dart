@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/theme.dart';
+import '../../app/theme_provider.dart';
 import '../../core/coaching/grow_state_machine.dart';
 import '../../data/models/openclaw_models.dart';
 import '../../data/providers/academy_providers.dart';
@@ -31,8 +32,13 @@ import 'models_screen.dart';
 // import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
 import 'backup_restore_settings.dart';
+import 'device_info_screen.dart';
+import 'lan_scan_screen.dart';
 import 'security_settings.dart';
 import 'ssh_settings.dart';
+import 'storage_settings_screen.dart';
+import 'voice_settings_screen.dart';
+import '../../data/providers/tts_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -134,6 +140,19 @@ class _ConnectionTab extends ConsumerWidget {
                 trailing: const _Chevron(),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SshSettings()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.wifi_find_outlined),
+                title: const Text('Scan local network'),
+                subtitle: const Text(
+                  'Find Ollama / LM Studio / OpenClaw / Hermes on this WiFi',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const LanScanScreen()),
                 ),
               ),
               const _ListDivider(),
@@ -295,6 +314,28 @@ class _WorkspaceTab extends ConsumerWidget {
                   ),
                 ),
               ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Knowledge Base'),
+                subtitle: const Text(
+                  'Index docs the local model can cite (RAG)',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/knowledge-base'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.workspaces_outline),
+                title: const Text('Swarm / Conductor'),
+                subtitle: const Text(
+                  'Launch and monitor multi-worker Hermes missions',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/swarm'),
+              ),
             ],
           ),
         ),
@@ -305,11 +346,12 @@ class _WorkspaceTab extends ConsumerWidget {
 
 // ── Tab 4: App (Modes · Security · About) ────────────────────────────────
 
-class _AppTab extends StatelessWidget {
+class _AppTab extends ConsumerWidget {
   const _AppTab();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeId = ref.watch(themeIdProvider);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -317,6 +359,17 @@ class _AppTab extends StatelessWidget {
           margin: EdgeInsets.zero,
           child: Column(
             children: [
+              ListTile(
+                leading: const Icon(Icons.palette_outlined),
+                title: const Text('Theme'),
+                subtitle: Text(
+                  themeId.displayName,
+                  style: const TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => _pickTheme(context, ref, themeId),
+              ),
+              const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.school_outlined),
                 title: const Text('Academy Mode'),
@@ -349,6 +402,56 @@ class _AppTab extends StatelessWidget {
               //   onTap: () => context.push('/onboarding/commercial'),
               // ),
               // const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.mic_outlined),
+                title: const Text('Voice & Transcription'),
+                subtitle: const Text(
+                  'Whisper models for offline STT',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const VoiceSettingsScreen()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.record_voice_over_outlined),
+                title: const Text('Voice & TTS'),
+                subtitle: const _TtsStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/tts'),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.storage_outlined),
+                title: const Text('Storage'),
+                subtitle: const Text(
+                  'Models · cache · orphan cleanup',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const StorageSettingsScreen()),
+                ),
+              ),
+              const _ListDivider(),
+              ListTile(
+                leading: const Icon(Icons.smartphone_outlined),
+                title: const Text('Device Info'),
+                subtitle: const Text(
+                  'Hardware · active model · acceleration',
+                  style: TextStyle(fontSize: 12, color: Colors.white54),
+                ),
+                trailing: const _Chevron(),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const DeviceInfoScreen()),
+                ),
+              ),
+              const _ListDivider(),
               ListTile(
                 leading: const Icon(Icons.security),
                 title: const Text('Security & Privacy'),
@@ -420,6 +523,48 @@ class _AppTab extends StatelessWidget {
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  Future<void> _pickTheme(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeId current,
+  ) async {
+    final picked = await showModalBottomSheet<ThemeId>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
+                child: Text(
+                  'Choose a theme',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              for (final id in ThemeId.values)
+                RadioListTile<ThemeId>(
+                  value: id,
+                  groupValue: current,
+                  title: Text(id.displayName),
+                  onChanged: (v) => Navigator.of(sheet).pop(v),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      await ref.read(themeIdProvider.notifier).setTheme(picked);
+    }
   }
 }
 
@@ -590,9 +735,29 @@ class _AcademyStatusLine extends ConsumerWidget {
     return Text(
       '${state.subject} · ${state.level}'
       '${state.streakDays > 0 ? " · ${state.streakDays}🔥" : ""}',
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         color: PocketClawTheme.electricTeal,
+      ),
+    );
+  }
+}
+
+class _TtsStatusLine extends ConsumerWidget {
+  const _TtsStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final readyAsync = ref.watch(supertonicModelsReadyProvider);
+    final voice = ref.watch(activeVoiceIdProvider);
+    final ready = readyAsync.valueOrNull ?? false;
+    return Text(
+      ready
+          ? 'Supertonic · $voice · Offline'
+          : 'System TTS · Tap to upgrade',
+      style: TextStyle(
+        fontSize: 12,
+        color: ready ? PocketClawTheme.electricTeal : Colors.white54,
       ),
     );
   }
@@ -616,7 +781,7 @@ class _LifeArchitectStatusLine extends ConsumerWidget {
         : '';
     return Text(
       'Active · GROW: ${grow.currentPhase.name.toUpperCase()}$facetSuffix',
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         color: PocketClawTheme.electricTeal,
       ),

@@ -64,7 +64,7 @@ class PrivacyWarningBanner extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield_outlined,
+          Icon(Icons.shield_outlined,
               size: 18, color: PocketClawTheme.warning),
           const SizedBox(width: 8),
           Expanded(

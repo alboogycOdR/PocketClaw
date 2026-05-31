@@ -27,7 +27,7 @@ class ChatModeSelector extends ConsumerWidget {
         color: PocketClawTheme.surfaceContainer,
         border: Border(
           bottom: BorderSide(
-              color: PocketClawTheme.colorScheme.outline.withAlpha(80)),
+              color: Theme.of(context).colorScheme.outline.withAlpha(80)),
         ),
       ),
       child: Column(

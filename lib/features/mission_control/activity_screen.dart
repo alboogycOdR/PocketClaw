@@ -43,7 +43,7 @@ class ActivityScreen extends ConsumerWidget {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: PocketClawTheme.success,
                     shape: BoxShape.circle,
                   ),

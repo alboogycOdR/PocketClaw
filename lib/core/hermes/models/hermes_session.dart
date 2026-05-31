@@ -3,6 +3,11 @@
 /// SPEC-MultiTransport §8.1.
 library;
 
+/// Status used by Swarm Monitor + Office View. Derived from row state
+/// (`endedAt`, `messageCount`) and clock since the server has no
+/// `state` column.
+enum SwarmStatus { running, thinking, complete, failed, error, idle }
+
 class HermesSession {
   final String id;
   final String source;
@@ -40,6 +45,46 @@ class HermesSession {
   int get totalTokens => inputTokens + outputTokens;
   double? get displayCostUSD => actualCostUSD ?? estimatedCostUSD;
   String get displayTitle => title?.isNotEmpty == true ? title! : id;
+
+  /// True when this is a top-level orchestrator session (no parent
+  /// and a "conductor"/"swarm" marker in its title).
+  bool get isOrchestrator {
+    if (parentSessionId != null) return false;
+    final t = (title ?? '').toLowerCase();
+    return t.contains('conductor') ||
+        t.contains('orchestrator') ||
+        t.contains('swarm');
+  }
+
+  /// Status used by the Swarm Monitor + Office View. Pure function of
+  /// the row + clock — server doesn't expose a `state` column.
+  SwarmStatus get swarmStatus {
+    if (endedAt != null) {
+      return messageCount > 0 ? SwarmStatus.complete : SwarmStatus.failed;
+    }
+    // Active sessions. Without per-turn signals we can only call it
+    // "running"; UI can layer a "thinking" state on top when it sees
+    // streaming events from chat.
+    final age = DateTime.now().difference(startedAt ?? DateTime(2020));
+    if (age.inSeconds < 0) return SwarmStatus.idle;
+    return SwarmStatus.running;
+  }
+
+  /// Short display name for the office view — strips raw UUIDs and
+  /// gives orchestrators / workers distinct labels.
+  String get officeDisplayName {
+    final t = title?.trim();
+    if (t != null && t.isNotEmpty && !_looksLikeUuid(t)) return t;
+    final prefix = isOrchestrator
+        ? 'Conductor'
+        : (source == 'telegram' ? 'Task' : 'Worker');
+    final suffix =
+        id.length >= 4 ? id.substring(id.length - 4).toUpperCase() : id;
+    return '$prefix $suffix';
+  }
+
+  static bool _looksLikeUuid(String s) =>
+      RegExp(r'^[0-9a-f-]{8,}$', caseSensitive: false).hasMatch(s);
 
   String get sourceIcon => switch (source) {
         'telegram' => '📱',

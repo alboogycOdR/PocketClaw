@@ -28,10 +28,18 @@ class HermesRemoteSqlite {
   /// reader emits empty output (e.g. an UPDATE that ran fine but
   /// printed nothing).
   Future<List<Map<String, dynamic>>> query(String sql) async {
+    // The path needs `~` to expand. Bash doesn't expand `~` inside
+    // single quotes, so swap it for `$HOME` and use double quotes
+    // (which DO expand env vars) while keeping the SQL itself in
+    // single quotes (so its `$` / backticks stay literal).
+    final shellPath = dbPath.startsWith('~')
+        ? '\$HOME${dbPath.substring(1)}'
+        : dbPath;
+
     // Try the native sqlite3 CLI first — fastest, well-defined output.
     try {
       final command =
-          "sqlite3 -readonly -json '$dbPath' ${_quoteSql(sql)}";
+          'sqlite3 -readonly -json "$shellPath" ${_quoteSql(sql)}';
       final raw = await _ssh.exec(command);
       return _parse(raw);
     } on SshCommandException catch (e) {
@@ -41,8 +49,9 @@ class HermesRemoteSqlite {
       if (e.exitCode != 127) rethrow;
     }
 
-    // Python fallback. `sqlite3` is in the stdlib, no pip install needed.
-    // Pass the SQL as a positional arg to avoid shell-escaping disasters.
+    // Python fallback. `sqlite3` is in the stdlib, no pip install
+    // needed. Python's os.path.expanduser() handles the `~` itself
+    // so we can keep the path single-quoted here without trouble.
     final pyScript = r'''
 import sqlite3, json, os, sys
 db = os.path.expanduser(sys.argv[1])

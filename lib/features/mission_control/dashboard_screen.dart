@@ -17,6 +17,7 @@ import '../../data/providers/core_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../shared/extensions.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
+import '../../shared/widgets/settings_gear_button.dart';
 import '../../shared/widgets/approvals_panel.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/stat_card.dart';
@@ -97,6 +98,7 @@ class _OpenClawDashboard extends ConsumerWidget {
             icon: const Icon(Icons.refresh, size: 20),
             onPressed: () => _refresh(ref),
           ),
+          const SettingsGearButton(),
         ],
       ),
       body: RefreshIndicator(

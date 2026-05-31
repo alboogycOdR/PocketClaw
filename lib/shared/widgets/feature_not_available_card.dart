@@ -72,7 +72,7 @@ class FeatureNotAvailableCard extends ConsumerWidget {
                 label: Text(actionLabel),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: PocketClawTheme.electricTeal,
-                  side: const BorderSide(
+                  side: BorderSide(
                       color: PocketClawTheme.electricTeal),
                 ),
               ),

@@ -106,7 +106,7 @@ class _PackPickerScreenState extends ConsumerState<PackPickerScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: isActive
-                    ? const BorderSide(
+                    ? BorderSide(
                         color: PocketClawTheme.electricTeal, width: 2)
                     : BorderSide(
                         color: PocketClawTheme.surfaceBright.withAlpha(120)),
@@ -224,7 +224,7 @@ class _PackPickerScreenState extends ConsumerState<PackPickerScreen> {
                                       : () => _activate(pack),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: PocketClawTheme.lobsterRed,
-                                    side: const BorderSide(
+                                    side: BorderSide(
                                         color: PocketClawTheme.lobsterRed),
                                   ),
                                   child: const Text('Activate'),

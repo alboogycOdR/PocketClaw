@@ -1,6 +1,8 @@
 /// Hermes management — 6-tab container backed by SSH + analytics.
-/// Sessions, Memory, Cron, Skills, Logs, Analytics (Sprint C).
-/// Each tab is gated by [serverCapabilitiesProvider] (Sprint B) so the
+/// Sessions, Cron, Skills, Logs, Analytics, Channels. Memory used to
+/// live here but was redundant with bottom-nav → Memory (which routes
+/// to the same HermesMemoryTab when active server is Hermes), removed
+/// in v2.6.5. Each tab is gated by [serverCapabilitiesProvider] so the
 /// surface stays informative when SSH is missing.
 ///
 /// Two presentation modes:
@@ -19,9 +21,13 @@ import '../../data/providers/ssh_providers.dart';
 import '../../shared/widgets/approvals_panel.dart';
 import '../../shared/widgets/feature_not_available_card.dart';
 import 'hermes_analytics_screen.dart';
+import 'hermes_channels_screen.dart';
 import 'hermes_cron_screen.dart';
 import 'hermes_logs_screen.dart';
-import 'hermes_memory_screen.dart';
+// Kept after Memory tab removal in v2.6.5 for the HermesNotConfigured
+// fallback widget defined in this file — used when SSH host is set but
+// the client failed to connect.
+import 'hermes_memory_screen.dart' show HermesNotConfigured;
 import 'hermes_sessions_screen.dart';
 import 'hermes_skills_screen.dart';
 
@@ -42,11 +48,11 @@ class HermesManagementScreen extends ConsumerWidget {
       tabAlignment: TabAlignment.start,
       tabs: [
         Tab(icon: Icon(Icons.history, size: 18), text: 'Sessions'),
-        Tab(icon: Icon(Icons.note_alt_outlined, size: 18), text: 'Memory'),
         Tab(icon: Icon(Icons.schedule, size: 18), text: 'Cron'),
         Tab(icon: Icon(Icons.extension_outlined, size: 18), text: 'Skills'),
         Tab(icon: Icon(Icons.terminal, size: 18), text: 'Logs'),
         Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: 'Analytics'),
+        Tab(icon: Icon(Icons.podcasts_outlined, size: 18), text: 'Channels'),
       ],
     );
 
@@ -73,7 +79,7 @@ class HermesManagementScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
                 size: 36,
                 color: PocketClawTheme.lobsterRed,
@@ -158,10 +164,6 @@ class _GatedTabBarView extends ConsumerWidget {
             ? const HermesSessionsTab()
             : const FeatureNotAvailableCard(
                 feature: 'Sessions', featureKey: 'sessions'),
-        caps.hasMemory
-            ? const HermesMemoryTab()
-            : const FeatureNotAvailableCard(
-                feature: 'Memory', featureKey: 'memory'),
         caps.hasCron
             ? const HermesCronTab()
             : const FeatureNotAvailableCard(
@@ -178,6 +180,10 @@ class _GatedTabBarView extends ConsumerWidget {
             ? const HermesAnalyticsTab()
             : const FeatureNotAvailableCard(
                 feature: 'Analytics', featureKey: 'cost'),
+        caps.hasChannels
+            ? const HermesChannelsTab()
+            : const FeatureNotAvailableCard(
+                feature: 'Channels', featureKey: 'channels'),
       ],
     );
   }

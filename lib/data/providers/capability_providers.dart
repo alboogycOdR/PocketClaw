@@ -55,7 +55,7 @@ class ServerCapabilities {
           hasMemory: sshConfigured,
           hasSkills: sshConfigured,
           hasAgents: false,
-          hasChannels: false,
+          hasChannels: sshConfigured,
           hasCost: sshConfigured,
           hasLogs: sshConfigured,
           hasSsh: sshConfigured,

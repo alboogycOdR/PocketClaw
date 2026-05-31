@@ -32,11 +32,24 @@ class ChatBubble extends StatefulWidget {
   /// field and focus the keyboard for a direct follow-up.
   final void Function(String text)? onQuote;
 
+  /// Set this on assistant messages to enable the inline speaker icon
+  /// (and the matching "Read aloud" entry in the long-press actions
+  /// bar). The callback toggles playback for THIS message — caller
+  /// handles wiring through to TtsService and stopping any other
+  /// in-flight playback.
+  final VoidCallback? onSpeak;
+
+  /// True when THIS message's text is currently being spoken aloud.
+  /// Drives the speaker icon's play/stop state.
+  final bool isSpeaking;
+
   const ChatBubble({
     super.key,
     required this.message,
     this.onRetry,
     this.onQuote,
+    this.onSpeak,
+    this.isSpeaking = false,
   });
 
   @override
@@ -78,6 +91,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                 showRetry: widget.onRetry != null,
                 onRetry: widget.onRetry,
                 onQuote: widget.onQuote,
+                onSpeak: widget.onSpeak,
                 onDismiss: _hideActions,
               ),
             ),
@@ -238,7 +252,7 @@ class _ChatBubbleState extends State<ChatBubble> {
 
                     const SizedBox(height: 6),
 
-                    // Footer: source badge + timestamp
+                    // Footer: source badge + timestamp + speaker
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -255,6 +269,32 @@ class _ChatBubbleState extends State<ChatBubble> {
                                 : PocketClawTheme.onSurfaceMuted,
                           ),
                         ),
+                        // Speaker icon — only on completed assistant
+                        // messages with a speak callback wired.
+                        if (!_isUser &&
+                            !message.isStreaming &&
+                            widget.onSpeak != null) ...[
+                          const SizedBox(width: 8),
+                          InkResponse(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              widget.onSpeak!();
+                            },
+                            radius: 14,
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Icon(
+                                widget.isSpeaking
+                                    ? Icons.stop_circle_outlined
+                                    : Icons.volume_up_outlined,
+                                size: 14,
+                                color: widget.isSpeaking
+                                    ? PocketClawTheme.electricTeal
+                                    : PocketClawTheme.onSurfaceMuted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -324,7 +364,7 @@ class _AssistantMarkdown extends StatelessWidget {
         codeblockPadding: const EdgeInsets.all(12),
         codeblockAlign: WrapAlignment.start,
         // Links
-        a: const TextStyle(
+        a: TextStyle(
           color: PocketClawTheme.electricTeal,
           decoration: TextDecoration.underline,
         ),
