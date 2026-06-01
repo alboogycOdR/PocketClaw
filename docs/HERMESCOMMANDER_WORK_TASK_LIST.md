@@ -87,7 +87,8 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` flutter analyze warnings cleared — 5 warnings resolved (retired model-ID dead block in model_config.dart, unused import in voice_settings_screen.dart). 0 warnings remain.
 - `DONE` Open-Notebook detail flow — tapping a notebook pushes _NotebookDetailScreen with parallel-fetched source list (/api/notebooks/{id}/sources) and note list (/api/notes?notebook={id}); PDF/URL/text icons, note content cards, pull-to-refresh; Chat and Add-note actions on AppBar.
 - `DONE` Settings / router dead-code prune — FeatureNotAvailableCard button now uses HCTheme.gold in HermesCommander; router docstring fixed; all other OpenClaw/local references confirmed gated behind !kHermesOnlyMode.
-- `NEXT PICKUP` Ambient / Audio QA — Focus Sounds, Radio Garden, mini-player, TTS+audio-session interaction.
+- `DONE` Ambient / Audio QA — radio icon + all WorldRadioSection accents use HCTheme.gold in HermesCommander; audio session confirmed correct (gainTransientMayDuck ducks but doesn't stop ambient on TTS); radio_models doc-comment infos cleared.
+- `NEXT PICKUP` Permission review before release hardening complete.
 
 ## Spec Authority
 
