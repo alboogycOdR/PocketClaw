@@ -9,8 +9,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_flavor.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
+import '../../data/providers/approvals_providers.dart';
 import '../../data/providers/capability_providers.dart';
+import '../../data/providers/chat_providers.dart';
+import '../../data/providers/hermes_data_providers.dart';
+import '../../data/providers/hermes_providers.dart';
 import '../../data/providers/ssh_providers.dart';
 import '../../shared/widgets/approvals_panel.dart';
 import '../../shared/widgets/feature_not_available_card.dart';
@@ -41,6 +46,7 @@ class HermesManagementScreen extends ConsumerWidget {
       isScrollable: true,
       tabAlignment: TabAlignment.start,
       tabs: const [
+        Tab(icon: Icon(Icons.dashboard_outlined, size: 18), text: 'Home'),
         Tab(icon: Icon(Icons.history, size: 18), text: 'Sessions'),
         if (kHermesOnlyMode)
           Tab(
@@ -57,7 +63,7 @@ class HermesManagementScreen extends ConsumerWidget {
           Tab(icon: Icon(Icons.podcasts_outlined, size: 18), text: 'Channels'),
       ],
     );
-    const tabCount = kHermesOnlyMode ? 7 : 6;
+    const tabCount = kHermesOnlyMode ? 8 : 7;
 
     final body = sshAsync.when(
       data: (client) {
@@ -149,6 +155,7 @@ class _GatedTabBarView extends ConsumerWidget {
     final caps = ref.watch(serverCapabilitiesProvider);
     return TabBarView(
       children: [
+        const _ControlHomeTab(),
         caps.hasSessions
             ? const HermesSessionsTab()
             : const FeatureNotAvailableCard(
@@ -208,6 +215,478 @@ class _HermesApprovalsTab extends StatelessWidget {
     return const SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(children: [ApprovalsPanel(), SizedBox(height: 96)]),
+    );
+  }
+}
+
+// ── Control Home ─────────────────────────────────────────────────────────────
+
+class _ControlHomeTab extends ConsumerWidget {
+  const _ControlHomeTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionLabel('Connection'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _RestStatusCard()),
+              const SizedBox(width: 8),
+              Expanded(child: _SshStatusCard()),
+              const SizedBox(width: 8),
+              Expanded(child: _AcpStatusCard()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _SectionLabel('Agent'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _ModelCard()),
+              const SizedBox(width: 8),
+              Expanded(child: _ApprovalsCard()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _SectionLabel('Activity'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _TodayUsageCard()),
+              const SizedBox(width: 8),
+              Expanded(child: _RecentSessionsCard()),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _CronHealthCard(),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: HCTheme.textSecondary,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+class _StatusDot extends StatelessWidget {
+  const _StatusDot({required this.online});
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: online ? const Color(0xFF3FB950) : const Color(0xFFF85149),
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({
+    required this.icon,
+    required this.label,
+    required this.child,
+  });
+  final IconData icon;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: HCTheme.bgSurface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: HCTheme.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: HCTheme.textSecondary),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: HCTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            child,
+          ],
+        ),
+    );
+  }
+}
+
+class _RestStatusCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(hermesReachableProvider);
+    return _SummaryCard(
+      icon: Icons.cloud_outlined,
+      label: 'REST',
+      child: async.when(
+        data: (online) => Row(
+          children: [
+            _StatusDot(online: online),
+            const SizedBox(width: 6),
+            Text(
+              online ? 'Online' : 'Offline',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: online
+                    ? const Color(0xFF3FB950)
+                    : const Color(0xFFF85149),
+              ),
+            ),
+          ],
+        ),
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Row(
+          children: [
+            _StatusDot(online: false),
+            SizedBox(width: 6),
+            Text('Error', style: TextStyle(fontSize: 13, color: Color(0xFFF85149))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SshStatusCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(sshReachableProvider);
+    return _SummaryCard(
+      icon: Icons.terminal_outlined,
+      label: 'SSH',
+      child: async.when(
+        data: (online) => Row(
+          children: [
+            _StatusDot(online: online),
+            const SizedBox(width: 6),
+            Text(
+              online ? 'Online' : 'Offline',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: online
+                    ? const Color(0xFF3FB950)
+                    : const Color(0xFFF85149),
+              ),
+            ),
+          ],
+        ),
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Row(
+          children: [
+            _StatusDot(online: false),
+            SizedBox(width: 6),
+            Text('Error', style: TextStyle(fontSize: 13, color: Color(0xFFF85149))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AcpStatusCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final acp = ref.watch(activeAcpClientProvider);
+    final connected = acp != null;
+    return _SummaryCard(
+      icon: Icons.bolt_outlined,
+      label: 'ACP',
+      child: Row(
+        children: [
+          _StatusDot(online: connected),
+          const SizedBox(width: 6),
+          Text(
+            connected ? 'Active' : 'Idle',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: connected
+                  ? const Color(0xFF3FB950)
+                  : HCTheme.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(hermesModelIdProvider);
+    return _SummaryCard(
+      icon: Icons.auto_awesome_outlined,
+      label: 'Model',
+      child: async.when(
+        data: (id) {
+          final display = id == null
+              ? '—'
+              : id
+                  .split('/')
+                  .last
+                  .replaceAll(RegExp(r'-\d{8}$'), '');
+          return Text(
+            display,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: HCTheme.gold,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+        },
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Text('—',
+            style: TextStyle(fontSize: 13, color: HCTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _ApprovalsCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count = ref.watch(pendingApprovalCountProvider);
+    return _SummaryCard(
+      icon: Icons.pending_actions_outlined,
+      label: 'Pending Approvals',
+      child: Text(
+        '$count',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: count > 0 ? HCTheme.gold : HCTheme.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _TodayUsageCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(hermesDailyStatsProvider);
+    return _SummaryCard(
+      icon: Icons.token_outlined,
+      label: "Today's Tokens",
+      child: async.when(
+        data: (stats) {
+          final today = DateTime.now();
+          final todayKey =
+              '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+          final row = stats.where((s) => s.day == todayKey).firstOrNull;
+          if (row == null) {
+            return const Text('—',
+                style: TextStyle(
+                    fontSize: 13, color: HCTheme.textSecondary));
+          }
+          final tokens = row.totalTokens;
+          final display = tokens >= 1000
+              ? '${(tokens / 1000).toStringAsFixed(1)}k'
+              : '$tokens';
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                display,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: HCTheme.textPrimary,
+                ),
+              ),
+              if (row.costUsd > 0)
+                Text(
+                  '\$${row.costUsd.toStringAsFixed(4)}',
+                  style: const TextStyle(
+                      fontSize: 11, color: HCTheme.textSecondary),
+                ),
+            ],
+          );
+        },
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Text('—',
+            style: TextStyle(fontSize: 13, color: HCTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _RecentSessionsCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(hermesSessionsProvider);
+    return _SummaryCard(
+      icon: Icons.history_outlined,
+      label: 'Recent Sessions',
+      child: async.when(
+        data: (sessions) {
+          final cutoff = DateTime.now().subtract(const Duration(days: 1));
+          final recent = sessions
+              .where((s) =>
+                  s.startedAt != null && s.startedAt!.isAfter(cutoff))
+              .length;
+          return Text(
+            '$recent',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: HCTheme.textPrimary,
+            ),
+          );
+        },
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Text('—',
+            style: TextStyle(fontSize: 13, color: HCTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _CronHealthCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(hermesCronJobsProvider);
+    return _SummaryCard(
+      icon: Icons.schedule_outlined,
+      label: 'Cron Health',
+      child: async.when(
+        data: (file) {
+          final jobs = file.jobs;
+          if (jobs.isEmpty) {
+            return const Text(
+              'No jobs',
+              style: TextStyle(fontSize: 13, color: HCTheme.textSecondary),
+            );
+          }
+          final failed = jobs.where((j) => j.hasFailed).toList();
+          final disabled =
+              jobs.where((j) => !j.enabled && !j.hasFailed).length;
+          if (failed.isNotEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        size: 14, color: Color(0xFFF85149)),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${failed.length} failed',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFF85149),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  failed.first.name,
+                  style: const TextStyle(
+                      fontSize: 11, color: HCTheme.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  size: 14, color: Color(0xFF3FB950)),
+              const SizedBox(width: 6),
+              Text(
+                '${jobs.length} jobs healthy',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF3FB950),
+                ),
+              ),
+              if (disabled > 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '($disabled paused)',
+                  style: const TextStyle(
+                      fontSize: 11, color: HCTheme.textSecondary),
+                ),
+              ],
+            ],
+          );
+        },
+        loading: () => const SizedBox(
+          height: 16,
+          width: 16,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+        error: (_, _) => const Text(
+          'SSH required',
+          style: TextStyle(fontSize: 13, color: HCTheme.textSecondary),
+        ),
+      ),
     );
   }
 }
