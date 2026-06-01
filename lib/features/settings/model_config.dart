@@ -254,9 +254,6 @@ class _MultiModelCard extends StatelessWidget {
   final VoidCallback onDownload;
   final VoidCallback onSelect;
   final VoidCallback onTokenTap;
-  final VoidCallback? onEditModelId;
-  final String? effectiveModelId;
-
   const _MultiModelCard({
     required this.model,
     required this.isSelected,
@@ -270,8 +267,6 @@ class _MultiModelCard extends StatelessWidget {
     required this.onDownload,
     required this.onSelect,
     required this.onTokenTap,
-    this.onEditModelId,
-    this.effectiveModelId,
   });
 
   @override
@@ -304,32 +299,6 @@ class _MultiModelCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Custom model-ID display (cloud-only feature
-                      // retired 2026-05-09). Block left commented as a
-                      // breadcrumb in case the override widget gets
-                      // repurposed later.
-                      // ignore: dead_code
-                      if (false &&
-                          onEditModelId != null &&
-                          effectiveModelId != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 2),
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit_note,
-                                  size: 12,
-                                  color: PocketClawTheme.electricTeal),
-                              const SizedBox(width: 4),
-                              Text(
-                                'custom: $effectiveModelId',
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 9,
-                                  color: PocketClawTheme.electricTeal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       // Name + status badges
                       Row(
                         children: [

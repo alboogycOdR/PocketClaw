@@ -12,7 +12,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../core/device/whisper_stt_service.dart';
 import '../../data/providers/whisper_providers.dart';
-import '../../shared/utils/storage_formatter.dart';
 
 class VoiceSettingsScreen extends ConsumerWidget {
   const VoiceSettingsScreen({super.key});
