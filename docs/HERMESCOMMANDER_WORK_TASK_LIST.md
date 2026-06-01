@@ -86,7 +86,8 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Swarm tab verification — monitor/compose/office view confirmed in five-tab shell; SSH capability gate (FeatureNotAvailableCard) added to SwarmMonitorScreen.
 - `DONE` flutter analyze warnings cleared — 5 warnings resolved (retired model-ID dead block in model_config.dart, unused import in voice_settings_screen.dart). 0 warnings remain.
 - `DONE` Open-Notebook detail flow — tapping a notebook pushes _NotebookDetailScreen with parallel-fetched source list (/api/notebooks/{id}/sources) and note list (/api/notes?notebook={id}); PDF/URL/text icons, note content cards, pull-to-refresh; Chat and Add-note actions on AppBar.
-- `NEXT PICKUP` Settings / router dead-code prune — legacy OpenClaw/local wording from remaining shared screens.
+- `DONE` Settings / router dead-code prune — FeatureNotAvailableCard button now uses HCTheme.gold in HermesCommander; router docstring fixed; all other OpenClaw/local references confirmed gated behind !kHermesOnlyMode.
+- `NEXT PICKUP` Ambient / Audio QA — Focus Sounds, Radio Garden, mini-player, TTS+audio-session interaction.
 
 ## Spec Authority
 
@@ -406,7 +407,7 @@ Tasks:
 Checkpoint:
 - `DONE` HermesCommander top-level settings list is Hermes-scoped
 - `DONE` SSH settings no longer expose the old placeholder IP hint
-- `IN PROGRESS` legacy non-Hermes settings screens still exist in shared code and need further release-surface review
+- `DONE` legacy non-Hermes settings screens confirmed gated; FeatureNotAvailableCard and router docstring cleaned up
 
 Acceptance:
 - HermesCommander settings are scoped correctly
