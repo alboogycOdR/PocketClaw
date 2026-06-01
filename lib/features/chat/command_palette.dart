@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import 'command_catalog.dart';
 
@@ -46,8 +47,7 @@ class CommandAutocompleteStrip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           for (var i = 0; i < matches.length; i++) ...[
-            if (i != 0)
-              const Divider(height: 1, color: Color(0xFF2A2018)),
+            if (i != 0) const Divider(height: 1, color: Color(0xFF2A2018)),
             _CommandRow(spec: matches[i], onTap: () => onPick(matches[i])),
           ],
         ],
@@ -61,7 +61,14 @@ class CommandAutocompleteStrip extends StatelessWidget {
 /// `await showModalBottomSheet<CommandSpec>` and then insert into the
 /// text controller.
 class CommandPaletteSheet extends StatefulWidget {
-  const CommandPaletteSheet({super.key});
+  final List<CommandSpec>? commands;
+  final bool hermesStyle;
+
+  const CommandPaletteSheet({
+    super.key,
+    this.commands,
+    this.hermesStyle = false,
+  });
 
   @override
   State<CommandPaletteSheet> createState() => _CommandPaletteSheetState();
@@ -79,16 +86,18 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final all = commandsForMobile();
+    final all = widget.commands ?? commandsForMobile();
     final q = _query.trim().toLowerCase();
     final filtered = q.isEmpty
         ? all
         : all
-            .where((c) =>
-                c.name.toLowerCase().contains(q) ||
-                c.description.toLowerCase().contains(q) ||
-                c.aliases.any((a) => a.toLowerCase().contains(q)))
-            .toList();
+              .where(
+                (c) =>
+                    c.name.toLowerCase().contains(q) ||
+                    c.description.toLowerCase().contains(q) ||
+                    c.aliases.any((a) => a.toLowerCase().contains(q)),
+              )
+              .toList();
 
     final grouped = <CommandCategory, List<CommandSpec>>{};
     for (final c in filtered) {
@@ -103,10 +112,13 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: PocketClawTheme.surfaceDim,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(16),
-            ),
+            color: widget.hermesStyle
+                ? HCTheme.bgPanel
+                : PocketClawTheme.surfaceDim,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            border: widget.hermesStyle
+                ? const Border(top: BorderSide(color: HCTheme.border))
+                : null,
           ),
           child: Column(
             children: [
@@ -128,10 +140,15 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
                     Expanded(
                       child: Text(
                         'Slash commands',
-                        style: GoogleFonts.jetBrainsMono(
+                        style: TextStyle(
+                          fontFamily: widget.hermesStyle
+                              ? 'GeistSans'
+                              : GoogleFonts.jetBrainsMono().fontFamily,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: widget.hermesStyle
+                              ? HCTheme.textPrimary
+                              : Colors.white,
                         ),
                       ),
                     ),
@@ -157,7 +174,9 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
                     prefixIcon: const Icon(Icons.search, size: 18),
                     isDense: true,
                     filled: true,
-                    fillColor: Colors.black.withAlpha(80),
+                    fillColor: widget.hermesStyle
+                        ? HCTheme.bgInput
+                        : Colors.black.withAlpha(80),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
@@ -177,10 +196,15 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                           child: Text(
                             kCategoryLabels[cat]!.toUpperCase(),
-                            style: GoogleFonts.jetBrainsMono(
+                            style: TextStyle(
+                              fontFamily: widget.hermesStyle
+                                  ? 'GeistSans'
+                                  : GoogleFonts.jetBrainsMono().fontFamily,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white38,
+                              color: widget.hermesStyle
+                                  ? HCTheme.textMuted
+                                  : Colors.white38,
                               letterSpacing: 0.8,
                             ),
                           ),
@@ -188,6 +212,7 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
                         for (final c in grouped[cat]!)
                           _CommandRow(
                             spec: c,
+                            hermesStyle: widget.hermesStyle,
                             onTap: () => Navigator.of(context).pop(c),
                           ),
                       ],
@@ -205,8 +230,13 @@ class _CommandPaletteSheetState extends State<CommandPaletteSheet> {
 class _CommandRow extends StatelessWidget {
   final CommandSpec spec;
   final VoidCallback onTap;
+  final bool hermesStyle;
 
-  const _CommandRow({required this.spec, required this.onTap});
+  const _CommandRow({
+    required this.spec,
+    required this.onTap,
+    this.hermesStyle = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -224,10 +254,15 @@ class _CommandRow extends StatelessWidget {
                     children: [
                       Text(
                         spec.name,
-                        style: GoogleFonts.jetBrainsMono(
+                        style: TextStyle(
+                          fontFamily: hermesStyle
+                              ? 'GeistMono'
+                              : GoogleFonts.jetBrainsMono().fontFamily,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white,
+                          color: hermesStyle
+                              ? HCTheme.textPrimary
+                              : Colors.white,
                         ),
                       ),
                       if (spec.argsHint != null) ...[
@@ -237,7 +272,9 @@ class _CommandRow extends StatelessWidget {
                             spec.argsHint!,
                             style: GoogleFonts.jetBrainsMono(
                               fontSize: 11,
-                              color: Colors.white38,
+                              color: hermesStyle
+                                  ? HCTheme.textMuted
+                                  : Colors.white38,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -245,18 +282,25 @@ class _CommandRow extends StatelessWidget {
                       ],
                       if (spec.destructive) ...[
                         const SizedBox(width: 6),
-                        Icon(Icons.warning_amber,
-                            size: 14,
-                            color: PocketClawTheme.lobsterRed),
+                        Icon(
+                          Icons.warning_amber,
+                          size: 14,
+                          color: hermesStyle
+                              ? HCTheme.statusRed
+                              : PocketClawTheme.lobsterRed,
+                        ),
                       ],
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
                     spec.description,
-                    style: const TextStyle(
+                    style: TextStyle(
+                      fontFamily: hermesStyle ? 'GeistSans' : null,
                       fontSize: 11,
-                      color: Colors.white54,
+                      color: hermesStyle
+                          ? HCTheme.textSecondary
+                          : Colors.white54,
                       height: 1.3,
                     ),
                   ),
@@ -280,8 +324,11 @@ Future<bool> confirmDestructiveCommand(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      icon:
-          Icon(Icons.warning_amber, color: PocketClawTheme.lobsterRed, size: 32),
+      icon: Icon(
+        Icons.warning_amber,
+        color: PocketClawTheme.lobsterRed,
+        size: 32,
+      ),
       title: const Text('Confirm destructive command'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

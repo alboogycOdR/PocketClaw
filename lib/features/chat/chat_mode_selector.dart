@@ -13,7 +13,9 @@ import '../../core/chat/chat_mode.dart';
 import '../../data/providers/chat_mode_providers.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/hermes_providers.dart';
 import '../../data/providers/server_providers.dart';
+import '../../data/providers/ssh_providers.dart';
 
 class ChatModeSelector extends ConsumerWidget {
   const ChatModeSelector({super.key});
@@ -33,7 +35,7 @@ class ChatModeSelector extends ConsumerWidget {
             ),
           ),
         ),
-        child: const _ActiveModeSubtitle(mode: ChatMode.hermes),
+        child: const _HermesStatusChip(),
       );
     }
 
@@ -146,6 +148,61 @@ class ChatModeSelector extends ConsumerWidget {
 
     // Remember this as the current session for the new mode
     await prefs.setString(mode.storageKey, sessionManager.currentSessionKey);
+  }
+}
+
+class _HermesStatusChip extends ConsumerWidget {
+  const _HermesStatusChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hermesUrl = ref.watch(hermesBaseUrlProvider).trim();
+    final hermesKey = ref.watch(hermesApiKeyProvider).trim();
+    final sshHost = ref.watch(sshHostProvider).trim();
+    final sshUser = ref.watch(sshUsernameProvider).trim();
+
+    final hasRest = hermesUrl.isNotEmpty && hermesKey.isNotEmpty;
+    final hasSsh = sshHost.isNotEmpty && sshUser.isNotEmpty;
+    final partialSsh =
+        (sshHost.isNotEmpty && sshUser.isEmpty) ||
+        (sshHost.isEmpty && sshUser.isNotEmpty);
+
+    final label = !hasRest && !hasSsh
+        ? 'Hermes · not configured'
+        : partialSsh
+        ? 'Hermes · SSH missing'
+        : hasSsh
+        ? 'Hermes · ACP'
+        : 'Hermes · REST';
+
+    final color = !hasRest && !hasSsh
+        ? PocketClawTheme.warning
+        : partialSsh
+        ? PocketClawTheme.warning
+        : hasSsh
+        ? PocketClawTheme.bronze
+        : PocketClawTheme.success;
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withAlpha(28),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withAlpha(120)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'GeistSans',
+          ),
+        ),
+      ),
+    );
   }
 }
 

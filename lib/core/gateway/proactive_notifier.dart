@@ -19,6 +19,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../app/app_flavor.dart';
 import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
@@ -63,8 +64,7 @@ class ProactiveNotifier {
       buf.idleTimer?.cancel();
       // Server sometimes omits a terminal `done:true` — flush after 3s of
       // silence so the bubble + notification still go out.
-      buf.idleTimer =
-          Timer(const Duration(seconds: 3), () => _flush(runId, r));
+      buf.idleTimer = Timer(const Duration(seconds: 3), () => _flush(runId, r));
     }
     if (r.done) {
       _flush(runId, r);
@@ -84,17 +84,21 @@ class ProactiveNotifier {
     //    does not — in-flight replies use the placeholder bubble).
     try {
       final existing = _ref.read(messagesProvider);
-      final alreadyAdded = runId != '_unknown' &&
-          existing.any((m) => m.runId == runId);
+      final alreadyAdded =
+          runId != '_unknown' && existing.any((m) => m.runId == runId);
       if (!alreadyAdded) {
-        _ref.read(messagesProvider.notifier).add(ChatMessage(
-              id: _uuid.v4(),
-              role: MessageRole.assistant,
-              content: body,
-              source: MessageSource.server,
-              timestamp: buf.startedAt,
-              runId: runId == '_unknown' ? null : runId,
-            ));
+        _ref
+            .read(messagesProvider.notifier)
+            .add(
+              ChatMessage(
+                id: _uuid.v4(),
+                role: MessageRole.assistant,
+                content: body,
+                source: MessageSource.server,
+                timestamp: buf.startedAt,
+                runId: runId == '_unknown' ? null : runId,
+              ),
+            );
       }
     } catch (_) {
       // Adding to chat should never throw; swallow to keep notifications
@@ -106,7 +110,7 @@ class ProactiveNotifier {
     if (lifecycle != AppLifecycleState.resumed) {
       final service = _ref.read(notificationServiceProvider);
       await service.showNotification(
-        title: 'ClawCommander',
+        title: kAppFlavor.appName,
         body: body.length > 160 ? '${body.substring(0, 157)}…' : body,
       );
     }

@@ -1,4 +1,4 @@
-package com.carmen.clawcommander
+package com.nuburo.hermescommander
 
 import android.app.ActivityManager
 import android.content.Context
@@ -22,7 +22,7 @@ class MainActivity : FlutterFragmentActivity() {
         // with their expectations.
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "com.carmen.clawcommander/device"
+            "com.nuburo.hermescommander/device"
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getTotalRam" -> {

@@ -113,12 +113,12 @@ ModeAvailability _hermesAvailable(Ref ref) {
     final key = ref.watch(hermesApiKeyProvider);
     if (url.isEmpty) {
       return const ModeAvailability.unavailable(
-        'Hermes not configured. Set base URL in Settings → Hermes Agent.',
+        'Hermes not configured. Set base URL in Settings → Hermes REST.',
       );
     }
     if (key.isEmpty) {
       return const ModeAvailability.unavailable(
-        'Hermes API key missing. Set it in Settings → Hermes Agent.',
+        'Hermes API key missing. Set it in Settings → Hermes REST.',
       );
     }
     return const ModeAvailability.available(

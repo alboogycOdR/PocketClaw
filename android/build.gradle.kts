@@ -6,8 +6,9 @@ allprojects {
 }
 
 val newBuildDir: Directory =
-    rootProject.layout.projectDirectory
-        .dir("../../AI_HermesCommander_android_build")
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {

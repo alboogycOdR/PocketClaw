@@ -1,6 +1,6 @@
 @echo off
-REM Build the release APK, upload to Gofile.io, and notify via Telegram.
-REM Use this when you are NOT on the same network as your phone.
+REM Build the HermesCommander release APK, upload it to Gofile.io,
+REM and notify via Telegram.
 REM
 REM Usage: scripts\release-remote.bat
 
@@ -18,11 +18,11 @@ if not exist .env (
 )
 
 echo ============================================================
-echo   Building Pocket Claw release APK (arm64-v8a)
+echo   Building HermesCommander release APK (arm64-v8a)
 echo ============================================================
 echo.
 
-call flutter build apk --release --target-platform android-arm64
+call flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander
 if errorlevel 1 (
     echo Build failed.
     exit /b 1
@@ -32,4 +32,4 @@ echo.
 echo Build complete. Uploading + notifying...
 echo.
 
-dart scripts\release_remote.dart
+dart scripts\release_remote.dart build\app\outputs\flutter-apk\app-release.apk

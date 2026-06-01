@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
+import 'app_flavor.dart';
 import 'theme.dart';
 
 class BiometricLockScreen extends StatefulWidget {
@@ -36,7 +37,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
 
     try {
       final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Unlock Pocket Claw',
+        localizedReason: 'Unlock ${kAppFlavor.appName}',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
@@ -74,11 +75,11 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Pocket Claw is Locked',
+              '${kAppFlavor.appName} is Locked',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -87,9 +88,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen> {
             ),
             const SizedBox(height: 32),
             if (_authenticating)
-              CircularProgressIndicator(
-                color: PocketClawTheme.electricTeal,
-              )
+              CircularProgressIndicator(color: PocketClawTheme.electricTeal)
             else ...[
               IconButton(
                 onPressed: _authenticate,

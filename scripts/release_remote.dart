@@ -1,12 +1,16 @@
-/// Remote APK delivery: upload the latest release APK to Gofile.io and
-/// post the download link to a Telegram chat via a bot.
+/// Remote file delivery: upload a file to Gofile.io and post the
+/// public link to a Telegram chat via a bot.
 ///
-/// Configuration is read from a `.env` file at the project root (gitignored):
+/// Configuration is read from a `.env` file at the project root
+/// (gitignored):
 ///
 ///   TELEGRAM_BOT_TOKEN=1234567890:AAAA...
 ///   TELEGRAM_CHAT_ID=123456789
 ///
-/// Usage: `dart scripts/release_remote.dart`
+/// Usage:
+///   dart scripts/release_remote.dart [path-to-file]
+///
+/// If no path is passed, defaults to the Flutter release APK path.
 library;
 
 import 'dart:convert';
@@ -14,13 +18,20 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-const _apkPath = 'build/app/outputs/flutter-apk/app-release.apk';
+const _defaultFilePath = 'build/app/outputs/flutter-apk/app-release.apk';
 
 Future<void> main(List<String> args) async {
-  final apk = File(_apkPath);
-  if (!apk.existsSync()) {
-    stderr.writeln('APK not found at $_apkPath');
-    stderr.writeln('Run: flutter build apk --release --target-platform android-arm64');
+  final filePath = args.isNotEmpty ? args.first : _defaultFilePath;
+  final file = File(filePath);
+
+  if (!file.existsSync()) {
+    stderr.writeln('File not found: ${file.path}');
+    if (args.isEmpty) {
+      stderr.writeln(
+        'Run: flutter build apk --release --target-platform android-arm64 '
+        '--dart-define=APP_FLAVOR=hermesCommander',
+      );
+    }
     exit(1);
   }
 
@@ -39,14 +50,17 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
-  final sizeMb = (apk.lengthSync() / 1024 / 1024).toStringAsFixed(1);
-  final commitHash = await _currentCommitHash();
-  final commitMsg = await _currentCommitMessage();
+  final fileName = file.uri.pathSegments.isEmpty
+      ? file.path
+      : file.uri.pathSegments.last;
+  final sizeMb = (file.lengthSync() / 1024 / 1024).toStringAsFixed(1);
+  final commitHash = await _safeGit(['rev-parse', '--short', 'HEAD']);
+  final commitMsg = await _safeGit(['log', '-1', '--pretty=%s']);
 
   stdout.writeln('');
-  stdout.writeln('Uploading ${apk.path} ($sizeMb MB) to Gofile.io...');
+  stdout.writeln('Uploading ${file.path} ($sizeMb MB) to Gofile...');
 
-  final uploadResult = await _uploadToGofile(apk);
+  final uploadResult = await _uploadToGofile(file);
   if (uploadResult == null) {
     stderr.writeln('Upload failed.');
     exit(1);
@@ -58,45 +72,41 @@ Future<void> main(List<String> args) async {
   stdout.writeln('Sending Telegram notification...');
 
   final message = _buildMessage(
+    fileName: fileName,
     downloadPage: uploadResult.downloadPage,
     sizeMb: sizeMb,
     commitHash: commitHash,
     commitMsg: commitMsg,
   );
 
-  final sent = await _sendTelegram(
-    token: token,
-    chatId: chatId,
-    text: message,
-  );
+  final sent = await _sendTelegram(token: token, chatId: chatId, text: message);
 
-  if (sent) {
-    stdout.writeln('\u2713 Telegram message sent.');
-    stdout.writeln('');
-    stdout.writeln('Check your Telegram. Link expires in ~10 days.');
-  } else {
+  if (!sent) {
     stderr.writeln('Telegram send failed.');
     stdout.writeln('Download URL (save this): ${uploadResult.downloadPage}');
     exit(1);
   }
-}
 
-// ── Gofile.io upload ─────────────────────────────────────────────────────
+  stdout.writeln('Sent: ${uploadResult.downloadPage}');
+  stdout.writeln('Check Telegram. Link expires in ~10 days.');
+}
 
 class _GofileResult {
   final String downloadPage;
-  _GofileResult(this.downloadPage);
+
+  const _GofileResult(this.downloadPage);
 }
 
-Future<_GofileResult?> _uploadToGofile(File apk) async {
+Future<_GofileResult?> _uploadToGofile(File file) async {
   try {
-    // Step 1: get a server
     final serversResp = await http
         .get(Uri.parse('https://api.gofile.io/servers'))
         .timeout(const Duration(seconds: 30));
 
     if (serversResp.statusCode != 200) {
-      stderr.writeln('Gofile getServers failed: HTTP ${serversResp.statusCode}');
+      stderr.writeln(
+        'Gofile getServers failed: HTTP ${serversResp.statusCode}',
+      );
       return null;
     }
 
@@ -106,25 +116,25 @@ Future<_GofileResult?> _uploadToGofile(File apk) async {
       return null;
     }
 
-    final servers = (serversJson['data']['servers'] as List<dynamic>);
+    final servers =
+        (serversJson['data']['servers'] as List<dynamic>? ?? const []);
     if (servers.isEmpty) {
-      stderr.writeln('Gofile returned no servers');
+      stderr.writeln('Gofile returned no servers.');
       return null;
     }
-    final server = servers[0]['name'] as String;
-    stdout.writeln('Using Gofile server: $server');
+    final server = (servers.first as Map<String, dynamic>)['name'] as String?;
+    if (server == null || server.isEmpty) {
+      stderr.writeln('Gofile returned an invalid server name.');
+      return null;
+    }
 
-    // Step 2: upload (streamed multipart)
-    final uploadUri =
-        Uri.parse('https://$server.gofile.io/contents/uploadfile');
-    final request = http.MultipartRequest('POST', uploadUri);
-    request.files.add(
-      await http.MultipartFile.fromPath('file', apk.path),
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('https://$server.gofile.io/contents/uploadfile'),
     );
+    request.files.add(await http.MultipartFile.fromPath('file', file.path));
 
-    stdout.writeln('Uploading... (this may take a few minutes on mobile data)');
-    final streamed =
-        await request.send().timeout(const Duration(minutes: 20));
+    final streamed = await request.send().timeout(const Duration(minutes: 20));
     final body = await streamed.stream.bytesToString();
 
     if (streamed.statusCode != 200) {
@@ -139,8 +149,13 @@ Future<_GofileResult?> _uploadToGofile(File apk) async {
       return null;
     }
 
-    final data = uploadJson['data'] as Map<String, dynamic>;
-    final downloadPage = data['downloadPage'] as String;
+    final data = uploadJson['data'] as Map<String, dynamic>? ?? const {};
+    final downloadPage = data['downloadPage'] as String?;
+    if (downloadPage == null || downloadPage.isEmpty) {
+      stderr.writeln('Gofile upload succeeded but returned no downloadPage.');
+      return null;
+    }
+
     return _GofileResult(downloadPage);
   } catch (e) {
     stderr.writeln('Gofile upload exception: $e');
@@ -148,28 +163,23 @@ Future<_GofileResult?> _uploadToGofile(File apk) async {
   }
 }
 
-// ── Telegram send ────────────────────────────────────────────────────────
-
 Future<bool> _sendTelegram({
   required String token,
   required String chatId,
   required String text,
 }) async {
   try {
-    // Plain text — no parse_mode. Telegram's legacy Markdown does not
-    // support backslash escapes (only MarkdownV2 does), and any unmatched
-    // `_` / `*` / backtick / bracket in commit messages breaks parsing.
-    // URLs are still auto-linked by Telegram in plain text, so the
-    // recipient experience is identical for the download-link case.
-    final resp = await http.post(
-      Uri.parse('https://api.telegram.org/bot$token/sendMessage'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'chat_id': chatId,
-        'text': text,
-        'disable_web_page_preview': false,
-      }),
-    ).timeout(const Duration(seconds: 30));
+    final resp = await http
+        .post(
+          Uri.parse('https://api.telegram.org/bot$token/sendMessage'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'chat_id': chatId,
+            'text': text,
+            'disable_web_page_preview': false,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
 
     if (resp.statusCode != 200) {
       stderr.writeln('Telegram HTTP ${resp.statusCode}: ${resp.body}');
@@ -185,28 +195,25 @@ Future<bool> _sendTelegram({
 }
 
 String _buildMessage({
+  required String fileName,
   required String downloadPage,
   required String sizeMb,
   required String? commitHash,
   required String? commitMsg,
 }) {
-  final buf = StringBuffer();
-  buf.writeln('\u{1F980} Pocket Claw build ready');
-  buf.writeln();
-  if (commitMsg != null && commitMsg.isNotEmpty) {
-    buf.writeln(commitMsg);
-    buf.writeln();
-  }
-  buf.writeln('Size: $sizeMb MB');
-  if (commitHash != null) buf.writeln('Commit: $commitHash');
-  buf.writeln();
-  buf.writeln(downloadPage);
-  buf.writeln();
-  buf.writeln('Link expires in approx 10 days.');
-  return buf.toString();
+  return [
+    'Build ready: $fileName',
+    if (commitMsg != null && commitMsg.isNotEmpty) '',
+    if (commitMsg != null && commitMsg.isNotEmpty) commitMsg,
+    '',
+    'Size: $sizeMb MB',
+    if (commitHash != null && commitHash.isNotEmpty) 'Commit: $commitHash',
+    '',
+    downloadPage,
+    '',
+    'Link expires in ~10 days.',
+  ].join('\n');
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────
 
 Map<String, String> _loadEnv() {
   final result = <String, String>{};
@@ -220,7 +227,6 @@ Map<String, String> _loadEnv() {
     if (eq == -1) continue;
     final key = trimmed.substring(0, eq).trim();
     var value = trimmed.substring(eq + 1).trim();
-    // Strip surrounding quotes if present
     if ((value.startsWith('"') && value.endsWith('"')) ||
         (value.startsWith("'") && value.endsWith("'"))) {
       value = value.substring(1, value.length - 1);
@@ -230,19 +236,9 @@ Map<String, String> _loadEnv() {
   return result;
 }
 
-Future<String?> _currentCommitHash() async {
+Future<String?> _safeGit(List<String> args) async {
   try {
-    final result = await Process.run('git', ['rev-parse', '--short', 'HEAD']);
-    if (result.exitCode == 0) {
-      return (result.stdout as String).trim();
-    }
-  } catch (_) {}
-  return null;
-}
-
-Future<String?> _currentCommitMessage() async {
-  try {
-    final result = await Process.run('git', ['log', '-1', '--pretty=%s']);
+    final result = await Process.run('git', args);
     if (result.exitCode == 0) {
       return (result.stdout as String).trim();
     }
@@ -253,18 +249,13 @@ Future<String?> _currentCommitMessage() async {
 const _setupInstructions = '''
 To set up Telegram notifications:
 
-1. Create a bot: message @BotFather on Telegram, /newbot, follow prompts.
-   Save the token it gives you.
-
-2. Get your chat ID: message @userinfobot on Telegram, it replies with
-   your numeric chat ID.
-
-3. Create a `.env` file in the project root (gitignored):
+1. Create a bot: message @BotFather on Telegram, run /newbot, and save the token.
+2. Get your chat ID: message @userinfobot and copy the numeric ID it returns.
+3. Send your bot one message first. Until you initiate the chat, the bot cannot DM you.
+4. Create a .env file in the project root (gitignored):
 
      TELEGRAM_BOT_TOKEN=1234567890:AAAA...your-token...
      TELEGRAM_CHAT_ID=123456789
-
-4. Send a first message to your bot so it can DM you back.
 
 Then run this script again.
 ''';

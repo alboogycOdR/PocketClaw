@@ -5,8 +5,30 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Base64
+
+fun Project.flutterDartDefines(): Map<String, String> {
+    val raw = findProperty("dart-defines") as String? ?: return emptyMap()
+    return raw.split(",")
+        .mapNotNull { encoded ->
+            runCatching { String(Base64.getDecoder().decode(encoded)) }.getOrNull()
+        }
+        .mapNotNull { define ->
+            val idx = define.indexOf('=')
+            if (idx <= 0) {
+                null
+            } else {
+                define.substring(0, idx) to define.substring(idx + 1)
+            }
+        }
+        .toMap()
+}
+
+val isHermesCommanderBuild =
+    project.flutterDartDefines()["APP_FLAVOR"] == "hermesCommander"
+
 android {
-    namespace = "com.carmen.clawcommander"
+    namespace = "com.nuburo.hermescommander"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "29.0.13113456"
 
@@ -27,7 +49,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.carmen.clawcommander"
+        applicationId = "com.nuburo.hermescommander"
         minSdk = maxOf(flutter.minSdkVersion, 24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -38,17 +60,6 @@ android {
         // x86_64 (emulators only).
         ndk {
             abiFilters += listOf("arm64-v8a")
-        }
-    }
-
-    flavorDimensions += "app"
-    productFlavors {
-        create("claw") {
-            dimension = "app"
-        }
-        create("hermes") {
-            dimension = "app"
-            applicationId = "com.carmen.hermescommander"
         }
     }
 
@@ -67,7 +78,22 @@ android {
                 "lib/armeabi-v7a/**",
                 "lib/x86/**",
                 "lib/x86_64/**",
+                // Android Vulkan validation layers are useful for engine/plugin
+                // development, but they massively bloat packaged APKs and are
+                // never needed in the shipped mobile app.
+                "**/libVkLayer_khronos_validation.so",
             )
+            if (isHermesCommanderBuild) {
+                // HermesCommander does not use on-device GGUF chat models.
+                // Strip the llama.cpp / GGML runtime stack from this flavor
+                // while leaving shared Dart code intact for the Claw branch.
+                excludes += listOf(
+                    "**/libggml-vulkan.so",
+                    "**/libggml-base.so",
+                    "**/libggml-cpu-android_*.so",
+                    "**/libllama.so",
+                )
+            }
         }
     }
 

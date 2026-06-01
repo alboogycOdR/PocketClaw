@@ -5,10 +5,13 @@ import 'dart:io' as io;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../app/app_flavor.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 
 import '../../core/hermes/acp/acp_models.dart';
@@ -17,15 +20,25 @@ import '../../data/models/chat_message.dart';
 import '../../data/models/gateway_event.dart';
 import '../../data/providers/chat_providers.dart';
 import '../../data/providers/core_providers.dart';
+import '../../data/providers/integration_providers.dart';
+import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/ssh_providers.dart';
 import '../../data/providers/tts_providers.dart';
 import '../../shared/extensions.dart';
+import '../../shared/constants.dart';
 import '../../shared/widgets/agent_scope_badge.dart';
 import '../../shared/widgets/connection_indicator.dart';
 import '../../shared/widgets/settings_gear_button.dart';
+import '../../shared/widgets/update_banner.dart';
 import 'chat_bubble.dart';
+import 'hermes_composer.dart';
+import 'hermes_empty_state.dart';
+import 'hermes_message_row.dart';
+import 'hermes_session_drawer.dart';
 import 'chat_mode_selector.dart';
 import 'command_catalog.dart';
 import 'command_palette.dart';
+import 'slash_command_overlay.dart';
 import 'draft_confirm_card.dart';
 import 'function_call_indicator.dart';
 import 'gateway_down_banner.dart';
@@ -50,6 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   String? _pendingImageUrl;
   bool _isVoiceRecording = false;
+  bool _updateBannerDismissed = false;
 
   /// Assistant message ids we've already triggered auto-speak for —
   /// stops the ref.listen below from firing again on every rebuild.
@@ -65,6 +79,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _textController.addListener(_onDraftChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPendingContext());
+  }
+
+  void _checkPendingContext() {
+    final pending = ref.read(pendingChatContextProvider);
+    if (pending != null && pending.isNotEmpty) {
+      _textController.text = pending;
+      _textController.selection = TextSelection.collapsed(
+        offset: pending.length,
+      );
+      ref.read(pendingChatContextProvider.notifier).state = null;
+      _focusNode.requestFocus();
+    }
   }
 
   void _onDraftChanged() {
@@ -88,9 +115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Truncates long assistant messages so the prefix stays compact.
   void _quoteIntoInput(String text) {
     const maxLen = 120;
-    final firstLine = text
-        .trim()
-        .replaceAll(RegExp(r'\s+'), ' ');
+    final firstLine = text.trim().replaceAll(RegExp(r'\s+'), ' ');
     final snippet = firstLine.length <= maxLen
         ? firstLine
         : '${firstLine.substring(0, maxLen - 1)}…';
@@ -169,12 +194,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _insertCommand(CommandSpec spec) {
     final current = _textController.text;
     final trimmedLeft = current.trimLeft();
-    final firstWord =
-        trimmedLeft.startsWith('/') ? trimmedLeft.split(RegExp(r'\s')).first : '';
+    final firstWord = trimmedLeft.startsWith('/')
+        ? trimmedLeft.split(RegExp(r'\s')).first
+        : '';
     final leading = current.substring(0, current.length - trimmedLeft.length);
     final rest = trimmedLeft.substring(firstWord.length);
-    final replacement =
-        '$leading${spec.name}${spec.takesArgs ? ' ' : ''}$rest';
+    final replacement = '$leading${spec.name}${spec.takesArgs ? ' ' : ''}$rest';
     final caret = leading.length + spec.name.length + (spec.takesArgs ? 1 : 0);
     _textController.value = TextEditingValue(
       text: replacement,
@@ -183,22 +208,90 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _focusNode.requestFocus();
   }
 
+  Future<void> _replaceCurrentThread(List<ChatMessage> next) async {
+    ref.read(messagesProvider.notifier).replaceAll(next);
+    try {
+      final session = ref.read(sessionManagerProvider);
+      await session.clearSession();
+      for (final message in next) {
+        await session.addMessage(message);
+      }
+    } catch (_) {
+      // UI branching still works if persistence is unavailable.
+    }
+  }
+
+  Future<void> _resendUserTurn(int index, ChatMessage message) async {
+    final current = ref.read(messagesProvider);
+    await _replaceCurrentThread(current.take(index).toList());
+    await ref.read(sendMessageProvider)(
+      message.content,
+      imageUrl: message.imageUrl,
+    );
+  }
+
+  Future<void> _editAndResendUserTurn(int index, ChatMessage message) async {
+    final controller = TextEditingController(text: message.content);
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit message'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 8,
+          decoration: const InputDecoration(hintText: 'Message Hermes...'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    ).whenComplete(controller.dispose);
+
+    if (edited == null || edited.isEmpty) return;
+    final current = ref.read(messagesProvider);
+    await _replaceCurrentThread(current.take(index).toList());
+    await ref.read(sendMessageProvider)(edited, imageUrl: message.imageUrl);
+  }
+
+  Future<void> _regenerateAssistantTurn(int assistantIndex) async {
+    final current = ref.read(messagesProvider);
+    for (var i = assistantIndex - 1; i >= 0; i--) {
+      final candidate = current[i];
+      if (candidate.role == MessageRole.user) {
+        await _resendUserTurn(i, candidate);
+        return;
+      }
+    }
+  }
+
+  Future<void> _continueAssistantTurn() async {
+    await ref.read(sendMessageProvider)('Continue.');
+  }
+
   /// Show a Hermes ACP permission ask. The agent is blocked until we
   /// route the user's choice back via [acpPermissionResponderProvider].
-  Future<void> _showAcpPermissionDialog(
-    AcpPermissionRequestEvent event,
-  ) async {
+  Future<void> _showAcpPermissionDialog(AcpPermissionRequestEvent event) async {
     if (!mounted) return;
     final responder = ref.read(acpPermissionResponderProvider);
-    final colour = const {
-      'read': Color(0xFF60A5FA),
-      'edit': Color(0xFFFBBF24),
-      'execute': Color(0xFF34D399),
-      'fetch': Color(0xFFA78BFA),
-      'search': Color(0xFF38BDF8),
-      'think': Color(0xFFF472B6),
-      'other': Color(0xFF9CA3AF),
-    }[event.toolCallKind] ??
+    final colour =
+        const {
+          'read': Color(0xFF60A5FA),
+          'edit': Color(0xFFFBBF24),
+          'execute': Color(0xFF34D399),
+          'fetch': Color(0xFFA78BFA),
+          'search': Color(0xFF38BDF8),
+          'think': Color(0xFFF472B6),
+          'other': Color(0xFF9CA3AF),
+        }[event.toolCallKind] ??
         const Color(0xFF9CA3AF);
 
     final choice = await showDialog<String>(
@@ -232,10 +325,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 event.toolCallTitle.isEmpty
                     ? '(no title)'
                     : event.toolCallTitle,
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 12,
-                  color: colour,
-                ),
+                style: GoogleFonts.jetBrainsMono(fontSize: 12, color: colour),
               ),
             ),
           ],
@@ -268,7 +358,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const CommandPaletteSheet(),
+      builder: (_) => CommandPaletteSheet(
+        commands: kAppFlavor.isHermesOnly ? commandsForHermes() : null,
+        hermesStyle: kAppFlavor.isHermesOnly,
+      ),
     );
     if (picked != null) _insertCommand(picked);
   }
@@ -310,9 +403,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to pick image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
       }
     }
   }
@@ -378,9 +471,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showVoiceSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  int _estimateTokenCount(List<ChatMessage> messages) {
+    final chars = messages.fold<int>(0, (sum, msg) => sum + msg.content.length);
+    return (chars / 4).round();
+  }
+
+  double _estimateContextFill(int tokenCount) {
+    return (tokenCount / 32000).clamp(0.0, 1.0);
+  }
+
+  String _transportLabel(WidgetRef ref) {
+    final hasRest =
+        ref.watch(hermesBaseUrlProvider).trim().isNotEmpty &&
+        ref.watch(hermesApiKeyProvider).trim().isNotEmpty;
+    final hasSsh =
+        ref.watch(sshHostProvider).trim().isNotEmpty &&
+        ref.watch(sshUsernameProvider).trim().isNotEmpty;
+    if (hasSsh) return 'ACP';
+    if (hasRest) return 'REST';
+    return 'Setup';
+  }
+
+  String _shortHermesModelLabel(String label) {
+    final trimmed = label.trim();
+    if (trimmed.isEmpty) return 'Hermes';
+    final normalized = trimmed
+        .replaceFirst(RegExp(r'^(anthropic|openai|google|nous)[\s:/_-]+', caseSensitive: false), '')
+        .replaceAll('_', '-');
+    return normalized.length <= 14
+        ? normalized
+        : '${normalized.substring(0, 13)}…';
+  }
+
+  bool _shouldShowHermesAvatar(List<ChatMessage> messages, int index) {
+    if (index == 0) return true;
+    final current = messages[index];
+    final previous = messages[index - 1];
+    if (current.role != previous.role) return true;
+    if (current.functionCall != null || previous.functionCall != null) {
+      return true;
+    }
+    if (current.draftAction != null || previous.draftAction != null) {
+      return true;
+    }
+    final gap = current.timestamp.difference(previous.timestamp).inMinutes.abs();
+    return gap >= 5;
   }
 
   // ── Draft action callbacks ──
@@ -494,18 +634,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onPressed: () {
                     final newBody = editController.text.trim();
                     if (newBody.isNotEmpty) {
-                      ref.read(messagesProvider.notifier).updateById(
-                        msg.id,
-                        (m) => m.copyWith(
-                          draftAction: DraftAction(
-                            type: draft.type,
-                            title: draft.title,
-                            body: newBody,
-                            recipient: draft.recipient,
-                            isConfirmed: draft.isConfirmed,
-                          ),
-                        ),
-                      );
+                      ref
+                          .read(messagesProvider.notifier)
+                          .updateById(
+                            msg.id,
+                            (m) => m.copyWith(
+                              draftAction: DraftAction(
+                                type: draft.type,
+                                title: draft.title,
+                                body: newBody,
+                                recipient: draft.recipient,
+                                isConfirmed: draft.isConfirmed,
+                              ),
+                            ),
+                          );
                     }
                     Navigator.pop(ctx);
                   },
@@ -522,16 +664,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _handleDraftCancel(ChatMessage msg) {
     final messages = ref.read(messagesProvider.notifier);
     messages.removeById(msg.id);
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.system,
-      content: 'Action cancelled.',
-      source: MessageSource.device,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.system,
+        content: 'Action cancelled.',
+        source: MessageSource.device,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   void _openSessionDrawer() {
+    if (kAppFlavor.isHermesOnly) {
+      showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'Sessions',
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            HermesSessionDrawer(
+              onSessionSelected: _loadSession,
+              onNewSession: _startNewSession,
+            ),
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          final slide = Tween<Offset>(
+            begin: const Offset(-1, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return SlideTransition(position: slide, child: child);
+        },
+      );
+      return;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: PocketClawTheme.surfaceContainer,
@@ -541,26 +708,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder: (ctx) => _SessionDrawer(
         onSessionSelected: (key) async {
           Navigator.pop(ctx);
-          final session = ref.read(sessionManagerProvider);
-          await session.loadSession(key);
-          final history = await session.recentHistory(100);
-          ref.read(messagesProvider.notifier).clear();
-          for (final msg in history) {
-            ref.read(messagesProvider.notifier).add(msg);
-          }
-          ref.read(currentSessionKeyProvider.notifier).state = key;
+          await _loadSession(key);
         },
         onNewSession: () async {
           Navigator.pop(ctx);
-          final session = ref.read(sessionManagerProvider);
-          await session.startNewSession();
-          ref.read(messagesProvider.notifier).clear();
-          ref.read(currentSessionKeyProvider.notifier).state =
-              session.currentSessionKey;
-          ref.invalidate(sessionListAutoProvider);
+          await _startNewSession();
         },
       ),
     );
+  }
+
+  Future<void> _loadSession(String key) async {
+    final session = ref.read(sessionManagerProvider);
+    await session.loadSession(key);
+    final history = await session.recentHistory(100);
+    ref.read(messagesProvider.notifier).clear();
+    for (final msg in history) {
+      ref.read(messagesProvider.notifier).add(msg);
+    }
+    ref.read(currentSessionKeyProvider.notifier).state = key;
+    ref.invalidate(sessionListAutoProvider);
+  }
+
+  Future<void> _startNewSession() async {
+    final session = ref.read(sessionManagerProvider);
+    await session.startNewSession();
+    ref.read(messagesProvider.notifier).clear();
+    ref.read(currentSessionKeyProvider.notifier).state =
+        session.currentSessionKey;
+    ref.invalidate(sessionListAutoProvider);
+  }
+
+  String _currentSessionTitle(List<ChatMessage> messages) {
+    final firstUser = messages.cast<ChatMessage?>().firstWhere(
+      (message) =>
+          message?.role == MessageRole.user &&
+          message!.content.trim().isNotEmpty,
+      orElse: () => null,
+    );
+    if (firstUser == null) return 'New session';
+    return firstUser.content
+        .trim()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .truncate(42, ellipsis: '…');
   }
 
   @override
@@ -568,6 +758,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final gatewayState = ref.watch(connectionStateProvider);
     final messages = ref.watch(messagesProvider);
     final isProcessing = ref.watch(isProcessingProvider);
+    final tokenCount = _estimateTokenCount(messages);
+    final contextFill = _estimateContextFill(tokenCount);
+    final sessionTitle = _currentSessionTitle(messages);
+    final updateInfo = ref.watch(hermesUpdateInfoProvider);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final compactHermesBar = kAppFlavor.isHermesOnly && screenWidth < 430;
+    final hermesModelLabel = _shortHermesModelLabel(
+      ref.watch(hermesModelIdProvider).valueOrNull ?? 'Hermes',
+    );
 
     // 3A: Model indicator
     final engine = ref.watch(llmEngineProvider);
@@ -576,13 +775,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // ACP permission gate — when the agent asks for permission to run a
     // tool (e.g. terminal: rm -rf …), pop a dialog and route the user's
     // choice back into the active ACP client.
-    ref.listen<AcpPermissionRequestEvent?>(
-      pendingAcpPermissionProvider,
-      (_, next) {
-        if (next == null || !mounted) return;
-        _showAcpPermissionDialog(next);
-      },
-    );
+    ref.listen<AcpPermissionRequestEvent?>(pendingAcpPermissionProvider, (
+      _,
+      next,
+    ) {
+      if (next == null || !mounted) return;
+      _showAcpPermissionDialog(next);
+    });
 
     // Auto-speak: when an assistant message finishes streaming, fire
     // _toggleSpeak iff the user enabled "Speak replies automatically".
@@ -617,212 +816,393 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'ClawCommander',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+        titleSpacing: kAppFlavor.isHermesOnly ? 4 : null,
+        leading: kAppFlavor.isHermesOnly
+            ? IconButton(
+                icon: const Icon(Icons.menu, size: 18),
+                tooltip: 'Sessions',
+                onPressed: _openSessionDrawer,
+              )
+            : null,
+        title: kAppFlavor.isHermesOnly
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    sessionTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'GeistSans',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                Text(
-                  modelConfig != null
-                      ? modelConfig.displayName
-                      : 'No model',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 11,
-                    color: modelConfig != null
-                        ? Colors.white38
-                        : Colors.white24,
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      ConnectionIndicator(state: gatewayState, compact: true),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          '${messages.length} messages',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: 'GeistMono',
+                            fontSize: 11,
+                            color: Colors.white38,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            ConnectionIndicator(state: gatewayState),
-          ],
-        ),
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          AppConstants.appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: GoogleFonts.jetBrainsMono().fontFamily,
+                          ),
+                        ),
+                        Text(
+                          modelConfig != null
+                              ? modelConfig.displayName
+                              : 'No model',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: modelConfig != null
+                                ? Colors.white38
+                                : Colors.white24,
+                            fontFamily: GoogleFonts.jetBrainsMono().fontFamily,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ConnectionIndicator(state: gatewayState),
+                ],
+              ),
         actions: [
           const SettingsGearButton(),
-          // Active server picker — tappable AgentScopeBadge opens a
-          // bottom-sheet to switch OpenClaw / Hermes / Local from any
-          // tab.
-          const AgentScopeBadge(),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.forum_outlined, size: 20),
-            tooltip: 'Sessions',
-            onPressed: _openSessionDrawer,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add_comment_outlined, size: 20),
-            tooltip: 'New chat',
-            onPressed: () {
-              ref.read(resetChatProvider)();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () {},
-          ),
+          if (kAppFlavor.isHermesOnly) ...[
+            if (!compactHermesBar) ...[
+              _HermesAppBarChip(
+                icon: Icons.person_outline,
+                label: 'default',
+                maxWidth: 92,
+              ),
+              const SizedBox(width: 4),
+            ],
+            _HermesAppBarChip(
+              icon: Icons.auto_awesome_outlined,
+              label: hermesModelLabel,
+              monospace: true,
+              maxWidth: compactHermesBar ? 110 : 132,
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined, size: 20),
+              tooltip: 'Clear session',
+              onPressed: _startNewSession,
+            ),
+          ] else ...[
+            const AgentScopeBadge(),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: const Icon(Icons.forum_outlined, size: 20),
+              tooltip: 'Sessions',
+              onPressed: _openSessionDrawer,
+            ),
+          ],
+          if (!kAppFlavor.isHermesOnly)
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined, size: 20),
+              tooltip: 'New chat',
+              onPressed: () => ref.read(resetChatProvider)(),
+            ),
         ],
       ),
       body: Column(
         children: [
           // Chat mode selector (Local / OpenClaw / Hermes)
-          const ChatModeSelector(),
+          if (!kAppFlavor.isHermesOnly) const ChatModeSelector(),
 
           // Pairing-required banner (only visible when the gateway rejected
           // the last connect with PAIRING_REQUIRED).
-          const PairingBanner(),
+          if (!kAppFlavor.isHermesOnly) const PairingBanner(),
 
           // Gateway-offline banner (reconnecting / error / disconnected).
-          const GatewayDownBanner(),
+          if (!kAppFlavor.isHermesOnly) const GatewayDownBanner(),
+
+          if (kAppFlavor.isHermesOnly &&
+              !_updateBannerDismissed &&
+              updateInfo != null)
+            HermesUpdateBanner(
+              webUiVersion: updateInfo.webUiVersion,
+              agentVersion: updateInfo.agentVersion,
+              onDismiss: () {
+                setState(() => _updateBannerDismissed = true);
+              },
+              onUpdateNow: () {
+                setState(() => _updateBannerDismissed = true);
+                context.push('/settings/hermes');
+              },
+            ),
 
           // Message list
           Expanded(
             child: messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '🦀',
-                          style: const TextStyle(fontSize: 48),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Start a conversation',
-                          style: TextStyle(
-                            color: Colors.white38,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : Builder(builder: (context) {
-                    // Pre-compute the last user-message index so the
-                    // long-press Retry button is only offered on the
-                    // most recent user turn.
-                    final lastUserIdx = messages.lastIndexWhere(
-                        (m) => m.role == MessageRole.user);
-                    return ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    itemCount: messages.length + (isProcessing ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      // Processing indicator as last item
-                      if (index == messages.length) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Row(
+                ? (kAppFlavor.isHermesOnly
+                      ? HermesEmptyState(
+                          onSuggestion: (text) {
+                            _textController.text = text;
+                            _textController.selection = TextSelection.collapsed(
+                              offset: text.length,
+                            );
+                            _focusNode.requestFocus();
+                          },
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: PocketClawTheme.lobsterRed,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
+                              Text('🦀', style: const TextStyle(fontSize: 48)),
+                              const SizedBox(height: 16),
                               Text(
-                                'Thinking...',
+                                'Start a conversation',
                                 style: TextStyle(
                                   color: Colors.white38,
-                                  fontSize: 13,
+                                  fontSize: 16,
                                 ),
                               ),
                             ],
                           ),
-                        );
-                      }
+                        ))
+                : Builder(
+                    builder: (context) {
+                      // Pre-compute the last user-message index so the
+                      // long-press Retry button is only offered on the
+                      // most recent user turn.
+                      final lastUserIdx = messages.lastIndexWhere(
+                        (m) => m.role == MessageRole.user,
+                      );
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        itemCount: messages.length + (isProcessing ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          // Processing indicator as last item
+                          if (index == messages.length) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: PocketClawTheme.lobsterRed,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Thinking...',
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
 
-                      final msg = messages[index];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Function call indicator
-                          if (msg.functionCall != null)
-                            FunctionCallIndicator(
-                                functionCall: msg.functionCall!),
+                          final msg = messages[index];
+                          final showHermesAvatar = kAppFlavor.isHermesOnly
+                              ? _shouldShowHermesAvatar(messages, index)
+                              : true;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Function call indicator
+                              if (msg.functionCall != null)
+                                FunctionCallIndicator(
+                                  functionCall: msg.functionCall!,
+                                ),
 
-                          // Draft action card
-                          if (msg.draftAction != null)
-                            DraftConfirmCard(
-                              draft: msg.draftAction!,
-                              onConfirm: () => _handleDraftConfirm(msg),
-                              onEdit: () => _handleDraftEdit(msg),
-                              onCancel: () => _handleDraftCancel(msg),
-                            ),
+                              // Draft action card
+                              if (msg.draftAction != null)
+                                DraftConfirmCard(
+                                  draft: msg.draftAction!,
+                                  onConfirm: () => _handleDraftConfirm(msg),
+                                  onEdit: () => _handleDraftEdit(msg),
+                                  onCancel: () => _handleDraftCancel(msg),
+                                ),
 
-                          // Photo preview
-                          if (msg.imageUrl != null)
-                            PhotoPreview(imageUrl: msg.imageUrl!),
+                              // Photo preview
+                              if (msg.imageUrl != null)
+                                PhotoPreview(imageUrl: msg.imageUrl!),
 
-                          // Message bubble. Last user message gets
-                          // onRetry (Retry in long-press bar);
-                          // assistant messages get onQuote (drops a
-                          // `> quote` into the input and focuses) plus
-                          // onSpeak (inline speaker icon + Read aloud
-                          // action).
-                          ChatBubble(
-                            message: msg,
-                            onRetry: index == lastUserIdx
-                                ? () {
-                                    ref.read(sendMessageProvider)(
-                                      msg.content,
-                                      imageUrl: msg.imageUrl,
-                                    );
-                                  }
-                                : null,
-                            onQuote: msg.role == MessageRole.assistant
-                                ? _quoteIntoInput
-                                : null,
-                            onSpeak: msg.role == MessageRole.assistant
-                                ? () => _toggleSpeak(msg.id, msg.content)
-                                : null,
-                            isSpeaking: ref.watch(
-                                  speakingMessageIdProvider,
-                                ) ==
-                                msg.id,
-                          ),
-                        ],
+                              // Message bubble. Last user message gets
+                              // onRetry (Retry in long-press bar);
+                              // assistant messages get onQuote (drops a
+                              // `> quote` into the input and focuses) plus
+                              // onSpeak (inline speaker icon + Read aloud
+                              // action).
+                              kAppFlavor.isHermesOnly
+                                  ? HermesMessageRow(
+                                      message: msg,
+                                      onEdit: msg.role == MessageRole.user
+                                          ? () => _editAndResendUserTurn(
+                                              index,
+                                              msg,
+                                            )
+                                          : null,
+                                      onResend: msg.role == MessageRole.user
+                                          ? () => _resendUserTurn(index, msg)
+                                          : null,
+                                      onRegenerate:
+                                          msg.role == MessageRole.assistant
+                                          ? () =>
+                                                _regenerateAssistantTurn(index)
+                                          : null,
+                                      onContinue:
+                                          msg.role == MessageRole.assistant
+                                          ? _continueAssistantTurn
+                                          : null,
+                                      onQuote: msg.role == MessageRole.assistant
+                                          ? _quoteIntoInput
+                                          : null,
+                                      onSpeak: msg.role == MessageRole.assistant
+                                          ? () => _toggleSpeak(
+                                              msg.id,
+                                              msg.content,
+                                            )
+                                          : null,
+                                      showAvatar: showHermesAvatar,
+                                      isSpeaking:
+                                          ref.watch(
+                                            speakingMessageIdProvider,
+                                          ) ==
+                                          msg.id,
+                                    )
+                                  : ChatBubble(
+                                      message: msg,
+                                      onRetry: index == lastUserIdx
+                                          ? () {
+                                              ref.read(sendMessageProvider)(
+                                                msg.content,
+                                                imageUrl: msg.imageUrl,
+                                              );
+                                            }
+                                          : null,
+                                      onQuote: msg.role == MessageRole.assistant
+                                          ? _quoteIntoInput
+                                          : null,
+                                      onSpeak: msg.role == MessageRole.assistant
+                                          ? () => _toggleSpeak(
+                                              msg.id,
+                                              msg.content,
+                                            )
+                                          : null,
+                                      isSpeaking:
+                                          ref.watch(
+                                            speakingMessageIdProvider,
+                                          ) ==
+                                          msg.id,
+                                    ),
+                            ],
+                          );
+                        },
                       );
                     },
-                  );
-                  }),
+                  ),
           ),
 
           // Pending image preview
-          if (_pendingImageUrl != null)
-            _buildPendingImage(),
+          if (_pendingImageUrl != null) _buildPendingImage(),
 
           // Privacy warning (shown when sensitive keywords typed in
           // Cloud or OpenClaw mode)
-          PrivacyWarningBanner(draftText: _draftText),
+          if (!kAppFlavor.isHermesOnly)
+            PrivacyWarningBanner(draftText: _draftText),
 
           // Slash-command autocomplete strip (only visible while the
           // user is typing the command-name portion of a "/" message).
           if (_draftText.trimLeft().startsWith('/')) ...[
-            CommandAutocompleteStrip(
-              input: _draftText,
-              onPick: _insertCommand,
-            ),
-            const SizedBox(height: 6),
+            if (kAppFlavor.isHermesOnly)
+              SlashCommandOverlay(input: _draftText, onPick: _insertCommand)
+            else ...[
+              CommandAutocompleteStrip(
+                input: _draftText,
+                onPick: _insertCommand,
+              ),
+              const SizedBox(height: 6),
+            ],
           ],
 
           // Input bar
-          _buildInputBar(),
+          kAppFlavor.isHermesOnly
+              ? HermesComposer(
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  isProcessing: isProcessing,
+                  isVoiceRecording: _isVoiceRecording,
+                  tokenCount: tokenCount,
+                  contextFill: contextFill,
+                  transportLabel: _transportLabel(ref),
+                  modelLabel:
+                      ref.watch(hermesModelIdProvider).valueOrNull ?? 'Hermes',
+                  sessionId: ref.watch(currentSessionKeyProvider),
+                  onAttach: _pickPhoto,
+                  onOpenCommands: _openCommandPalette,
+                  voiceButton: VoiceInputWidget(
+                    onStart: _onVoiceStart,
+                    onStop: _onVoiceStop,
+                    onPartialResult: (text) {
+                      _textController.text = text;
+                      _textController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: text.length),
+                      );
+                    },
+                    onFinalResult: (text) {
+                      _textController.text = text;
+                      _textController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: text.length),
+                      );
+                      if (ref.read(voiceLoopModeProvider) &&
+                          text.trim().isNotEmpty) {
+                        _sendMessage();
+                      }
+                    },
+                    onDone: () {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      }
+                    },
+                  ),
+                  onSend: _sendMessage,
+                  onStop: () => ref.read(abortChatProvider)(),
+                )
+              : _buildInputBar(),
         ],
       ),
     );
@@ -870,9 +1250,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       decoration: BoxDecoration(
         color: PocketClawTheme.surfaceDim,
         border: Border(
-          top: BorderSide(
-            color: const Color(0xFF3A2F26).withAlpha(80),
-          ),
+          top: BorderSide(color: const Color(0xFF3A2F26).withAlpha(80)),
         ),
       ),
       child: Row(
@@ -962,8 +1340,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               _textController.selection = TextSelection.fromPosition(
                 TextPosition(offset: text.length),
               );
-              if (ref.read(voiceLoopModeProvider) &&
-                  text.trim().isNotEmpty) {
+              if (ref.read(voiceLoopModeProvider) && text.trim().isNotEmpty) {
                 _sendMessage();
               }
             },
@@ -994,6 +1371,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               padding: const EdgeInsets.all(8),
               constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HermesAppBarChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool monospace;
+  final double maxWidth;
+
+  const _HermesAppBarChip({
+    required this.icon,
+    required this.label,
+    this.monospace = false,
+    this.maxWidth = 132,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: HCTheme.bgSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: HCTheme.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white60),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: monospace ? 'GeistMono' : 'GeistSans',
+                fontSize: 11,
+                color: Colors.white70,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1083,8 +1506,9 @@ class _SessionDrawer extends ConsumerWidget {
                     return ListTile(
                       dense: true,
                       selected: isCurrent,
-                      selectedTileColor:
-                          PocketClawTheme.lobsterRed.withAlpha(20),
+                      selectedTileColor: PocketClawTheme.lobsterRed.withAlpha(
+                        20,
+                      ),
                       leading: Icon(
                         isCurrent
                             ? Icons.chat_bubble
@@ -1098,17 +1522,15 @@ class _SessionDrawer extends ConsumerWidget {
                         s.startedAt.shortDate,
                         style: GoogleFonts.jetBrainsMono(
                           fontSize: 12,
-                          fontWeight:
-                              isCurrent ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           color: isCurrent ? Colors.white : Colors.white70,
                         ),
                       ),
                       subtitle: Text(
                         '${s.messageCount} messages  ·  ${s.startedAt.timeAgo}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white38,
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.white38),
                       ),
                       onTap: isCurrent ? null : () => onSessionSelected(s.key),
                     );

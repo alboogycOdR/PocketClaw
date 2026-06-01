@@ -11,7 +11,16 @@
 /// phone's token clearly can't use. Treat them as best-effort.
 library;
 
-enum CommandCategory { session, agent, tools, model, memory, system, plugin, dev }
+enum CommandCategory {
+  session,
+  agent,
+  tools,
+  model,
+  memory,
+  system,
+  plugin,
+  dev,
+}
 
 enum CommandSource { native, skill, plugin }
 
@@ -179,7 +188,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/subagents',
-    description: 'List, kill, log, spawn, or steer subagent runs for this session.',
+    description:
+        'List, kill, log, spawn, or steer subagent runs for this session.',
     takesArgs: true,
     argsHint: '<list|kill|log|info|send|steer|spawn> [target] [value]',
     scope: 'operator.write',
@@ -198,7 +208,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/focus',
-    description: 'Bind this thread (Discord) or topic/conversation (Telegram) to a session target.',
+    description:
+        'Bind this thread (Discord) or topic/conversation (Telegram) to a session target.',
     takesArgs: true,
     argsHint: '<target>',
     scope: 'operator.write',
@@ -208,7 +219,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/unfocus',
-    description: 'Remove the current thread (Discord) or topic/conversation (Telegram) binding.',
+    description:
+        'Remove the current thread (Discord) or topic/conversation (Telegram) binding.',
     takesArgs: false,
     scope: 'operator.write',
     category: CommandCategory.session,
@@ -437,7 +449,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/coding_agent',
-    description: 'Delegate coding tasks to Codex, Claude Code, or Pi agents via background process.',
+    description:
+        'Delegate coding tasks to Codex, Claude Code, or Pi agents via background process.',
     takesArgs: true,
     scope: 'operator.write',
     category: CommandCategory.agent,
@@ -446,7 +459,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/healthcheck',
-    description: 'Host security hardening and risk-tolerance configuration for OpenClaw deployments.',
+    description:
+        'Host security hardening and risk-tolerance configuration for OpenClaw deployments.',
     takesArgs: true,
     scope: 'operator.admin',
     category: CommandCategory.system,
@@ -455,7 +469,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/node_connect',
-    description: 'Diagnose OpenClaw node connection and pairing failures for Android, iOS, and macOS companion apps.',
+    description:
+        'Diagnose OpenClaw node connection and pairing failures for Android, iOS, and macOS companion apps.',
     takesArgs: true,
     scope: 'operator.admin',
     category: CommandCategory.system,
@@ -473,7 +488,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/taskflow',
-    description: 'Span work across one or more detached tasks while behaving like one job with a single owner.',
+    description:
+        'Span work across one or more detached tasks while behaving like one job with a single owner.',
     takesArgs: true,
     scope: 'operator.write',
     category: CommandCategory.agent,
@@ -491,7 +507,8 @@ const List<CommandSpec> kCommandCatalog = [
   ),
   CommandSpec(
     name: '/tmux',
-    description: 'Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.',
+    description:
+        'Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.',
     takesArgs: true,
     scope: 'operator.write',
     category: CommandCategory.tools,
@@ -525,11 +542,55 @@ const List<CommandSpec> kCommandCatalog = [
 List<CommandSpec> commandsForMobile() =>
     kCommandCatalog.where((c) => !c.channelGated).toList();
 
+const Set<String> _kHermesCommandNames = {
+  '/help',
+  '/commands',
+  '/tools',
+  '/skill',
+  '/status',
+  '/tasks',
+  '/approve',
+  '/context',
+  '/btw',
+  '/export-session',
+  '/tts',
+  '/whoami',
+  '/session',
+  '/subagents',
+  '/acp',
+  '/model',
+  '/reasoning',
+  '/think',
+  '/memory',
+  '/logs',
+  '/stop',
+  '/new',
+  '/compact',
+  '/continue',
+  '/schedule',
+  '/cron',
+  '/search',
+  '/weather',
+  '/dreaming',
+};
+
+/// HermesCommander-visible command subset. This keeps the mobile command
+/// UI focused on Hermes/ACP/session workflows and avoids exposing
+/// OpenClaw-specific operational commands in the Hermes product split.
+List<CommandSpec> commandsForHermes() => commandsForMobile()
+    .where((c) => _kHermesCommandNames.contains(c.name))
+    .toList();
+
 /// Autocomplete filter: returns mobile-appropriate commands whose name or
 /// alias starts with the typed fragment (including the leading slash).
 List<CommandSpec> autocompleteCommands(String typed) {
   if (!typed.startsWith('/')) return const [];
   return commandsForMobile().where((c) => c.matches(typed)).toList();
+}
+
+List<CommandSpec> autocompleteHermesCommands(String typed) {
+  if (!typed.startsWith('/')) return const [];
+  return commandsForHermes().where((c) => c.matches(typed)).toList();
 }
 
 /// Category display order + labels for the command palette.

@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../../app/app_flavor.dart';
 import '../local_agent/tool_executor.dart';
 
 class NotificationService {
@@ -16,8 +17,9 @@ class NotificationService {
   Future<void> init() async {
     if (_initialised) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -36,7 +38,8 @@ class NotificationService {
     // Request Android 13+ notification permission
     await _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
 
     _initialised = true;
@@ -70,11 +73,7 @@ class NotificationService {
       // Full production code would use AndroidNotificationDetails with
       // exact alarm permission and TZDateTime.
       Future.delayed(delay, () async {
-        await _showRaw(
-          id: id,
-          title: 'Reminder',
-          body: title,
-        );
+        await _showRaw(id: id, title: 'Reminder', body: title);
       });
 
       final minutes = delay.inMinutes;
@@ -85,7 +84,10 @@ class NotificationService {
       return ToolResult.ok(
         'Reminder "$title" scheduled for $label from now '
         '(${dateTime.toIso8601String()}).',
-        data: {'notificationId': id, 'scheduledFor': dateTime.toIso8601String()},
+        data: {
+          'notificationId': id,
+          'scheduledFor': dateTime.toIso8601String(),
+        },
       );
     } catch (e) {
       return ToolResult.error('Failed to schedule reminder: $e');
@@ -115,18 +117,18 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
-    const androidDetails = AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       // Channel ID kept as 'pocket_claw_default' — changing it would
       // create a new channel and abandon any user-tuned notification
       // preferences (sound/vibration/importance) on the old channel.
       'pocket_claw_default',
-      'ClawCommander',
-      channelDescription: 'General notifications from ClawCommander',
+      kAppFlavor.appName,
+      channelDescription: 'General notifications from ${kAppFlavor.appName}',
       importance: Importance.high,
       priority: Priority.high,
     );
     const iosDetails = DarwinNotificationDetails();
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );

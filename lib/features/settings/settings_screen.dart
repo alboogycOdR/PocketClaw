@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../app/app_flavor.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import '../../app/theme_provider.dart';
 import '../../core/coaching/grow_state_machine.dart';
@@ -17,6 +18,8 @@ import '../../data/models/openclaw_models.dart';
 import '../../data/providers/academy_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/integration_providers.dart';
+import '../../data/providers/intelligence_providers.dart';
 import '../../data/providers/life_architect_providers.dart';
 import '../../data/providers/server_providers.dart';
 import '../../data/providers/ssh_providers.dart';
@@ -29,6 +32,8 @@ import 'gateway_config.dart';
 import 'hermes_settings.dart';
 import 'model_config.dart';
 import 'models_screen.dart';
+import 'agent_memory_settings.dart';
+import 'open_notebook_settings.dart';
 // Paperclip Company settings hidden 2026-05-08 — surface parked.
 // import 'paperclip_company_settings.dart';
 import 'router_memory_settings.dart';
@@ -40,13 +45,18 @@ import 'ssh_settings.dart';
 import 'storage_settings_screen.dart';
 import 'voice_settings_screen.dart';
 import '../../data/providers/tts_providers.dart';
+import 'osiris_settings.dart';
 
 class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+  final String? initialSection;
+
+  const SettingsScreen({super.key, this.initialSection});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (kHermesOnlyMode) return const _HermesSettingsScreen();
+    if (kHermesOnlyMode) {
+      return _HermesSettingsScreen(initialSection: initialSection);
+    }
 
     return DefaultTabController(
       length: 4,
@@ -85,225 +95,172 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _HermesSettingsScreen extends ConsumerWidget {
-  const _HermesSettingsScreen();
+  final String? initialSection;
+
+  const _HermesSettingsScreen({this.initialSection});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Settings'),
-          actions: const [AgentScopeBadge(), SizedBox(width: 8)],
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.cable_outlined, size: 18), text: 'Hermes'),
-              Tab(icon: Icon(Icons.tune, size: 18), text: 'App'),
-            ],
-          ),
+    final tiles = <_HermesSettingsTile>[
+      _HermesSettingsTile(
+        section: 'hermes',
+        icon: Icons.psychology_outlined,
+        iconColor: HCTheme.gold,
+        title: 'Hermes REST',
+        subtitleBuilder: (_) => const _HermesStatusLine(),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const HermesSettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'ssh',
+        icon: Icons.terminal,
+        title: 'Hermes SSH',
+        subtitleBuilder: (_) => const _SshStatusLine(),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SshSettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'osiris',
+        icon: Icons.public_outlined,
+        title: 'Osiris Intelligence',
+        subtitleBuilder: (_) => const _OsirisStatusLine(),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OsirisSettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'agent-memory',
+        icon: Icons.psychology_alt_outlined,
+        title: 'AgentMemory',
+        subtitleBuilder: (_) => const _AgentMemoryStatusLine(),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AgentMemorySettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'notebook',
+        icon: Icons.menu_book_outlined,
+        title: 'Open-Notebook',
+        subtitleBuilder: (_) => const _OpenNotebookStatusLine(),
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OpenNotebookSettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'voice',
+        icon: Icons.mic_outlined,
+        title: 'Voice & Transcription',
+        subtitle: 'Speech input and offline transcription',
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const VoiceSettingsScreen())),
+      ),
+      _HermesSettingsTile(
+        section: 'tts',
+        icon: Icons.record_voice_over_outlined,
+        title: 'Voice & TTS',
+        subtitleBuilder: (_) => const _TtsStatusLine(),
+        onTap: () => context.push('/settings/tts'),
+      ),
+      _HermesSettingsTile(
+        section: 'ambient',
+        icon: Icons.headphones_outlined,
+        title: 'Ambient Audio',
+        subtitle: 'Focus sounds and world radio',
+        onTap: () => context.go('/ambient'),
+      ),
+      const _HermesSettingsTile(
+        section: 'theme',
+        icon: Icons.palette_outlined,
+        title: 'Theme',
+        subtitle: 'Hermes Commander Dark',
+      ),
+      _HermesSettingsTile(
+        section: 'security',
+        icon: Icons.security,
+        title: 'Security & Privacy',
+        subtitle: 'Biometric lock, local data controls',
+        onTap: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SecuritySettings())),
+      ),
+      _HermesSettingsTile(
+        section: 'backup',
+        icon: Icons.save_alt_outlined,
+        title: 'Backup & Restore',
+        subtitle: 'Export and restore app settings',
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const BackupRestoreSettings()),
         ),
-        body: const TabBarView(
-          children: [_HermesConnectionTab(), _HermesAppTab()],
-        ),
+      ),
+      _HermesSettingsTile(
+        section: 'about',
+        icon: Icons.info_outline,
+        title: AppConstants.appName,
+        subtitle:
+            'Native mobile command centre for Hermes.\n${AppConstants.orgName}',
+      ),
+    ];
+
+    final filtered = initialSection == null
+        ? tiles
+        : tiles.where((tile) => tile.section == initialSection).toList();
+    final visibleTiles = filtered.isEmpty ? tiles : filtered;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemBuilder: (context, index) => visibleTiles[index].build(context),
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemCount: visibleTiles.length,
       ),
     );
   }
 }
 
-class _HermesConnectionTab extends ConsumerWidget {
-  const _HermesConnectionTab();
+class _HermesSettingsTile {
+  final String section;
+  final IconData icon;
+  final Color? iconColor;
+  final String title;
+  final String? subtitle;
+  final WidgetBuilder? subtitleBuilder;
+  final VoidCallback? onTap;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.psychology_outlined,
-                  color: Color(0xFF7C3AED),
-                ),
-                title: const Text('Hermes REST'),
-                subtitle: const _HermesStatusLine(),
-                trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const HermesSettings()),
-                ),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.terminal),
-                title: const Text('Hermes SSH / ACP'),
-                subtitle: const _SshStatusLine(),
-                trailing: const _Chevron(),
-                onTap: () => Navigator.of(
-                  context,
-                ).push(MaterialPageRoute(builder: (_) => const SshSettings())),
-              ),
-            ],
-          ),
-        ),
-      ],
+  const _HermesSettingsTile({
+    required this.section,
+    required this.icon,
+    required this.title,
+    this.iconColor,
+    this.subtitle,
+    this.subtitleBuilder,
+    this.onTap,
+  });
+
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: Icon(icon, color: iconColor),
+        title: Text(title),
+        subtitle:
+            subtitleBuilder?.call(context) ??
+            (subtitle == null
+                ? null
+                : Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: HCTheme.textSecondary,
+                    ),
+                  )),
+        trailing: onTap == null ? null : const _Chevron(),
+        onTap: onTap,
+      ),
     );
-  }
-}
-
-class _HermesAppTab extends ConsumerWidget {
-  const _HermesAppTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final themeId = ref.watch(themeIdProvider);
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: const Text('Theme'),
-                subtitle: Text(
-                  themeId.displayName,
-                  style: const TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => _pickHermesTheme(context, ref, themeId),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.mic_outlined),
-                title: const Text('Voice & Transcription'),
-                subtitle: const Text(
-                  'Speech input and offline transcription',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const VoiceSettingsScreen(),
-                  ),
-                ),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.record_voice_over_outlined),
-                title: const Text('Voice & TTS'),
-                subtitle: const _TtsStatusLine(),
-                trailing: const _Chevron(),
-                onTap: () => context.push('/settings/tts'),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.spa_outlined),
-                title: const Text('Ambient Audio'),
-                subtitle: const Text(
-                  'Focus sounds and world radio',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => context.go('/ambient'),
-              ),
-              const _ListDivider(),
-              ListTile(
-                leading: const Icon(Icons.security),
-                title: const Text('Security & Privacy'),
-                subtitle: const Text(
-                  'Biometric lock, clear data',
-                  style: TextStyle(fontSize: 12, color: Colors.white54),
-                ),
-                trailing: const _Chevron(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SecuritySettings()),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.psychology_outlined,
-                  size: 40,
-                  color: Color(0xFF7C3AED),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  AppConstants.appName,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'v${AppConstants.appVersion}',
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    color: Colors.white38,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  AppConstants.orgName,
-                  style: const TextStyle(fontSize: 12, color: Colors.white38),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-
-  Future<void> _pickHermesTheme(
-    BuildContext context,
-    WidgetRef ref,
-    ThemeId current,
-  ) async {
-    final picked = await showModalBottomSheet<ThemeId>(
-      context: context,
-      useSafeArea: true,
-      builder: (sheet) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 20, 20, 8),
-                child: Text(
-                  'Choose a theme',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-              ),
-              for (final id in ThemeId.values)
-                RadioListTile<ThemeId>(
-                  value: id,
-                  groupValue: current,
-                  title: Text(id.displayName),
-                  onChanged: (v) => Navigator.of(sheet).pop(v),
-                ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-    if (picked != null) {
-      await ref.read(themeIdProvider.notifier).setTheme(picked);
-    }
   }
 }
 
@@ -872,6 +829,105 @@ class _SshStatusLine extends ConsumerWidget {
       error: (_, __) => Text(
         '$user@$host · error',
         style: const TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _OsirisStatusLine extends ConsumerWidget {
+  const _OsirisStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final baseUrl = ref.watch(osirisBaseUrlProvider);
+    final reachable = ref.watch(osirisReachableProvider);
+    if (baseUrl.trim().isEmpty) {
+      return const Text(
+        'Not configured',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    return reachable.when(
+      data: (ok) => Text(
+        ok ? 'Connected' : 'Unreachable',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? PocketClawTheme.success : PocketClawTheme.warning,
+        ),
+      ),
+      loading: () => const Text(
+        'Checking…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Error',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _AgentMemoryStatusLine extends ConsumerWidget {
+  const _AgentMemoryStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final baseUrl = ref.watch(agentMemoryBaseUrlProvider);
+    final reachable = ref.watch(agentMemoryReachableProvider);
+    if (baseUrl.trim().isEmpty) {
+      return const Text(
+        'Not configured',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    return reachable.when(
+      data: (ok) => Text(
+        ok ? 'Connected' : 'Unreachable',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? PocketClawTheme.success : PocketClawTheme.warning,
+        ),
+      ),
+      loading: () => const Text(
+        'Checking…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Error',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+    );
+  }
+}
+
+class _OpenNotebookStatusLine extends ConsumerWidget {
+  const _OpenNotebookStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final baseUrl = ref.watch(openNotebookBaseUrlProvider);
+    final reachable = ref.watch(openNotebookReachableProvider);
+    if (baseUrl.trim().isEmpty) {
+      return const Text(
+        'Not configured',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      );
+    }
+    return reachable.when(
+      data: (ok) => Text(
+        ok ? 'Connected' : 'Unreachable',
+        style: TextStyle(
+          fontSize: 12,
+          color: ok ? PocketClawTheme.success : PocketClawTheme.warning,
+        ),
+      ),
+      loading: () => const Text(
+        'Checking…',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
+      ),
+      error: (_, __) => const Text(
+        'Error',
+        style: TextStyle(fontSize: 12, color: Colors.white54),
       ),
     );
   }

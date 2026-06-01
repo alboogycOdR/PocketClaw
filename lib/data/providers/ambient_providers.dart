@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../core/ambient/focus_sound_engine.dart';
+import '../../core/ambient/nature_sound_engine.dart';
+import '../../core/ambient/office_sound_engine.dart';
 import '../../core/ambient/radio_garden_service.dart';
 import '../../features/ambient/models/favorite_station.dart';
 import '../../features/ambient/models/radio_models.dart';
@@ -116,3 +118,15 @@ final radioFavoritesProvider =
     StateNotifierProvider<RadioFavoritesNotifier, List<FavoriteStation>>(
   (ref) => RadioFavoritesNotifier(ref),
 );
+
+// ── Office Sounds ─────────────────────────────────────────────────────────────
+
+final officeSoundStateProvider = StreamProvider<OfficeSoundState>((ref) {
+  officeSoundEngine.init();
+  return officeSoundEngine.stateStream;
+});
+
+final natureSoundStateProvider = StreamProvider<NatureSoundState>((ref) {
+  natureSoundEngine.init();
+  return natureSoundEngine.stateStream;
+});

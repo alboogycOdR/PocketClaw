@@ -245,7 +245,7 @@ class _PaperclipCompanySettingsState
             child: const Text(
               'First-time setup:\n'
               '1. SSH the VPS and run: npx paperclipai onboard --yes --bind tailnet\n'
-              '2. Visit http://100.78.70.2:3100 in a browser, create a company\n'
+              '2. Visit http://<your-vps-ip>:3100 in a browser, create a company\n'
               '3. Connect OpenClaw via the invite-prompt flow\n'
               '4. Create an agent called "Pocket Claw Mobile" and copy its API key',
               style: TextStyle(fontSize: 11, color: Colors.white60, height: 1.5),

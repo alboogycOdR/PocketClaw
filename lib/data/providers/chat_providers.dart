@@ -24,7 +24,6 @@ import '../../core/llm/context_compaction_service.dart';
 import '../../core/llm/engines/abstract_llm_engine.dart';
 import '../../core/llm/engines/llama_cpp_engine.dart';
 import '../../core/llm/intent_classifier.dart';
-import '../../core/llm/models/model_format.dart';
 import '../../core/rag/rag_service.dart';
 import '../../core/tools/tool_loop.dart';
 import '../../core/session/session_history.dart';
@@ -63,9 +62,7 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
     if (state.isEmpty) return;
     final updated = [...state];
     final last = updated.last;
-    updated[updated.length - 1] = last.copyWith(
-      content: last.content + text,
-    );
+    updated[updated.length - 1] = last.copyWith(content: last.content + text);
     state = updated;
   }
 
@@ -135,8 +132,8 @@ class MessagesNotifier extends StateNotifier<List<ChatMessage>> {
 
 final messagesProvider =
     StateNotifierProvider<MessagesNotifier, List<ChatMessage>>((ref) {
-  return MessagesNotifier();
-});
+      return MessagesNotifier();
+    });
 
 // ── Gateway Connection State ──
 
@@ -159,8 +156,9 @@ final isProcessingProvider = StateProvider<bool>((_) => false);
 // chat screen watches this provider, presents a dialog, and routes the
 // user's choice back into ACP via [acpPermissionResponderProvider].
 
-final pendingAcpPermissionProvider =
-    StateProvider<AcpPermissionRequestEvent?>((_) => null);
+final pendingAcpPermissionProvider = StateProvider<AcpPermissionRequestEvent?>(
+  (_) => null,
+);
 
 /// The active ACP client for the current chat turn — exposed so the chat
 /// screen can deliver the user's permission decision. Null when no ACP
@@ -168,21 +166,24 @@ final pendingAcpPermissionProvider =
 final activeAcpClientProvider = StateProvider<HermesAcpClient?>((_) => null);
 
 /// Resolve a pending permission request with the chosen optionId.
-final acpPermissionResponderProvider =
-    Provider<void Function(String optionId)>((ref) {
-  return (String optionId) {
-    final pending = ref.read(pendingAcpPermissionProvider);
-    final client = ref.read(activeAcpClientProvider);
-    if (pending == null || client == null) return;
-    client.respondToPermission(
-      requestId: pending.requestId,
-      optionId: optionId,
-    );
-    ref.read(pendingAcpPermissionProvider.notifier).state = null;
-    // Also clear the mirrored entry from the global queue.
-    ref.read(approvalsProvider.notifier).resolve(pending.requestId.toString());
-  };
-});
+final acpPermissionResponderProvider = Provider<void Function(String optionId)>(
+  (ref) {
+    return (String optionId) {
+      final pending = ref.read(pendingAcpPermissionProvider);
+      final client = ref.read(activeAcpClientProvider);
+      if (pending == null || client == null) return;
+      client.respondToPermission(
+        requestId: pending.requestId,
+        optionId: optionId,
+      );
+      ref.read(pendingAcpPermissionProvider.notifier).state = null;
+      // Also clear the mirrored entry from the global queue.
+      ref
+          .read(approvalsProvider.notifier)
+          .resolve(pending.requestId.toString());
+    };
+  },
+);
 
 // ── OpenClaw session key (one "conversation") ──
 //
@@ -230,10 +231,10 @@ final loadChatHistoryProvider = Provider<Future<void> Function()>((ref) {
     if (state != GatewayState.connected) return;
     final sessionKey = ref.read(sessionKeyProvider);
     try {
-      final result = await client.request(
-        'chat.history',
-        {'sessionKey': sessionKey, 'limit': 200},
-      );
+      final result = await client.request('chat.history', {
+        'sessionKey': sessionKey,
+        'limit': 200,
+      });
       if (result is! Map) return;
       final raw = result['messages'];
       if (raw is! List) return;
@@ -330,11 +331,17 @@ final abortChatProvider = Provider<Future<void> Function()>((ref) {
     final sessionKey = ref.read(sessionKeyProvider);
     if (client == null || runId == null) return;
     await client.abortChat(sessionKey: sessionKey, runId: runId);
-    ref.read(messagesProvider.notifier).updateLast((m) => m.copyWith(
-          isStreaming: false,
-          content: m.content.isEmpty ? '[Cancelled]' : '${m.content}\n\n[Cancelled]',
-          clearStatusText: true,
-        ));
+    ref
+        .read(messagesProvider.notifier)
+        .updateLast(
+          (m) => m.copyWith(
+            isStreaming: false,
+            content: m.content.isEmpty
+                ? '[Cancelled]'
+                : '${m.content}\n\n[Cancelled]',
+            clearStatusText: true,
+          ),
+        );
     ref.read(currentRunIdProvider.notifier).state = null;
     ref.read(isProcessingProvider.notifier).state = false;
   };
@@ -381,120 +388,127 @@ void _maybeSaveSessionTitle(Ref ref) {
 
 // ── Send Message Action ──
 
-final sendMessageProvider = Provider<Future<void> Function(String, {String? imageUrl})>((ref) {
-  return (String text, {String? imageUrl}) async {
-    if (text.trim().isEmpty) return;
+final sendMessageProvider =
+    Provider<Future<void> Function(String, {String? imageUrl})>((ref) {
+      return (String text, {String? imageUrl}) async {
+        if (text.trim().isEmpty) return;
 
-    final router = ref.read(smartRouterProvider);
-    final messages = ref.read(messagesProvider.notifier);
-    final processing = ref.read(isProcessingProvider.notifier);
+        final router = ref.read(smartRouterProvider);
+        final messages = ref.read(messagesProvider.notifier);
+        final processing = ref.read(isProcessingProvider.notifier);
 
-    processing.state = true;
+        processing.state = true;
 
-    // Add user message
-    final userMsg = ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.user,
-      content: text,
-      source: MessageSource.device,
-      timestamp: DateTime.now(),
-      imageUrl: imageUrl,
-    );
-    messages.add(userMsg);
+        // Add user message
+        final userMsg = ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.user,
+          content: text,
+          source: MessageSource.device,
+          timestamp: DateTime.now(),
+          imageUrl: imageUrl,
+        );
+        messages.add(userMsg);
 
-    // ── Safety gate (Life Architect) ─────────────────────────────────
-    // Always-on, regardless of Life Architect being switched on.
-    // Crisis / high-risk / therapy-drift content is intercepted here
-    // and replaced with a safe response — the AI is not called at all.
-    // SPEC-LifeArchitect-v1.0 §6 + §14.
-    final classifier = ref.read(safetyClassifierProvider);
-    final safety = classifier.classifyLocally(text);
-    if (safety != SafetyClassification.normal) {
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content: classifier.responseFor(safety),
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
-      processing.state = false;
-      try {
-        await ref.read(sessionManagerProvider).addMessage(userMsg);
-      } catch (_) {/* persistence is best-effort */}
-      return;
-    }
-
-    // Dispatch by explicit user-chosen chat mode (not Smart Router).
-    final mode = ref.read(chatModeProvider);
-    final cleanText = router.stripPrefix(text);
-
-    // Update execution path indicator for the chat chip
-    final executionPath = switch (mode) {
-      ChatMode.local    => ExecutionPath.local,
-      ChatMode.openclaw => ExecutionPath.server,
-      ChatMode.hermes   => ExecutionPath.hermes,
-    };
-    ref.read(executionPathProvider.notifier).state = executionPath;
-
-    try {
-      switch (mode) {
-        case ChatMode.local:
-          await _processLocal(ref, cleanText, imageUrl: imageUrl);
-          break;
-        case ChatMode.openclaw:
-          // Server mode handles images natively via chat.send.attachments —
-          // no local preprocessing required. _processBridge (if retained)
-          // is for a future "use local VLM to describe first" feature.
-          await _processServer(ref, cleanText, imagePath: imageUrl);
-          break;
-        case ChatMode.hermes:
-          await _processHermes(ref, cleanText, imagePath: imageUrl);
-          break;
-      }
-    } catch (e) {
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content: 'Something went wrong: $e',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
-    } finally {
-      processing.state = false;
-      // After every successful turn, generate + persist a title for
-      // the active session if it doesn't already have one. Cheap;
-      // best-effort. (Sprint B.)
-      _maybeSaveSessionTitle(ref);
-    }
-
-    // Persist both the user message and the completed assistant reply
-    // to the per-mode session DB. Without persisting the assistant side
-    // here, switching chat modes (or any session reload) would replay
-    // only the user's half from disk and the AI's response would
-    // visually disappear.
-    try {
-      final session = ref.read(sessionManagerProvider);
-      await session.addMessage(userMsg);
-
-      // Find the most recent assistant message that landed during this
-      // turn. The streaming pipelines (_processLocal/_processCloud/
-      // _processServer/_processHermes) all end with the assistant reply
-      // as the tail of messagesProvider, with isStreaming flipped off.
-      final all = ref.read(messagesProvider);
-      for (var i = all.length - 1; i >= 0; i--) {
-        final m = all[i];
-        if (m.role == MessageRole.assistant && !m.isStreaming) {
-          if (m.content.trim().isNotEmpty) {
-            await session.addMessage(m);
+        // ── Safety gate (Life Architect) ─────────────────────────────────
+        // Always-on, regardless of Life Architect being switched on.
+        // Crisis / high-risk / therapy-drift content is intercepted here
+        // and replaced with a safe response — the AI is not called at all.
+        // SPEC-LifeArchitect-v1.0 §6 + §14.
+        final classifier = ref.read(safetyClassifierProvider);
+        final safety = classifier.classifyLocally(text);
+        if (safety != SafetyClassification.normal) {
+          messages.add(
+            ChatMessage(
+              id: _uuid.v4(),
+              role: MessageRole.assistant,
+              content: classifier.responseFor(safety),
+              source: MessageSource.local,
+              timestamp: DateTime.now(),
+            ),
+          );
+          processing.state = false;
+          try {
+            await ref.read(sessionManagerProvider).addMessage(userMsg);
+          } catch (_) {
+            /* persistence is best-effort */
           }
-          break;
+          return;
         }
-      }
-    } catch (_) {
-      // Session persistence may fail on web
-    }
-  };
-});
+
+        // Dispatch by explicit user-chosen chat mode (not Smart Router).
+        final mode = ref.read(chatModeProvider);
+        final cleanText = router.stripPrefix(text);
+
+        // Update execution path indicator for the chat chip
+        final executionPath = switch (mode) {
+          ChatMode.local => ExecutionPath.local,
+          ChatMode.openclaw => ExecutionPath.server,
+          ChatMode.hermes => ExecutionPath.hermes,
+        };
+        ref.read(executionPathProvider.notifier).state = executionPath;
+
+        try {
+          switch (mode) {
+            case ChatMode.local:
+              await _processLocal(ref, cleanText, imageUrl: imageUrl);
+              break;
+            case ChatMode.openclaw:
+              // Server mode handles images natively via chat.send.attachments —
+              // no local preprocessing required. _processBridge (if retained)
+              // is for a future "use local VLM to describe first" feature.
+              await _processServer(ref, cleanText, imagePath: imageUrl);
+              break;
+            case ChatMode.hermes:
+              await _processHermes(ref, cleanText, imagePath: imageUrl);
+              break;
+          }
+        } catch (e) {
+          messages.add(
+            ChatMessage(
+              id: _uuid.v4(),
+              role: MessageRole.assistant,
+              content: 'Something went wrong: $e',
+              source: MessageSource.local,
+              timestamp: DateTime.now(),
+            ),
+          );
+        } finally {
+          processing.state = false;
+          // After every successful turn, generate + persist a title for
+          // the active session if it doesn't already have one. Cheap;
+          // best-effort. (Sprint B.)
+          _maybeSaveSessionTitle(ref);
+        }
+
+        // Persist both the user message and the completed assistant reply
+        // to the per-mode session DB. Without persisting the assistant side
+        // here, switching chat modes (or any session reload) would replay
+        // only the user's half from disk and the AI's response would
+        // visually disappear.
+        try {
+          final session = ref.read(sessionManagerProvider);
+          await session.addMessage(userMsg);
+
+          // Find the most recent assistant message that landed during this
+          // turn. The streaming pipelines (_processLocal/_processCloud/
+          // _processServer/_processHermes) all end with the assistant reply
+          // as the tail of messagesProvider, with isStreaming flipped off.
+          final all = ref.read(messagesProvider);
+          for (var i = all.length - 1; i >= 0; i--) {
+            final m = all[i];
+            if (m.role == MessageRole.assistant && !m.isStreaming) {
+              if (m.content.trim().isNotEmpty) {
+                await session.addMessage(m);
+              }
+              break;
+            }
+          }
+        } catch (_) {
+          // Session persistence may fail on web
+        }
+      };
+    });
 
 /// Combined Academy / Life Architect / GROW overlay applied to every
 /// chat send. Returns null when no overlay is active. Life Architect
@@ -529,16 +543,22 @@ Future<void> _maybeAdvanceGrowPhase(Ref ref, String userText) async {
   // Persist the completed session and tell the user.
   try {
     await GrowSessionHistory().save(session);
-  } catch (_) {/* fail soft — the user already saw the conversation */}
-  ref.read(messagesProvider.notifier).add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content:
-            '✅ GROW session complete. Your commitments have been saved. '
-            'Say "life review" any time for a weekly synthesis.',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
+  } catch (_) {
+    /* fail soft — the user already saw the conversation */
+  }
+  ref
+      .read(messagesProvider.notifier)
+      .add(
+        ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content:
+              '✅ GROW session complete. Your commitments have been saved. '
+              'Say "life review" any time for a weekly synthesis.',
+          source: MessageSource.local,
+          timestamp: DateTime.now(),
+        ),
+      );
 }
 
 Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
@@ -546,15 +566,17 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   final model = ref.read(selectedModelConfigProvider);
 
   if (model == null) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'No local model configured. Pick one in Settings \u2192 Models '
-          'to use Local mode.',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'No local model configured. Pick one in Settings \u2192 Models '
+            'to use Local mode.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
@@ -564,38 +586,45 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   try {
     engine = await ref.read(abstractLlmEngineProvider.future);
   } catch (e) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content: 'Failed to initialise local engine: $e',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content: 'Failed to initialise local engine: $e',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
   if (!engine.isReady) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content: 'Model \u201c${model.displayName}\u201d is not downloaded yet. '
-          'Download it in Settings \u2192 Models.',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'Model \u201c${model.displayName}\u201d is not downloaded yet. '
+            'Download it in Settings \u2192 Models.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
   // Streaming placeholder
   final msgId = _uuid.v4();
-  messages.add(ChatMessage(
-    id: msgId,
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.local,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-  ));
+  messages.add(
+    ChatMessage(
+      id: msgId,
+      role: MessageRole.assistant,
+      content: '',
+      source: MessageSource.local,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    ),
+  );
 
   final overlay = _activeSystemPromptOverlay(ref);
 
@@ -606,10 +635,13 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
   // so today's behaviour doesn't regress.
   final intent = intentClassifier.classify(text);
   if (intent == MessageIntent.image) {
-    messages.updateLast((m) => m.copyWith(
-          statusText: 'Image intent detected — routing to text path '
-              '(local image generation not yet wired).',
-        ));
+    messages.updateLast(
+      (m) => m.copyWith(
+        statusText:
+            'Image intent detected — routing to text path '
+            '(local image generation not yet wired).',
+      ),
+    );
   }
 
   // RAG context injection (Tier 1.1). When a project is active and
@@ -678,53 +710,59 @@ Future<void> _processLocal(Ref ref, String text, {String? imageUrl}) async {
     // propagates to the existing handler below.
     if (contextCompactionService.isContextFullError(e) &&
         engine is LlamaCppEngine) {
-      messages.updateById(msgId, (m) => m.copyWith(
-            statusText: '\u{1F5DC}️ Context full — compacting…',
-          ));
+      messages.updateById(
+        msgId,
+        (m) => m.copyWith(statusText: '\u{1F5DC}️ Context full — compacting…'),
+      );
       try {
         final compacted = await contextCompactionService.compact(
           systemPrompt: augmentedSystemPrompt ?? '',
           allMessages: ref.read(messagesProvider),
           engine: engine,
         );
-        messages.updateById(msgId, (m) => m.copyWith(
-              clearStatusText: true,
-              statusText: compacted.summary == null
-                  ? 'Compacted — retrying…'
-                  : 'Compacted (with summary) — retrying…',
-            ));
+        messages.updateById(
+          msgId,
+          (m) => m.copyWith(
+            clearStatusText: true,
+            statusText: compacted.summary == null
+                ? 'Compacted — retrying…'
+                : 'Compacted (with summary) — retrying…',
+          ),
+        );
         await runOnce();
-        messages.updateLast((m) => m.copyWith(
-              isStreaming: false,
-              clearStatusText: true,
-            ));
+        messages.updateLast(
+          (m) => m.copyWith(isStreaming: false, clearStatusText: true),
+        );
         await _maybeAdvanceGrowPhase(ref, text);
         return;
       } catch (retryError) {
-        messages.updateLast((m) => m.copyWith(
-              content: m.content.isEmpty
-                  ? 'Local inference error after compaction: $retryError'
-                  : '${m.content}\n\n[Error after compaction: $retryError]',
-              isStreaming: false,
-              clearStatusText: true,
-            ));
+        messages.updateLast(
+          (m) => m.copyWith(
+            content: m.content.isEmpty
+                ? 'Local inference error after compaction: $retryError'
+                : '${m.content}\n\n[Error after compaction: $retryError]',
+            isStreaming: false,
+            clearStatusText: true,
+          ),
+        );
       }
       return;
     }
     // Non-context-full error path — surface the original failure.
-    messages.updateLast((m) => m.copyWith(
-          content: m.content.isEmpty
-              ? 'Local inference error: $e'
-              : '${m.content}\n\n[Error: $e]',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateLast(
+      (m) => m.copyWith(
+        content: m.content.isEmpty
+            ? 'Local inference error: $e'
+            : '${m.content}\n\n[Error: $e]',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   }
 }
 
 // _processCloud and the cloud chat path were removed 2026-05-09.
 // PocketClaw routes only to local / OpenClaw / Hermes now.
-
 
 /// Run a Hermes turn over ACP (SSH-exec'd `hermes acp` JSON-RPC).
 ///
@@ -740,15 +778,17 @@ Future<bool> _processHermesAcp(
 }) async {
   final messages = ref.read(messagesProvider.notifier);
   final placeholderId = _uuid.v4();
-  messages.add(ChatMessage(
-    id: placeholderId,
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-    statusText: 'Hermes is starting…',
-  ));
+  messages.add(
+    ChatMessage(
+      id: placeholderId,
+      role: MessageRole.assistant,
+      content: '',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+      statusText: 'Hermes is starting…',
+    ),
+  );
 
   final acp = HermesAcpClient(ssh: ssh);
   ref.read(activeAcpClientProvider.notifier).state = acp;
@@ -771,19 +811,22 @@ Future<bool> _processHermesAcp(
     switch (event) {
       case AcpMessageChunkEvent(:final text):
         buffer.write(text);
-        messages.updateById(placeholderId, (m) => m.copyWith(
-              content: buffer.toString(),
-              clearStatusText: true,
-            ));
+        messages.updateById(
+          placeholderId,
+          (m) => m.copyWith(content: buffer.toString(), clearStatusText: true),
+        );
       case AcpThoughtChunkEvent(:final text):
         // Accumulate the agent's reasoning into thinkingText so the
         // ThinkingIndicator can show the full transcript on demand;
         // statusText becomes a brief "thinking…" indicator only.
         final current = messages.byId(placeholderId)?.thinkingText ?? '';
-        messages.updateById(placeholderId, (m) => m.copyWith(
-              thinkingText: current + text,
-              statusText: '\u{1F4A1} Thinking…',
-            ));
+        messages.updateById(
+          placeholderId,
+          (m) => m.copyWith(
+            thinkingText: current + text,
+            statusText: '\u{1F4A1} Thinking…',
+          ),
+        );
       case AcpToolCallStartEvent():
         messages.addToolCall(
           placeholderId,
@@ -836,11 +879,14 @@ Future<bool> _processHermesAcp(
         ),
       ];
     } catch (e) {
-      messages.updateById(placeholderId, (m) => m.copyWith(
-            isStreaming: false,
-            clearStatusText: true,
-            content: 'Attachment error: $e',
-          ));
+      messages.updateById(
+        placeholderId,
+        (m) => m.copyWith(
+          isStreaming: false,
+          clearStatusText: true,
+          content: 'Attachment error: $e',
+        ),
+      );
       ref.read(activeAcpClientProvider.notifier).state = null;
       await sub.cancel();
       await acp.stop();
@@ -859,40 +905,52 @@ Future<bool> _processHermesAcp(
     final usageNote = result.totalTokens > 0
         ? '${result.inputTokens}→${result.outputTokens} tok'
         : null;
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          isStreaming: false,
-          clearStatusText: true,
-          // If the agent ended without ever streaming content (rare),
-          // surface the stop reason so the bubble isn't empty.
-          content: buffer.isEmpty
-              ? '_(no response — stopReason: ${result.stopReason}'
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        isStreaming: false,
+        clearStatusText: true,
+        // If the agent ended without ever streaming content (rare),
+        // surface the stop reason so the bubble isn't empty.
+        content: buffer.isEmpty
+            ? '_(no response — stopReason: ${result.stopReason}'
                   '${usageNote != null ? ', $usageNote' : ''})_'
-              : m.content,
-        ));
+            : m.content,
+      ),
+    );
   } on AcpException catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: buffer.isEmpty
-              ? 'Hermes ACP error: $e'
-              : '$buffer\n\n[ACP error: $e]',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: buffer.isEmpty
+            ? 'Hermes ACP error: $e'
+            : '$buffer\n\n[ACP error: $e]',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   } on TimeoutException catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: buffer.isEmpty
-              ? 'Hermes ACP timed out: $e'
-              : '$buffer\n\n[Timed out: $e]',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: buffer.isEmpty
+            ? 'Hermes ACP timed out: $e'
+            : '$buffer\n\n[Timed out: $e]',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   } catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: buffer.isEmpty
-              ? 'Hermes ACP failed: $e'
-              : '$buffer\n\n[Error: $e]',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: buffer.isEmpty
+            ? 'Hermes ACP failed: $e'
+            : '$buffer\n\n[Error: $e]',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   } finally {
     await sub.cancel();
     ref.read(activeAcpClientProvider.notifier).state = null;
@@ -921,31 +979,35 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
   // REST fallback can't carry images today — warn rather than silently
   // dropping the attachment.
   if (imagePath != null) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'Image attachments require the SSH/ACP path. Configure SSH in '
-          'Settings → SSH so Hermes can stream tool calls + accept images, '
-          'then resend.',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'Image attachments require the SSH/ACP path. Configure SSH in '
+            'Settings → SSH so Hermes can stream tool calls + accept images, '
+            'then resend.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
   final client = ref.read(hermesClientProvider);
 
   if (client == null) {
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content:
-          'Hermes is not configured. Open Settings → Hermes Agent and set '
-          'the base URL + API key, then try again.',
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content:
+            'Hermes is not configured. Open Settings → Hermes REST and set '
+            'the base URL + API key, then try again.',
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
@@ -956,14 +1018,16 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
       .where((m) => m.role != MessageRole.system && !m.isStreaming)
       // Drop the just-added user message; we re-add it as the prompt below.
       .where((m) => m.content.trim().isNotEmpty)
-      .map((m) => {
-            'role': switch (m.role) {
-              MessageRole.user => 'user',
-              MessageRole.assistant => 'assistant',
-              MessageRole.system => 'system',
-            },
-            'content': m.content,
-          })
+      .map(
+        (m) => {
+          'role': switch (m.role) {
+            MessageRole.user => 'user',
+            MessageRole.assistant => 'assistant',
+            MessageRole.system => 'system',
+          },
+          'content': m.content,
+        },
+      )
       .toList();
   // Drop the last user turn (current prompt) — chatStream re-appends it.
   if (history.isNotEmpty && history.last['role'] == 'user') {
@@ -980,15 +1044,17 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
   }
 
   final placeholderId = _uuid.v4();
-  messages.add(ChatMessage(
-    id: placeholderId,
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-    statusText: 'Hermes is thinking…',
-  ));
+  messages.add(
+    ChatMessage(
+      id: placeholderId,
+      role: MessageRole.assistant,
+      content: '',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+      statusText: 'Hermes is thinking…',
+    ),
+  );
 
   final buffer = StringBuffer();
   try {
@@ -996,17 +1062,18 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
       switch (event) {
         case SseTextToken(:final text):
           buffer.write(text);
-          messages.updateById(placeholderId, (m) => m.copyWith(
-                content: buffer.toString(),
-                clearStatusText: true,
-              ));
+          messages.updateById(
+            placeholderId,
+            (m) =>
+                m.copyWith(content: buffer.toString(), clearStatusText: true),
+          );
         case SseToolProgress(
-            :final toolCallId,
-            :final title,
-            :final kind,
-            :final status,
-            :final content,
-          ):
+          :final toolCallId,
+          :final title,
+          :final kind,
+          :final status,
+          :final content,
+        ):
           // Mirror the ACP tool-call surface so the TUI activity card
           // shows progress for REST runs too.
           messages.addToolCall(
@@ -1031,35 +1098,37 @@ Future<void> _processHermes(Ref ref, String text, {String? imagePath}) async {
           break;
       }
     }
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(isStreaming: false, clearStatusText: true),
+    );
     await _maybeAdvanceGrowPhase(ref, text);
   } on HermesApiException catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: e.isAuthError
-              ? 'Hermes auth failed (${e.statusCode}). Check the API key.'
-              : 'Hermes error (${e.statusCode}): ${e.message}',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: e.isAuthError
+            ? 'Hermes auth failed (${e.statusCode}). Check the API key.'
+            : 'Hermes error (${e.statusCode}): ${e.message}',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   } catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: buffer.isEmpty
-              ? 'Hermes request failed: $e'
-              : '$buffer\n\n[Stream interrupted: $e]',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: buffer.isEmpty
+            ? 'Hermes request failed: $e'
+            : '$buffer\n\n[Stream interrupted: $e]',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
   }
 }
 
-Future<void> _processServer(
-  Ref ref,
-  String text, {
-  String? imagePath,
-}) async {
+Future<void> _processServer(Ref ref, String text, {String? imagePath}) async {
   final client = ref.read(gatewayClientProvider);
   final messages = ref.read(messagesProvider.notifier);
   final sessionKey = ref.read(sessionKeyProvider);
@@ -1080,13 +1149,15 @@ Future<void> _processServer(
       _ =>
         'Gateway offline — check that Tailscale is on and the gateway is running.',
     };
-    messages.add(ChatMessage(
-      id: _uuid.v4(),
-      role: MessageRole.assistant,
-      content: hint,
-      source: MessageSource.local,
-      timestamp: DateTime.now(),
-    ));
+    messages.add(
+      ChatMessage(
+        id: _uuid.v4(),
+        role: MessageRole.assistant,
+        content: hint,
+        source: MessageSource.local,
+        timestamp: DateTime.now(),
+      ),
+    );
     return;
   }
 
@@ -1096,28 +1167,31 @@ Future<void> _processServer(
     final gatewayUrl = ref.read(gatewayUrlProvider);
 
     if (gatewayUrl.isNotEmpty) {
-      await offlineQueue.enqueue(QueuedMessage(
-        text: text,
-        queuedAt: DateTime.now(),
-      ));
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content:
-            'Server is offline. Message queued — it will be sent automatically when the connection is restored. '
-            '(${offlineQueue.pendingCount} message(s) pending)',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
+      await offlineQueue.enqueue(
+        QueuedMessage(text: text, queuedAt: DateTime.now()),
+      );
+      messages.add(
+        ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content:
+              'Server is offline. Message queued — it will be sent automatically when the connection is restored. '
+              '(${offlineQueue.pendingCount} message(s) pending)',
+          source: MessageSource.local,
+          timestamp: DateTime.now(),
+        ),
+      );
     } else {
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content:
-            'Server not configured. Go to Settings to connect your OpenClaw gateway, or prefix with /local to use the on-device model.',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
+      messages.add(
+        ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content:
+              'Server not configured. Go to Settings to connect your OpenClaw gateway, or prefix with /local to use the on-device model.',
+          source: MessageSource.local,
+          timestamp: DateTime.now(),
+        ),
+      );
     }
     return;
   }
@@ -1129,13 +1203,15 @@ Future<void> _processServer(
     try {
       attachments = [await _encodeImageAttachment(imagePath)];
     } catch (e) {
-      messages.add(ChatMessage(
-        id: _uuid.v4(),
-        role: MessageRole.assistant,
-        content: 'Attachment error: $e',
-        source: MessageSource.local,
-        timestamp: DateTime.now(),
-      ));
+      messages.add(
+        ChatMessage(
+          id: _uuid.v4(),
+          role: MessageRole.assistant,
+          content: 'Attachment error: $e',
+          source: MessageSource.local,
+          timestamp: DateTime.now(),
+        ),
+      );
       return;
     }
   }
@@ -1143,15 +1219,17 @@ Future<void> _processServer(
   // Add streaming placeholder (we'll attach the runId to it once the server
   // acks the send, so the Stop button knows which run to abort).
   final placeholderId = _uuid.v4();
-  messages.add(ChatMessage(
-    id: placeholderId,
-    role: MessageRole.assistant,
-    content: '',
-    source: MessageSource.server,
-    timestamp: DateTime.now(),
-    isStreaming: true,
-    statusText: 'Sending…',
-  ));
+  messages.add(
+    ChatMessage(
+      id: placeholderId,
+      role: MessageRole.assistant,
+      content: '',
+      source: MessageSource.server,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+      statusText: 'Sending…',
+    ),
+  );
 
   // OpenClaw `chat.send` has no system-prompt slot, so when an Academy
   // / Life Architect overlay is active we prepend it to the user's
@@ -1161,9 +1239,9 @@ Future<void> _processServer(
   final overlay = _activeSystemPromptOverlay(ref);
   final sendText = (overlay != null && overlay.trim().isNotEmpty)
       ? '[Coaching context — follow these instructions for this turn]\n'
-          '${overlay.trim()}\n'
-          '---\n\n'
-          '$text'
+            '${overlay.trim()}\n'
+            '---\n\n'
+            '$text'
       : text;
 
   // Send and await the ack so we know the runId.
@@ -1175,18 +1253,21 @@ Future<void> _processServer(
       attachments: attachments,
     );
   } catch (e) {
-    messages.updateById(placeholderId, (m) => m.copyWith(
-          content: 'Send failed: $e',
-          isStreaming: false,
-          clearStatusText: true,
-        ));
+    messages.updateById(
+      placeholderId,
+      (m) => m.copyWith(
+        content: 'Send failed: $e',
+        isStreaming: false,
+        clearStatusText: true,
+      ),
+    );
     return;
   }
   ref.read(currentRunIdProvider.notifier).state = runId;
-  messages.updateById(placeholderId, (m) => m.copyWith(
-        runId: runId,
-        statusText: 'Thinking…',
-      ));
+  messages.updateById(
+    placeholderId,
+    (m) => m.copyWith(runId: runId, statusText: 'Thinking…'),
+  );
 
   final completer = Completer<void>();
   late StreamSubscription<ServerResponse> sub;
@@ -1202,20 +1283,25 @@ Future<void> _processServer(
     if (response.runId != null && response.runId != runId) return;
 
     if (response.statusText != null) {
-      messages.updateById(placeholderId,
-          (m) => m.copyWith(statusText: response.statusText));
+      messages.updateById(
+        placeholderId,
+        (m) => m.copyWith(statusText: response.statusText),
+      );
     }
     if (response.chunk.isNotEmpty) {
-      messages.updateById(placeholderId, (m) => m.copyWith(
-            content: m.content + response.chunk,
-            clearStatusText: true,
-          ));
+      messages.updateById(
+        placeholderId,
+        (m) => m.copyWith(
+          content: m.content + response.chunk,
+          clearStatusText: true,
+        ),
+      );
     }
     if (response.done) {
-      messages.updateById(placeholderId, (m) => m.copyWith(
-            isStreaming: false,
-            clearStatusText: true,
-          ));
+      messages.updateById(
+        placeholderId,
+        (m) => m.copyWith(isStreaming: false, clearStatusText: true),
+      );
       sub.cancel();
       if (!completer.isCompleted) completer.complete();
     }
@@ -1231,7 +1317,6 @@ Future<void> _processServer(
   }
   await _maybeAdvanceGrowPhase(ref, text);
 }
-
 
 // ── Session Management ──
 
@@ -1274,7 +1359,8 @@ Future<Map<String, dynamic>> _encodeImageAttachment(String path) async {
     throw "Image is ${mb} MB, over the 5 MB attachment limit.";
   }
   final fileName = p.basename(path);
-  final mime = lookupMimeType(path, headerBytes: bytes.take(16).toList()) ??
+  final mime =
+      lookupMimeType(path, headerBytes: bytes.take(16).toList()) ??
       "application/octet-stream";
   if (!mime.startsWith("image/")) {
     throw "Only image attachments are supported (got $mime).";

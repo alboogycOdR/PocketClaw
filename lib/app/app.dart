@@ -3,7 +3,6 @@
 /// libraries, database, or network. All heavy work is deferred.
 library;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +11,7 @@ import '../core/gateway/proactive_notifier.dart';
 import '../data/providers/core_providers.dart';
 import 'app_flavor.dart';
 import 'biometric_lock_screen.dart';
+import 'hermes_commander_theme.dart';
 import 'router.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
@@ -49,14 +49,14 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
       final proceed = await showDialog<bool>(
         context: ctx,
         builder: (d) => AlertDialog(
-          title: const Text('Keep Pocket Claw running'),
-          content: const Text(
-            'On-device AI inference and agent sessions work best when '
-            'Android does not throttle the app.\n\n'
-            'Next screen: please tap "Allow" to exempt Pocket Claw from '
+          title: Text('Keep $appFlavorName running'),
+          content: Text(
+            'Agent sessions work best when Android does not throttle the '
+            'app.\n\n'
+            'Next screen: please tap "Allow" to exempt $appFlavorName from '
             'battery optimisation.\n\n'
             'You can change this later in your phone Settings > Apps > '
-            'Pocket Claw > Battery.',
+            '$appFlavorName > Battery.',
           ),
           actions: [
             TextButton(
@@ -101,13 +101,19 @@ class _PocketClawAppState extends ConsumerState<PocketClawApp> {
     // MaterialApp. Hand-painted widgets that read PocketClawTheme.bronze
     // / .deepCharcoal / etc. directly will see the new colours in the
     // same frame as the new ThemeData.
-    final themeId = ref.watch(themeIdProvider);
-    PocketClawTheme.setActive(themeId);
+    ThemeData theme;
+    if (kAppFlavor.isHermesOnly) {
+      theme = HCTheme.theme;
+    } else {
+      final themeId = ref.watch(themeIdProvider);
+      PocketClawTheme.setActive(themeId);
+      theme = PocketClawTheme.themeData;
+    }
 
     return MaterialApp.router(
       title: appFlavorName,
       debugShowCheckedModeBanner: false,
-      theme: PocketClawTheme.themeData,
+      theme: theme,
       routerConfig: appRouter,
       builder: (context, child) {
         if (showLock) {

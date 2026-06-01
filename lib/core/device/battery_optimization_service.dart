@@ -18,7 +18,7 @@ class BatteryOptimizationService {
     try {
       const intent = AndroidIntent(
         action: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
-        data: 'package:com.carmen.clawcommander',
+        data: 'package:com.nuburo.hermescommander',
       );
       await intent.launch();
     } catch (e) {

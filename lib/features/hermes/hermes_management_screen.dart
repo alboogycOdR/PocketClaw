@@ -1,9 +1,4 @@
-/// Hermes management — 6-tab container backed by SSH + analytics.
-/// Sessions, Cron, Skills, Logs, Analytics, Channels. Memory used to
-/// live here but was redundant with bottom-nav → Memory (which routes
-/// to the same HermesMemoryTab when active server is Hermes), removed
-/// in v2.6.5. Each tab is gated by [serverCapabilitiesProvider] so the
-/// surface stays informative when SSH is missing.
+/// Hermes management surfaces gated by HermesCommander capabilities.
 ///
 /// Two presentation modes:
 ///   - standalone — full Scaffold with own AppBar (legacy).
@@ -13,8 +8,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../app/app_flavor.dart';
 import '../../app/theme.dart';
 import '../../data/providers/capability_providers.dart';
@@ -97,7 +90,7 @@ class HermesManagementScreen extends ConsumerWidget {
               const SizedBox(height: 12),
               Text(
                 'SSH unavailable',
-                style: GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w600),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
@@ -131,13 +124,7 @@ class HermesManagementScreen extends ConsumerWidget {
     return DefaultTabController(
       length: tabCount,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Hermes Agent',
-            style: GoogleFonts.jetBrainsMono(fontSize: 16),
-          ),
-          bottom: tabs,
-        ),
+        appBar: AppBar(title: const Text('Control'), bottom: tabs),
         body: Column(
           children: [
             const Padding(
@@ -193,11 +180,11 @@ class _GatedTabBarView extends ConsumerWidget {
                 feature: 'Logs',
                 featureKey: 'logs',
               ),
-        caps.hasCost
+        caps.hasAnalytics
             ? const HermesAnalyticsTab()
             : const FeatureNotAvailableCard(
                 feature: 'Analytics',
-                featureKey: 'cost',
+                featureKey: 'analytics',
               ),
         if (kHermesOnlyMode)
           const _HermesApprovalsTab()

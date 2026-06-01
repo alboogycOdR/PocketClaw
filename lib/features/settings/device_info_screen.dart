@@ -10,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../app/theme.dart';
 import '../../data/providers/core_providers.dart';
 import '../../shared/utils/storage_formatter.dart';
 
@@ -48,7 +47,8 @@ final deviceFactsProvider = FutureProvider<DeviceFacts>((ref) async {
       final info = await DeviceInfoPlugin().androidInfo;
       deviceName = '${info.manufacturer} ${info.model}';
       osName = 'Android ${info.version.release} (SDK ${info.version.sdkInt})';
-      isQualcomm = info.hardware.toLowerCase().contains('qcom') ||
+      isQualcomm =
+          info.hardware.toLowerCase().contains('qcom') ||
           (info.systemFeatures.any((f) => f.toLowerCase().contains('qti')));
     } else if (Platform.isIOS) {
       final info = await DeviceInfoPlugin().iosInfo;
@@ -58,7 +58,7 @@ final deviceFactsProvider = FutureProvider<DeviceFacts>((ref) async {
   } catch (_) {}
 
   try {
-    const channel = MethodChannel('com.carmen.clawcommander/device');
+    const channel = MethodChannel('com.nuburo.hermescommander/device');
     final ram = await channel.invokeMethod<int>('getTotalRam');
     if (ram != null) totalRam = ram;
   } catch (_) {}
@@ -142,23 +142,16 @@ class DeviceInfoScreen extends ConsumerWidget {
               _Section('Active model', [
                 _Row(label: 'Name', value: model.displayName),
                 _Row(label: 'Size', value: formatBytes(model.sizeBytes)),
-                _Row(
-                  label: 'Min RAM',
-                  value: formatBytes(model.minRamBytes),
-                ),
+                _Row(label: 'Min RAM', value: formatBytes(model.minRamBytes)),
                 _Row(label: 'Template', value: model.chatTemplate.name),
               ]),
             ],
             const SizedBox(height: 18),
             _Section('Acceleration', [
-              _Row(
-                label: 'GPU (OpenCL)',
-                value: 'Not detected',
-              ),
+              _Row(label: 'GPU (OpenCL)', value: 'Not detected'),
               _Row(
                 label: 'NPU (QNN)',
-                value:
-                    facts.isQualcomm ? 'Available (Snapdragon)' : 'N/A',
+                value: facts.isQualcomm ? 'Available (Snapdragon)' : 'N/A',
               ),
             ]),
           ],
@@ -216,10 +209,7 @@ class _Row extends StatelessWidget {
           ),
           Text(
             value,
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 12,
-              color: Colors.white,
-            ),
+            style: GoogleFonts.jetBrainsMono(fontSize: 12, color: Colors.white),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:dartssh2/dartssh2.dart';
 import 'package:yaml/yaml.dart';
 import 'package:yaml_edit/yaml_edit.dart';
 
@@ -133,16 +134,21 @@ class HermesDataService {
 
   // ── Memory ──────────────────────────────────────────────────────────
 
-  Future<String> readMemory() => _ssh.readFile(paths.memoryMD);
-  Future<String> readUserProfile() => _ssh.readFile(paths.userMD);
-  Future<String> readSoul() => _ssh.readFile(paths.soulMD);
+  Future<String> readMemory() => _readOptionalFile(paths.memoryMD);
+  Future<String> readUserProfile() => _readOptionalFile(paths.userMD);
+  Future<String> readSoul() => _readOptionalFile(paths.soulMD);
 
-  Future<void> writeMemory(String content) =>
-      _ssh.writeFile(paths.memoryMD, content);
-  Future<void> writeUserProfile(String content) =>
-      _ssh.writeFile(paths.userMD, content);
-  Future<void> writeSoul(String content) =>
-      _ssh.writeFile(paths.soulMD, content);
+  Future<void> writeMemory(String content) async {
+    await _ensureMemoryDir();
+    await _ssh.writeFile(paths.memoryMD, content);
+  }
+
+  Future<void> writeUserProfile(String content) async {
+    await _ensureMemoryDir();
+    await _ssh.writeFile(paths.userMD, content);
+  }
+
+  Future<void> writeSoul(String content) => _ssh.writeFile(paths.soulMD, content);
 
   // ── Memory entries (§-delimited) ────────────────────────────────────
   //
@@ -156,6 +162,19 @@ class HermesDataService {
   Future<List<HermesMemoryEntry>> getMemoryEntries() async {
     final raw = await readMemory();
     return parseMemoryEntries(raw);
+  }
+
+  Future<String> _readOptionalFile(String remotePath) async {
+    try {
+      return await _ssh.readFile(remotePath);
+    } on SftpStatusError catch (e) {
+      if (e.code == SftpStatusCode.noSuchFile) return '';
+      rethrow;
+    }
+  }
+
+  Future<void> _ensureMemoryDir() async {
+    await _ssh.exec('mkdir -p ${paths.memoriesDir}');
   }
 
   /// Pure helper — exposed for testing and so the UI can preview a

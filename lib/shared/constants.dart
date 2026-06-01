@@ -1,4 +1,4 @@
-/// ClawCommander constants
+/// HermesCommander constants.
 library;
 
 import '../app/app_flavor.dart';
@@ -12,7 +12,7 @@ class AppConstants {
 
   // Default Gateway
   static const int defaultGatewayPort = 18789;
-  static const String defaultSessionKey = 'pocket-claw-main';
+  static const String defaultSessionKey = 'hermes-commander-main';
 
   // Smart Router thresholds
   static const int simpleTaskMinKeywords = 2;

@@ -9,6 +9,7 @@ import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 
+import '../../../app/app_flavor.dart';
 import '../../ssh/hermes_ssh_client.dart';
 import 'acp_event_parser.dart';
 import 'acp_models.dart';
@@ -61,7 +62,7 @@ class HermesAcpClient {
     await _request('initialize', {
       'protocolVersion': 1,
       'clientCapabilities': <String, dynamic>{},
-      'clientInfo': {'name': 'ClawCommander', 'version': '1.0'},
+      'clientInfo': {'name': kAppFlavor.appName, 'version': '1.0'},
     });
 
     _keepaliveTimer = Timer.periodic(
@@ -152,23 +153,21 @@ class HermesAcpClient {
     final messageId = _uuid.v4();
     final prompt = <Map<String, dynamic>>[
       {'type': 'text', 'text': text},
-      ...?images?.map((img) => {
-            'type': 'image',
-            'data': img.base64Data,
-            'mimeType': img.mimeType,
-          }),
+      ...?images?.map(
+        (img) => {
+          'type': 'image',
+          'data': img.base64Data,
+          'mimeType': img.mimeType,
+        },
+      ),
     ];
 
     // No timeout — agent runs can legitimately take minutes.
-    final result = await _request(
-      'session/prompt',
-      {
-        'sessionId': sessionId,
-        'messageId': messageId,
-        'prompt': prompt,
-      },
-      timeout: null,
-    );
+    final result = await _request('session/prompt', {
+      'sessionId': sessionId,
+      'messageId': messageId,
+      'prompt': prompt,
+    }, timeout: null);
 
     final usage = result?['usage'] as Map<String, dynamic>? ?? const {};
     return AcpPromptCompleteEvent(
@@ -187,21 +186,17 @@ class HermesAcpClient {
   /// Reply to a server-initiated [AcpPermissionRequestEvent]. Hermes
   /// blocks until it receives the response, so this must be called for
   /// every permission ask.
-  void respondToPermission({
-    required int requestId,
-    required String optionId,
-  }) {
+  void respondToPermission({required int requestId, required String optionId}) {
     final outcome = optionId == 'deny' ? 'rejected' : 'allowed';
-    _writeLine(jsonEncode({
-      'jsonrpc': '2.0',
-      'id': requestId,
-      'result': {
-        'outcome': {
-          'kind': outcome,
-          'optionId': optionId,
+    _writeLine(
+      jsonEncode({
+        'jsonrpc': '2.0',
+        'id': requestId,
+        'result': {
+          'outcome': {'kind': outcome, 'optionId': optionId},
         },
-      },
-    }));
+      }),
+    );
   }
 
   // ── Transport ─────────────────────────────────────────────────────────
@@ -218,12 +213,14 @@ class HermesAcpClient {
     final completer = Completer<Map<String, dynamic>?>();
     _pending[id] = completer;
 
-    _writeLine(jsonEncode({
-      'jsonrpc': '2.0',
-      'id': id,
-      'method': method,
-      'params': params,
-    }));
+    _writeLine(
+      jsonEncode({
+        'jsonrpc': '2.0',
+        'id': id,
+        'method': method,
+        'params': params,
+      }),
+    );
 
     if (timeout != null) {
       Future.delayed(timeout).then((_) {
@@ -264,9 +261,9 @@ class HermesAcpClient {
         final c = _pending.remove(msg.id);
         if (c == null) break;
         if (msg.error != null) {
-          c.completeError(AcpException(
-            '${msg.error!.message} (code ${msg.error!.code})',
-          ));
+          c.completeError(
+            AcpException('${msg.error!.message} (code ${msg.error!.code})'),
+          );
         } else {
           c.complete(msg.result);
         }
@@ -306,10 +303,7 @@ class HermesAcpClient {
 class AcpImageAttachment {
   final String base64Data;
   final String mimeType;
-  const AcpImageAttachment({
-    required this.base64Data,
-    required this.mimeType,
-  });
+  const AcpImageAttachment({required this.base64Data, required this.mimeType});
 }
 
 class AcpException implements Exception {

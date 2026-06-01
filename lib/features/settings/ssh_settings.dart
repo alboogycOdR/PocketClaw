@@ -85,9 +85,9 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
     ref.read(sshSettingsRevProvider.notifier).state++;
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SSH settings saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('SSH settings saved')));
     }
   }
 
@@ -153,21 +153,21 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.terminal,
-                          color: PocketClawTheme.electricTeal),
+                      Icon(Icons.terminal, color: PocketClawTheme.electricTeal),
                       const SizedBox(width: 8),
                       Text(
                         'SSH transport',
                         style: GoogleFonts.jetBrainsMono(
-                            fontWeight: FontWeight.bold),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     'Used for Hermes management (sessions, memory, cron, '
-                    'skills, logs) and OpenClaw diagnostics. Phone must be '
-                    'on Tailscale.',
+                    'skills, logs) and server-side diagnostics. Phone must '
+                    'be on Tailscale.',
                     style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
@@ -179,7 +179,7 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
             controller: _host,
             decoration: const InputDecoration(
               labelText: 'Host',
-              hintText: '100.78.70.2',
+              hintText: 'your-vps-host',
               prefixIcon: Icon(Icons.dns_outlined),
             ),
           ),
@@ -198,7 +198,7 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
             controller: _user,
             decoration: const InputDecoration(
               labelText: 'Username',
-              hintText: 'clawusr',
+              hintText: 'operator',
               prefixIcon: Icon(Icons.person_outline),
             ),
           ),
@@ -256,31 +256,25 @@ class _SshSettingsState extends ConsumerState<SshSettings> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: (_testOk == true ? Colors.teal : Colors.red)
-                    .withAlpha(38),
+                color: (_testOk == true ? Colors.teal : Colors.red).withAlpha(
+                  38,
+                ),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _testOk == true
-                      ? Colors.tealAccent
-                      : Colors.redAccent,
+                  color: _testOk == true ? Colors.tealAccent : Colors.redAccent,
                 ),
               ),
               child: Text(
                 _testMessage!,
                 style: TextStyle(
-                  color: _testOk == true
-                      ? Colors.tealAccent
-                      : Colors.redAccent,
+                  color: _testOk == true ? Colors.tealAccent : Colors.redAccent,
                   fontSize: 13,
                 ),
               ),
             ),
           ],
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
+          FilledButton(onPressed: _save, child: const Text('Save')),
         ],
       ),
     );

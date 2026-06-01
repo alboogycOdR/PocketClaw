@@ -28,28 +28,28 @@ enum ChatMode {
 
 extension ChatModeLabel on ChatMode {
   String get displayName => switch (this) {
-        ChatMode.local => 'Local',
-        ChatMode.openclaw => 'OpenClaw',
-        ChatMode.hermes => 'Hermes',
-      };
+    ChatMode.local => 'Local',
+    ChatMode.openclaw => 'OpenClaw',
+    ChatMode.hermes => 'Hermes',
+  };
 
   String get tagline => switch (this) {
-        ChatMode.local => 'Offline · Private',
-        ChatMode.openclaw => 'Full agent team',
-        ChatMode.hermes => 'Nous Research agent',
-      };
+    ChatMode.local => 'Offline · Private',
+    ChatMode.openclaw => 'Full agent team',
+    ChatMode.hermes => 'Nous Research agent',
+  };
 
   IconData get icon => switch (this) {
-        ChatMode.local => Icons.phone_android,
-        ChatMode.openclaw => Icons.hub_outlined,
-        ChatMode.hermes => Icons.psychology_outlined,
-      };
+    ChatMode.local => Icons.phone_android,
+    ChatMode.openclaw => Icons.hub_outlined,
+    ChatMode.hermes => Icons.psychology_outlined,
+  };
 
   Color get color => switch (this) {
-        ChatMode.local => PocketClawTheme.amber,
-        ChatMode.openclaw => PocketClawTheme.bronze,
-        ChatMode.hermes => const Color(0xFF7C3AED),
-      };
+    ChatMode.local => PocketClawTheme.amber,
+    ChatMode.openclaw => PocketClawTheme.bronze,
+    ChatMode.hermes => PocketClawTheme.bronze,
+  };
 
   String get storageKey => 'chat_mode_session_$name';
 }

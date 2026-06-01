@@ -15,6 +15,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_flavor.dart';
+import 'hermes_commander_theme.dart';
+
 /// User-facing theme choices. Persist this enum's `.name` to
 /// SharedPreferences so adding a new theme later doesn't shift indices.
 enum ThemeId {
@@ -70,6 +73,7 @@ class PocketClawTheme {
   /// returning the MaterialApp so the new ThemeData and the new static
   /// color getters paint the same frame.
   static void setActive(ThemeId id) {
+    if (kHermesOnlyMode) return;
     _active = _paletteFor(id);
   }
 
@@ -93,33 +97,49 @@ class PocketClawTheme {
     }
   }
 
-  static ThemeData themeFor(ThemeId id) => _paletteFor(id).build();
-  static ThemeData get themeData => _active.build();
+  static ThemeData themeFor(ThemeId id) =>
+      kHermesOnlyMode ? HCTheme.theme : _paletteFor(id).build();
+  static ThemeData get themeData =>
+      kHermesOnlyMode ? HCTheme.theme : _active.build();
 
   /// Kept for backward compatibility — `MaterialApp.router(theme:
   /// PocketClawTheme.darkTheme)` still resolves. New code should use
   /// `themeData` (active) or `themeFor(id)`.
-  static ThemeData get darkTheme => _DarkPalette().build();
+  static ThemeData get darkTheme =>
+      kHermesOnlyMode ? HCTheme.theme : _DarkPalette().build();
 
   // ── delegating colour getters — all 86 referencing widgets read these
-  static Color get deepCharcoal => _active.deepCharcoal;
-  static Color get surface => _active.surface;
-  static Color get surfaceContainerLow => _active.surfaceContainerLow;
-  static Color get surfaceContainer => _active.surfaceContainer;
-  static Color get surfaceContainerHigh => _active.surfaceContainerHigh;
-  static Color get surfaceBright => _active.surfaceBright;
-  static Color get surfaceDim => _active.surfaceDim;
+  static Color get deepCharcoal =>
+      kHermesOnlyMode ? HCTheme.bgBase : _active.deepCharcoal;
+  static Color get surface =>
+      kHermesOnlyMode ? HCTheme.bgSurface : _active.surface;
+  static Color get surfaceContainerLow =>
+      kHermesOnlyMode ? HCTheme.bgBase : _active.surfaceContainerLow;
+  static Color get surfaceContainer =>
+      kHermesOnlyMode ? HCTheme.bgPanel : _active.surfaceContainer;
+  static Color get surfaceContainerHigh =>
+      kHermesOnlyMode ? HCTheme.bgSurface : _active.surfaceContainerHigh;
+  static Color get surfaceBright =>
+      kHermesOnlyMode ? HCTheme.bgActive : _active.surfaceBright;
+  static Color get surfaceDim =>
+      kHermesOnlyMode ? HCTheme.bgBase : _active.surfaceDim;
 
-  static Color get bronze => _active.bronze;
-  static Color get amber => _active.amber;
-  static Color get electricTeal => _active.electricTeal;
+  static Color get bronze => kHermesOnlyMode ? HCTheme.gold : _active.bronze;
+  static Color get amber => kHermesOnlyMode ? HCTheme.goldLight : _active.amber;
+  static Color get electricTeal =>
+      kHermesOnlyMode ? HCTheme.gold : _active.electricTeal;
 
-  static Color get onSurface => _active.onSurface;
-  static Color get onSurfaceMuted => _active.onSurfaceMuted;
+  static Color get onSurface =>
+      kHermesOnlyMode ? HCTheme.textPrimary : _active.onSurface;
+  static Color get onSurfaceMuted =>
+      kHermesOnlyMode ? HCTheme.textSecondary : _active.onSurfaceMuted;
 
-  static Color get lobsterRed => _active.lobsterRed;
-  static Color get success => _active.success;
-  static Color get warning => _active.warning;
+  static Color get lobsterRed =>
+      kHermesOnlyMode ? HCTheme.statusRed : _active.lobsterRed;
+  static Color get success =>
+      kHermesOnlyMode ? HCTheme.statusGreen : _active.success;
+  static Color get warning =>
+      kHermesOnlyMode ? HCTheme.statusAmber : _active.warning;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -127,34 +147,62 @@ class PocketClawTheme {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextTheme _baseTextTheme() => TextTheme(
-      displayLarge: GoogleFonts.jetBrainsMono(
-          fontSize: 32, fontWeight: FontWeight.w700),
-      displayMedium: GoogleFonts.jetBrainsMono(
-          fontSize: 28, fontWeight: FontWeight.w700),
-      displaySmall: GoogleFonts.jetBrainsMono(
-          fontSize: 24, fontWeight: FontWeight.w600),
-      headlineLarge: GoogleFonts.jetBrainsMono(
-          fontSize: 22, fontWeight: FontWeight.w600),
-      headlineMedium: GoogleFonts.jetBrainsMono(
-          fontSize: 20, fontWeight: FontWeight.w600),
-      headlineSmall: GoogleFonts.jetBrainsMono(
-          fontSize: 18, fontWeight: FontWeight.w500),
-      titleLarge: GoogleFonts.jetBrainsMono(
-          fontSize: 18, fontWeight: FontWeight.w600),
-      titleMedium: GoogleFonts.jetBrainsMono(
-          fontSize: 16, fontWeight: FontWeight.w500),
-      titleSmall: GoogleFonts.jetBrainsMono(
-          fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.4),
-      bodyLarge: const TextStyle(fontSize: 16),
-      bodyMedium: const TextStyle(fontSize: 14),
-      bodySmall: const TextStyle(fontSize: 12),
-      labelLarge: GoogleFonts.jetBrainsMono(
-          fontSize: 14, fontWeight: FontWeight.w500, letterSpacing: 0.5),
-      labelMedium: GoogleFonts.jetBrainsMono(
-          fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.6),
-      labelSmall: GoogleFonts.jetBrainsMono(
-          fontSize: 10, fontWeight: FontWeight.w400, letterSpacing: 0.8),
-    );
+  displayLarge: GoogleFonts.jetBrainsMono(
+    fontSize: 32,
+    fontWeight: FontWeight.w700,
+  ),
+  displayMedium: GoogleFonts.jetBrainsMono(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+  ),
+  displaySmall: GoogleFonts.jetBrainsMono(
+    fontSize: 24,
+    fontWeight: FontWeight.w600,
+  ),
+  headlineLarge: GoogleFonts.jetBrainsMono(
+    fontSize: 22,
+    fontWeight: FontWeight.w600,
+  ),
+  headlineMedium: GoogleFonts.jetBrainsMono(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+  ),
+  headlineSmall: GoogleFonts.jetBrainsMono(
+    fontSize: 18,
+    fontWeight: FontWeight.w500,
+  ),
+  titleLarge: GoogleFonts.jetBrainsMono(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+  ),
+  titleMedium: GoogleFonts.jetBrainsMono(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+  ),
+  titleSmall: GoogleFonts.jetBrainsMono(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.4,
+  ),
+  bodyLarge: const TextStyle(fontSize: 16),
+  bodyMedium: const TextStyle(fontSize: 14),
+  bodySmall: const TextStyle(fontSize: 12),
+  labelLarge: GoogleFonts.jetBrainsMono(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.5,
+  ),
+  labelMedium: GoogleFonts.jetBrainsMono(
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.6,
+  ),
+  labelSmall: GoogleFonts.jetBrainsMono(
+    fontSize: 10,
+    fontWeight: FontWeight.w400,
+    letterSpacing: 0.8,
+  ),
+);
 
 ThemeData _buildThemeData(_Palette p) {
   final textTheme = _baseTextTheme().apply(
@@ -169,8 +217,7 @@ ThemeData _buildThemeData(_Palette p) {
     primaryContainer: p.bronze.withAlpha(50),
     onPrimaryContainer: p.bronze.withAlpha(230),
     secondary: p.amber,
-    onSecondary:
-        p.brightness == Brightness.dark ? Colors.black : Colors.white,
+    onSecondary: p.brightness == Brightness.dark ? Colors.black : Colors.white,
     secondaryContainer: p.amber.withAlpha(50),
     onSecondaryContainer: p.amber.withAlpha(230),
     tertiary: p.warning,
@@ -224,8 +271,10 @@ ThemeData _buildThemeData(_Palette p) {
       unselectedItemColor: p.onSurfaceMuted,
       type: BottomNavigationBarType.fixed,
       elevation: 8,
-      selectedLabelStyle:
-          GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.w600),
+      selectedLabelStyle: GoogleFonts.jetBrainsMono(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+      ),
       unselectedLabelStyle: GoogleFonts.jetBrainsMono(fontSize: 10),
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -245,10 +294,7 @@ ThemeData _buildThemeData(_Palette p) {
             color: p.bronze,
           );
         }
-        return GoogleFonts.jetBrainsMono(
-          fontSize: 10,
-          color: p.onSurfaceMuted,
-        );
+        return GoogleFonts.jetBrainsMono(fontSize: 10, color: p.onSurfaceMuted);
       }),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -270,8 +316,7 @@ ThemeData _buildThemeData(_Palette p) {
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: p.lobsterRed),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       hintStyle: TextStyle(color: p.onSurface.withAlpha(100)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -280,8 +325,7 @@ ThemeData _buildThemeData(_Palette p) {
         foregroundColor: Colors.white,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: GoogleFonts.jetBrainsMono(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -294,8 +338,7 @@ ThemeData _buildThemeData(_Palette p) {
         foregroundColor: p.bronze,
         side: BorderSide(color: p.bronze),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: GoogleFonts.jetBrainsMono(
           fontSize: 14,
           fontWeight: FontWeight.w600,
@@ -322,8 +365,7 @@ ThemeData _buildThemeData(_Palette p) {
       selectedColor: p.bronze.withAlpha(40),
       side: BorderSide(color: p.outline.withAlpha(80)),
       labelStyle: GoogleFonts.jetBrainsMono(fontSize: 11),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
     dividerTheme: DividerThemeData(
       color: p.outline.withAlpha(80),
@@ -331,8 +373,7 @@ ThemeData _buildThemeData(_Palette p) {
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: p.surface,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     tabBarTheme: TabBarThemeData(
       labelColor: p.bronze,
@@ -369,8 +410,7 @@ ThemeData _buildThemeData(_Palette p) {
     snackBarTheme: SnackBarThemeData(
       backgroundColor: p.surfaceContainerHigh,
       contentTextStyle: TextStyle(color: p.onSurface),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
     ),
   );

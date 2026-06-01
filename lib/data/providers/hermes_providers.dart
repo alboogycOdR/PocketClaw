@@ -9,6 +9,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/hermes/hermes_client.dart';
 import 'core_providers.dart';
 
+class HermesUpdateInfo {
+  final String webUiVersion;
+  final String agentVersion;
+
+  const HermesUpdateInfo({
+    required this.webUiVersion,
+    required this.agentVersion,
+  });
+}
+
 // ── Settings ─────────────────────────────────────────────────────────────
 
 final hermesBaseUrlProvider = StateProvider<String>((ref) {
@@ -42,4 +52,15 @@ final hermesModelIdProvider = FutureProvider<String?>((ref) async {
   final client = ref.watch(hermesClientProvider);
   if (client == null) return null;
   return client.getModelId();
+});
+
+final hermesUpdateInfoProvider = Provider<HermesUpdateInfo?>((ref) {
+  final prefs = ref.watch(sharedPrefsProvider);
+  final webUiVersion = prefs.getString('hermes_update_webui_version') ?? '';
+  final agentVersion = prefs.getString('hermes_update_agent_version') ?? '';
+  if (webUiVersion.isEmpty && agentVersion.isEmpty) return null;
+  return HermesUpdateInfo(
+    webUiVersion: webUiVersion.isEmpty ? 'pending' : webUiVersion,
+    agentVersion: agentVersion.isEmpty ? 'pending' : agentVersion,
+  );
 });

@@ -1,4 +1,4 @@
-/// ClawCommander - Mobile AI Agent Command Centre
+/// HermesCommander - Mobile Hermes Agent Command Centre
 library;
 
 import 'dart:async';
@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app/app.dart';
+import 'app/app_flavor.dart';
 import 'app/router.dart' as app_router;
 import 'app/theme.dart';
 import 'core/llm/models/local_model_config.dart';
@@ -27,75 +28,73 @@ import 'data/providers/core_providers.dart';
 /// is deferred to when the user actually needs it. This guarantees first
 /// launch reaches a usable UI even on a completely fresh device.
 void main() {
-  runZonedGuarded<Future<void>>(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-    // Route all Flutter framework errors through our logger instead of
-    // the red error screen.
-    FlutterError.onError = (details) {
-      FlutterError.presentError(details);
-      debugPrint('Flutter error: ${details.exception}');
-    };
+      // Route all Flutter framework errors through our logger instead of
+      // the red error screen.
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('Flutter error: ${details.exception}');
+      };
 
-    // Custom error widget for any build-time widget exceptions.
-    ErrorWidget.builder = _buildErrorWidget;
+      // Custom error widget for any build-time widget exceptions.
+      ErrorWidget.builder = _buildErrorWidget;
 
-    // Non-critical: dark status bar cosmetics.
-    if (!kIsWeb) {
+      // Non-critical: dark status bar cosmetics.
+      if (!kIsWeb) {
+        try {
+          SystemChrome.setSystemUIOverlayStyle(
+            SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: Brightness.light,
+              systemNavigationBarColor: PocketClawTheme.deepCharcoal,
+              systemNavigationBarIconBrightness: Brightness.light,
+            ),
+          );
+        } catch (_) {}
+      }
+
+      // SharedPreferences is pure Dart and safe — the only thing we need
+      // before runApp.
+      SharedPreferences? prefs;
       try {
-        SystemChrome.setSystemUIOverlayStyle(
-          SystemUiOverlayStyle(
-            statusBarColor: Colors.transparent,
-            statusBarIconBrightness: Brightness.light,
-            systemNavigationBarColor: PocketClawTheme.deepCharcoal,
-            systemNavigationBarIconBrightness: Brightness.light,
-          ),
-        );
-      } catch (_) {}
-    }
+        prefs = await SharedPreferences.getInstance();
+      } catch (e) {
+        debugPrint('SharedPreferences failed, degraded mode: $e');
+      }
 
-    // SharedPreferences is pure Dart and safe — the only thing we need
-    // before runApp.
-    SharedPreferences? prefs;
-    try {
-      prefs = await SharedPreferences.getInstance();
-    } catch (e) {
-      debugPrint('SharedPreferences failed, degraded mode: $e');
-    }
+      // Seed the router's first-run flag before it builds any routes.
+      app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
 
-    // Seed the router's first-run flag before it builds any routes.
-    app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
+      final overrides = <Override>[
+        if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),
+      ];
 
-    // Pre-load the local model catalogue so the synchronous
-    // `modelCatalogueProvider` / `selectedModelConfigProvider` call
-    // sites see the list immediately. Cloud was dropped 2026-05-09 so
-    // there's no fallback list to fall back to — an unreadable bundle
-    // means the Models tab shows empty until the next remote refresh.
-    final allowlistService = ModelAllowlistService();
-    List<LocalModelConfig> catalogue = const [];
-    try {
-      catalogue = await allowlistService.loadModels();
-    } catch (e) {
-      debugPrint('Catalogue pre-load failed: $e');
-    }
-    // Fire-and-forget: refresh remote allowlist for next launch.
-    // ignore: unawaited_futures
-    allowlistService.refreshFromRemote();
+      if (!kAppFlavor.isHermesOnly) {
+        // ClawCommander still needs the synchronous model catalogue
+        // provider seeded at startup. HermesCommander must not initialise
+        // local model infrastructure before the UI is usable.
+        final allowlistService = ModelAllowlistService();
+        List<LocalModelConfig> catalogue = const [];
+        try {
+          catalogue = await allowlistService.loadModels();
+        } catch (e) {
+          debugPrint('Catalogue pre-load failed: $e');
+        }
+        // Fire-and-forget: refresh remote allowlist for next launch.
+        // ignore: unawaited_futures
+        allowlistService.refreshFromRemote();
+        overrides.add(modelCatalogueProvider.overrideWithValue(catalogue));
+      }
 
-    final overrides = <Override>[
-      if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),
-      modelCatalogueProvider.overrideWithValue(catalogue),
-    ];
-
-    runApp(
-      ProviderScope(
-        overrides: overrides,
-        child: const PocketClawApp(),
-      ),
-    );
-  }, (error, stack) {
-    debugPrint('Zone-level uncaught error: $error\n$stack');
-  });
+      runApp(ProviderScope(overrides: overrides, child: const PocketClawApp()));
+    },
+    (error, stack) {
+      debugPrint('Zone-level uncaught error: $error\n$stack');
+    },
+  );
 }
 
 Widget _buildErrorWidget(FlutterErrorDetails details) {
@@ -106,8 +105,11 @@ Widget _buildErrorWidget(FlutterErrorDetails details) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline,
-              size: 48, color: PocketClawTheme.lobsterRed),
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: PocketClawTheme.lobsterRed,
+          ),
           const SizedBox(height: 16),
           const Text(
             'Something went wrong',

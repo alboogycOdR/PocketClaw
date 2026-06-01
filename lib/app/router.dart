@@ -12,11 +12,15 @@ import '../features/ambient/ambient_mini_player.dart';
 import '../features/ambient/ambient_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/hermes/hermes_analytics_screen.dart';
+import '../features/hermes/agent_memory_screen.dart';
 import '../features/hermes/hermes_cron_screen.dart';
 import '../features/hermes/hermes_logs_screen.dart';
+import '../features/hermes/hermes_management_screen.dart';
 import '../features/hermes/hermes_memory_screen.dart';
+import '../features/hermes/open_notebook_screen.dart';
 import '../features/hermes/hermes_sessions_screen.dart';
 import '../features/hermes/hermes_skills_screen.dart';
+import '../features/intel/intel_screen.dart';
 import '../features/knowledge_base/knowledge_base_screen.dart';
 import '../features/swarm/office_view_screen.dart';
 import '../features/swarm/swarm_compose_screen.dart';
@@ -37,6 +41,7 @@ import '../features/mission_control/dashboard_screen.dart';
 import '../features/mission_control/sessions_screen.dart';
 import '../features/onboarding/welcome_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/osiris_settings.dart';
 import '../features/settings/tts_settings_screen.dart';
 import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
@@ -56,6 +61,7 @@ final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
   redirect: (context, state) {
+    if (kHermesOnlyMode) return null;
     final loc = state.matchedLocation;
     // Allow the onboarding flow + its sub-screens through.
     if (loc.startsWith('/onboarding') || loc.startsWith('/packs')) {
@@ -66,17 +72,19 @@ final GoRouter appRouter = GoRouter(
   },
   routes: [
     // Onboarding (outside shell)
-    GoRoute(
-      path: '/onboarding',
-      builder: (context, state) => const WelcomeScreen(),
-    ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const WelcomeScreen(),
+      ),
 
     // Pack picker (outside shell — used from Company Overview + onboarding)
-    GoRoute(
-      path: '/packs',
-      builder: (context, state) =>
-          PackPickerScreen(onComplete: () => Navigator.of(context).pop()),
-    ),
+    if (!kHermesOnlyMode)
+      GoRoute(
+        path: '/packs',
+        builder: (context, state) =>
+            PackPickerScreen(onComplete: () => Navigator.of(context).pop()),
+      ),
 
     // Hermes management used to live at /hermes; Phase 2 made it a
     // tab in Mission Control when active server is Hermes (see
@@ -94,6 +102,35 @@ final GoRouter appRouter = GoRouter(
       path: '/settings/tts',
       builder: (context, state) => const TtsSettingsScreen(),
     ),
+    GoRoute(
+      path: '/settings/hermes',
+      builder: (context, state) =>
+          const SettingsScreen(initialSection: 'hermes'),
+    ),
+    GoRoute(
+      path: '/settings/ssh',
+      builder: (context, state) => const SettingsScreen(initialSection: 'ssh'),
+    ),
+    GoRoute(
+      path: '/settings/voice',
+      builder: (context, state) =>
+          const SettingsScreen(initialSection: 'voice'),
+    ),
+    GoRoute(
+      path: '/settings/security',
+      builder: (context, state) =>
+          const SettingsScreen(initialSection: 'security'),
+    ),
+    GoRoute(
+      path: '/settings/backup',
+      builder: (context, state) =>
+          const SettingsScreen(initialSection: 'backup'),
+    ),
+    if (kHermesOnlyMode)
+      GoRoute(
+        path: '/settings/osiris',
+        builder: (context, state) => const OsirisSettings(),
+      ),
     // Settings root — pushed onto the shell from the AppBar gear icon
     // on every top-level screen. Moved out of the bottom nav in v2.8.0
     // to make room for the Ambient tab.
@@ -145,7 +182,9 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/control',
-              builder: (context, state) => const DashboardScreen(),
+              builder: (context, state) => kHermesOnlyMode
+                  ? const HermesManagementScreen()
+                  : const DashboardScreen(),
               routes: [
                 if (kHermesOnlyMode) ...[
                   GoRoute(
@@ -193,6 +232,14 @@ final GoRouter appRouter = GoRouter(
                   GoRoute(
                     path: 'approvals',
                     builder: (context, state) => const _HermesApprovalsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'agent-memory',
+                    builder: (context, state) => const AgentMemoryScreen(),
+                  ),
+                  GoRoute(
+                    path: 'notebook',
+                    builder: (context, state) => const OpenNotebookScreen(),
                   ),
                 ] else ...[
                   GoRoute(
@@ -281,7 +328,7 @@ final GoRouter appRouter = GoRouter(
             routes: [
               GoRoute(
                 path: '/intel',
-                builder: (context, state) => const _IntelPlaceholderScreen(),
+                builder: (context, state) => const IntelScreen(),
               ),
             ],
           ),
@@ -349,11 +396,11 @@ class _AppShell extends ConsumerWidget {
               ),
               NavigationDestination(
                 icon: _NavIconWithBadge(
-                  icon: Icons.dashboard_outlined,
+                  icon: Icons.tune_outlined,
                   count: approvalCount,
                 ),
                 selectedIcon: _NavIconWithBadge(
-                  icon: Icons.dashboard,
+                  icon: Icons.tune,
                   count: approvalCount,
                 ),
                 label: 'Control',
@@ -365,8 +412,8 @@ class _AppShell extends ConsumerWidget {
                   label: 'Swarm',
                 ),
                 const NavigationDestination(
-                  icon: Icon(Icons.travel_explore_outlined),
-                  selectedIcon: Icon(Icons.travel_explore),
+                  icon: Icon(Icons.public_outlined),
+                  selectedIcon: Icon(Icons.public),
                   label: 'Intel',
                 ),
               ] else ...[
@@ -382,8 +429,8 @@ class _AppShell extends ConsumerWidget {
                 ),
               ],
               const NavigationDestination(
-                icon: Icon(Icons.spa_outlined),
-                selectedIcon: Icon(Icons.spa),
+                icon: Icon(Icons.headphones_outlined),
+                selectedIcon: Icon(Icons.headphones),
                 label: 'Ambient',
               ),
             ],
@@ -419,27 +466,6 @@ class _HermesApprovalsScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(16),
         child: Column(children: [ApprovalsPanel(), SizedBox(height: 96)]),
-      ),
-    );
-  }
-}
-
-class _IntelPlaceholderScreen extends StatelessWidget {
-  const _IntelPlaceholderScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Intel')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Osiris intelligence surfaces will appear here once wired.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54),
-          ),
-        ),
       ),
     );
   }

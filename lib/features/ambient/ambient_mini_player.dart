@@ -1,9 +1,6 @@
-/// Persistent mini-player rendered above the bottom navigation bar in
-/// `_AppShell`. Shows whatever Ambient sources are currently active:
-///   - Focus Sound scene (left side)
-///   - Radio station (right side)
-/// When both are silent, the widget returns SizedBox.shrink() so the
-/// shell doesn't reserve any vertical space.
+/// Persistent mini-player rendered above the bottom navigation bar.
+/// Shows Office Sounds, Nature & Ambience, and Radio when active.
+/// Returns SizedBox.shrink() when all are silent.
 library;
 
 import 'package:flutter/material.dart';
@@ -11,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
-import '../../core/ambient/focus_sound_engine.dart';
+import '../../app/hermes_commander_theme.dart';
+import '../../core/ambient/nature_sound_engine.dart';
+import '../../core/ambient/office_sound_engine.dart';
 import '../../data/providers/ambient_providers.dart';
 
 class AmbientMiniPlayer extends ConsumerWidget {
@@ -19,15 +18,16 @@ class AmbientMiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final focusState = ref.watch(focusSoundStateProvider).valueOrNull;
+    final officeState = ref.watch(officeSoundStateProvider).valueOrNull;
+    final natureState = ref.watch(natureSoundStateProvider).valueOrNull;
     final radio = ref.watch(activeRadioChannelProvider);
     final radioPlayer = ref.watch(radioPlayerProvider);
 
-    final focusActive = (focusState?.isPlaying ?? false) &&
-        focusState?.activeScene != null;
+    final officeActive = officeState?.isPlaying ?? false;
+    final natureActive = natureState?.isPlaying ?? false;
     final radioActive = radio != null;
 
-    if (!focusActive && !radioActive) return const SizedBox.shrink();
+    if (!officeActive && !natureActive && !radioActive) return const SizedBox.shrink();
 
     return Material(
       color: PocketClawTheme.surfaceContainer,
@@ -45,14 +45,13 @@ class AmbientMiniPlayer extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              if (focusActive) ...[
-                Icon(Icons.spa_outlined,
-                    size: 16, color: focusState!.activeScene!.color),
+              if (officeActive) ...[
+                const Icon(Icons.business_center_outlined, size: 16, color: HCTheme.gold),
                 const SizedBox(width: 6),
-                Flexible(
+                const Flexible(
                   child: Text(
-                    focusState.activeScene!.displayName,
-                    style: const TextStyle(fontSize: 12),
+                    'Office Sounds',
+                    style: TextStyle(fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -63,11 +62,39 @@ class AmbientMiniPlayer extends ConsumerWidget {
                   constraints: const BoxConstraints(),
                   icon: const Icon(Icons.stop_circle_outlined),
                   color: PocketClawTheme.onSurfaceMuted,
-                  tooltip: 'Stop Focus Sound',
-                  onPressed: focusSoundEngine.stop,
+                  tooltip: 'Stop Office Sounds',
+                  onPressed: officeSoundEngine.stop,
                 ),
               ],
-              if (focusActive && radioActive)
+              if (natureActive) ...[
+                if (officeActive)
+                  Container(
+                    width: 1,
+                    height: 20,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    color: PocketClawTheme.onSurfaceMuted.withAlpha(80),
+                  ),
+                const Text('🌿', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 6),
+                const Flexible(
+                  child: Text(
+                    'Nature & Ambience',
+                    style: TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  iconSize: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  color: PocketClawTheme.onSurfaceMuted,
+                  tooltip: 'Stop Nature Sounds',
+                  onPressed: natureSoundEngine.stop,
+                ),
+              ],
+              if ((officeActive || natureActive) && radioActive)
                 Container(
                   width: 1,
                   height: 20,
@@ -75,8 +102,7 @@ class AmbientMiniPlayer extends ConsumerWidget {
                   color: PocketClawTheme.onSurfaceMuted.withAlpha(80),
                 ),
               if (radioActive) ...[
-                Icon(Icons.radio,
-                    size: 16, color: PocketClawTheme.electricTeal),
+                Icon(Icons.radio, size: 16, color: PocketClawTheme.electricTeal),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(

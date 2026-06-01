@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build the release APK, upload to Gofile.io, and notify via Telegram.
-# Use this when you are NOT on the same network as your phone.
+# Build the HermesCommander release APK, upload it to Gofile.io,
+# and notify via Telegram.
 #
 # Usage: ./scripts/release-remote.sh
 #
@@ -23,14 +23,14 @@ if [ ! -f .env ]; then
 fi
 
 echo "============================================================"
-echo "  Building Pocket Claw release APK (arm64-v8a)"
+echo "  Building HermesCommander release APK (arm64-v8a)"
 echo "============================================================"
 echo ""
 
-flutter build apk --release --target-platform android-arm64
+flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander
 
 echo ""
 echo "Build complete. Uploading + notifying..."
 echo ""
 
-dart scripts/release_remote.dart
+dart scripts/release_remote.dart build/app/outputs/flutter-apk/app-release.apk

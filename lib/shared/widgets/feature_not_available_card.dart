@@ -72,8 +72,7 @@ class FeatureNotAvailableCard extends ConsumerWidget {
                 label: Text(actionLabel),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: PocketClawTheme.electricTeal,
-                  side: BorderSide(
-                      color: PocketClawTheme.electricTeal),
+                  side: BorderSide(color: PocketClawTheme.electricTeal),
                 ),
               ),
             ],
@@ -84,36 +83,21 @@ class FeatureNotAvailableCard extends ConsumerWidget {
   }
 
   (String reason, String? actionLabel, void Function(BuildContext)? action)
-      _resolveContext({
+  _resolveContext({
     required ActiveServer server,
-    required ServerCapabilities caps,
+    required HermesCommanderCapabilities caps,
   }) {
     if (server == ActiveServer.hermes && !caps.hasSsh) {
       return (
         '$feature requires SSH access to your VPS.\n'
-        'Configure your SSH credentials in Settings.',
+            'Configure your SSH credentials in Settings.',
         'Configure SSH',
-        (ctx) => Navigator.of(ctx).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SshSettings(),
-              ),
-            ),
+        (ctx) => Navigator.of(
+          ctx,
+        ).push(MaterialPageRoute<void>(builder: (_) => const SshSettings())),
       );
     }
 
-    if (server == ActiveServer.local) {
-      return (
-        '$feature is not available for the Local model.\n'
-        'Switch to OpenClaw or Hermes for management features.',
-        null,
-        null,
-      );
-    }
-
-    return (
-      '$feature is not available for the current server.',
-      null,
-      null,
-    );
+    return ('$feature is not available for the current server.', null, null);
   }
 }

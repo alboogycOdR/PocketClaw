@@ -1,11 +1,10 @@
-/// Hermes Agent settings — base URL, API key, and connection test.
+/// Hermes REST settings — base URL, API key, and connection test.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import '../../app/theme.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../core/hermes/hermes_client.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
@@ -52,9 +51,9 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
     ref.read(hermesBaseUrlProvider.notifier).state = url;
     ref.read(hermesApiKeyProvider.notifier).state = key;
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hermes settings saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Hermes settings saved')));
     }
   }
 
@@ -96,8 +95,8 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Hermes Agent',
-          style: GoogleFonts.jetBrainsMono(fontSize: 16),
+          'Hermes REST',
+          style: const TextStyle(fontFamily: 'GeistSans', fontSize: 16),
         ),
       ),
       body: ListView(
@@ -114,13 +113,14 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
                     children: [
                       const Icon(
                         Icons.psychology_outlined,
-                        color: Color(0xFF7C3AED),
+                        color: HCTheme.gold,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Hermes Agent v0.12',
-                        style: GoogleFonts.jetBrainsMono(
-                          fontWeight: FontWeight.bold,
+                        'Hermes REST',
+                        style: const TextStyle(
+                          fontFamily: 'GeistSans',
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -131,7 +131,10 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
                     'VPS. Carries its full toolset — terminal, web, memory, '
                     'skills, delegation — and replies via OpenAI-compatible '
                     'streaming.',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(
+                      color: HCTheme.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -143,7 +146,7 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
             controller: _baseUrl,
             decoration: const InputDecoration(
               labelText: 'Base URL',
-              hintText: 'http://100.78.70.2:8642',
+              hintText: 'https://your-hermes-host:8642',
               prefixIcon: Icon(Icons.link),
             ),
           ),
@@ -154,7 +157,7 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
             obscureText: true,
             decoration: const InputDecoration(
               labelText: 'API Key',
-              hintText: 'hermes-pocket-claw-...',
+              hintText: 'Paste your Hermes API key',
               prefixIcon: Icon(Icons.key),
             ),
           ),
@@ -171,8 +174,8 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
                 : const Icon(Icons.wifi_tethering),
             label: Text(_testing ? 'Testing…' : 'Test Connection'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: PocketClawTheme.lobsterRed,
-              foregroundColor: Colors.white,
+              backgroundColor: HCTheme.gold,
+              foregroundColor: HCTheme.bgBase,
             ),
           ),
 
@@ -181,22 +184,20 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: (_testOk == true ? Colors.teal : Colors.red)
-                    .withAlpha(38),
+                color: (_testOk == true ? Colors.teal : Colors.red).withAlpha(
+                  38,
+                ),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _testOk == true
-                      ? Colors.tealAccent
-                      : Colors.redAccent,
+                  color: _testOk == true ? Colors.tealAccent : Colors.redAccent,
                 ),
               ),
               child: Text(
                 _testMessage!,
                 style: TextStyle(
-                  color: _testOk == true
-                      ? Colors.tealAccent
-                      : Colors.redAccent,
+                  color: _testOk == true ? Colors.tealAccent : Colors.redAccent,
                   fontSize: 13,
+                  fontFamily: 'GeistMono',
                 ),
               ),
             ),
@@ -204,10 +205,7 @@ class _HermesSettingsState extends ConsumerState<HermesSettings> {
 
           const SizedBox(height: 24),
 
-          FilledButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
+          FilledButton(onPressed: _save, child: const Text('Save')),
         ],
       ),
     );
