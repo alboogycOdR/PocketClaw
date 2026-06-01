@@ -88,7 +88,8 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Open-Notebook detail flow — tapping a notebook pushes _NotebookDetailScreen with parallel-fetched source list (/api/notebooks/{id}/sources) and note list (/api/notes?notebook={id}); PDF/URL/text icons, note content cards, pull-to-refresh; Chat and Add-note actions on AppBar.
 - `DONE` Settings / router dead-code prune — FeatureNotAvailableCard button now uses HCTheme.gold in HermesCommander; router docstring fixed; all other OpenClaw/local references confirmed gated behind !kHermesOnlyMode.
 - `DONE` Ambient / Audio QA — radio icon + all WorldRadioSection accents use HCTheme.gold in HermesCommander; audio session confirmed correct (gainTransientMayDuck ducks but doesn't stop ambient on TTS); radio_models doc-comment infos cleared.
-- `NEXT PICKUP` Permission review before release hardening complete.
+- `DONE` Permission review — READ_CALENDAR + WRITE_CALENDAR removed (CalendarService not wired in HermesCommander); all other permissions verified justified. Manifest comments updated to HermesCommander context.
+- `NEXT PICKUP` Physical Android smoke test (blocked: adb not on PATH — install platform-tools and run manually).
 
 ## Spec Authority
 
@@ -423,7 +424,7 @@ Spec refs:
 Tasks:
 - `DONE` Remove placeholder IPs and old token hints from release-visible code
 - `DONE` Run high-confidence masked secret scan clean; remaining hits are false positives from code variable reads, release-script env templates, and old spec image URLs
-- `PENDING` Review permissions
+- `DONE` Review permissions
 - `DONE` Re-run `flutter analyze`; 0 warnings, ~85 pre-existing info-level lint items remain
 - `DONE` Build release APK
 - `BLOCKED` Physical Android smoke test from this shell; `adb` is not on PATH and the saved device screenshot is black
@@ -439,11 +440,17 @@ Known current failures:
 
 ## Immediate Next Tasks
 
-1. Open-Notebook detail flow — source list + note list tap view (§7, §13.11)
-2. Settings / router dead-code prune — legacy OpenClaw/local wording from remaining shared screens
-3. Ambient / Audio QA — Focus Sounds, Radio Garden, mini-player, TTS+audio-session interaction
-4. Permission review before release hardening complete
-5. Physical Android smoke test (blocked: `adb` not on PATH)
+1. Physical Android smoke test — install `adb` / platform-tools, connect device, run `adb install build/app/outputs/flutter-apk/app-release.apk`
+
+## Completed This Session (2026-06-02)
+
+- `DONE` Control home summary cards (8 live-data cards)
+- `DONE` Swarm tab verification + SSH capability gate
+- `DONE` flutter analyze 0 warnings
+- `DONE` Open-Notebook detail flow (source + note list)
+- `DONE` Settings / router dead-code prune (gold button in FeatureNotAvailableCard)
+- `DONE` Ambient / Audio QA (gold accent, audio session ducking confirmed)
+- `DONE` Permission review (calendar perms removed, all others justified)
 
 ## Resume Notes
 
