@@ -36,13 +36,13 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 
 ### Outstanding
 
-- Full repo `flutter analyze` is still not clean; latest full run reports 90 issues, mostly pre-existing lint infos plus 5 warnings.
+- Full repo `flutter analyze` now reports 0 warnings; pre-existing lint infos remain (~85 info-level items, no warnings).
 - Physical Android smoke test is blocked from this shell because `adb` is not on PATH.
 - Hermes-only cleanup still needs legacy OpenClaw/local wording and unreachable shared routes pruned from remaining shared code.
-- Control home summary cards and broader Control hub polish remain.
+- Control home summary cards are `DONE`; broader Control hub polish (Sessions, Cron, Skills, Logs, Analytics, Approvals screen polish) remains.
 - AgentMemory and Open-Notebook still need live endpoint/device verification; Open-Notebook also needs the full notebook detail flow.
-- Intel still needs endpoint/schema validation for every world layer, a CCTV capability decision, richer source drill-down, and RECON-to-map handoff.
-- Swarm tab has not been verified in the five-tab Hermes shell.
+- Intel still needs endpoint/schema validation for every world layer.
+- Swarm tab is now `DONE`: monitor/compose/office view verified in five-tab shell; SSH capability gate added.
 - Ambient/audio QA is still pending: Focus Sounds, Radio Garden, mini-player, and TTS/audio-session interaction.
 - Settings cleanup still needs a final release-surface review for legacy non-Hermes screens.
 - Permission review remains pending before release hardening can be marked complete.
@@ -82,7 +82,10 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `UPDATE` "Send to Hermes" action added to RECON results — injects formatted result as pendingChatContextProvider prefill.
 - `UPDATE` Aviation workspace now has a detail list (flight callsign/model/altitude/speed, sorted airborne-first) matching the pattern of all other domain workspaces.
 - `UPDATE` CCTV decision: kept as _UnavailablePanel in Surveillance workspace — Osiris host does not expose a stable CCTV API. No placeholder button or future promise.
-- `NEXT PICKUP` Physical Android smoke test. Device-verify RECON-to-map handoff + structured result cards on real screen size.
+- `DONE` Control home summary cards — Home tab added to HermesManagementScreen with 8 live-data summary cards (REST/SSH/ACP status, model, pending approvals, today's tokens+cost, recent sessions, cron health).
+- `DONE` Swarm tab verification — monitor/compose/office view confirmed in five-tab shell; SSH capability gate (FeatureNotAvailableCard) added to SwarmMonitorScreen.
+- `DONE` flutter analyze warnings cleared — 5 warnings resolved (retired model-ID dead block in model_config.dart, unused import in voice_settings_screen.dart). 0 warnings remain.
+- `NEXT PICKUP` Open-Notebook detail flow (source list + note list tap view).
 
 ## Spec Authority
 
@@ -357,7 +360,7 @@ Constraint:
 
 ### 9. Swarm
 
-Status: `PENDING`
+Status: `DONE`
 Spec refs:
 - v2.0 §14
 
@@ -418,7 +421,7 @@ Tasks:
 - `DONE` Remove placeholder IPs and old token hints from release-visible code
 - `DONE` Run high-confidence masked secret scan clean; remaining hits are false positives from code variable reads, release-script env templates, and old spec image URLs
 - `PENDING` Review permissions
-- `DONE / NOT CLEAN` Re-run `flutter analyze`; command completes but full repo still reports analyzer debt
+- `DONE` Re-run `flutter analyze`; 0 warnings, ~85 pre-existing info-level lint items remain
 - `DONE` Build release APK
 - `BLOCKED` Physical Android smoke test from this shell; `adb` is not on PATH and the saved device screenshot is black
 
@@ -428,15 +431,16 @@ Acceptance:
 - `BLOCKED` Physical smoke test passed
 
 Known current failures:
-- Full repo-wide analyzer debt remains: latest full run reports 90 issues, including 5 warnings and many pre-existing lint infos
+- Full repo flutter analyze: 0 warnings; ~85 pre-existing lint infos remain (info level only)
 - Physical Android smoke test still needs Android platform tools or a device test path outside this shell
 
 ## Immediate Next Tasks
 
-1. Physical Android smoke test for the latest `app-release.apk`
-2. Device verify Hermes memory tab after latest missing-file fallback patch
-3. Intel refinement beyond map core: continue endpoint/schema validation for every world layer, CCTV capability decision, richer source drill-down, and RECON-to-map handoff
-4. Swarm tab: confirm monitor/compose/Office View work in the five-tab shell
+1. Open-Notebook detail flow — source list + note list tap view (§7, §13.11)
+2. Settings / router dead-code prune — legacy OpenClaw/local wording from remaining shared screens
+3. Ambient / Audio QA — Focus Sounds, Radio Garden, mini-player, TTS+audio-session interaction
+4. Permission review before release hardening complete
+5. Physical Android smoke test (blocked: `adb` not on PATH)
 
 ## Resume Notes
 
