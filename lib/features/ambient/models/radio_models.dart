@@ -57,8 +57,8 @@ class RadioChannel {
       'https://radio.garden/api/ara/content/listen/$id/channel.mp3';
 
   /// Real channel shape (verified live 2026-05-15 against
-  /// /api/ara/content/page/<placeId>/channels):
-  ///   { page: { url: "/listen/<slug>/<id>", title, place:{id,title},
+  /// /api/ara/content/page/{placeId}/channels):
+  ///   { page: { url: "/listen/{slug}/{id}", title, place:{id,title},
   ///             country:{id,title}, ... } }
   factory RadioChannel.fromJson(Map<String, dynamic> json) {
     final page = (json['page'] as Map?)?.cast<String, dynamic>() ?? const {};

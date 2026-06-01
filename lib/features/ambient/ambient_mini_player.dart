@@ -7,8 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/theme.dart';
+import '../../app/app_flavor.dart';
 import '../../app/hermes_commander_theme.dart';
+import '../../app/theme.dart';
 import '../../core/ambient/nature_sound_engine.dart';
 import '../../core/ambient/office_sound_engine.dart';
 import '../../data/providers/ambient_providers.dart';
@@ -102,7 +103,7 @@ class AmbientMiniPlayer extends ConsumerWidget {
                   color: PocketClawTheme.onSurfaceMuted.withAlpha(80),
                 ),
               if (radioActive) ...[
-                Icon(Icons.radio, size: 16, color: PocketClawTheme.electricTeal),
+                Icon(Icons.radio, size: 16, color: kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(

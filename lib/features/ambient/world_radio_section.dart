@@ -12,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/app_flavor.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import '../../core/ambient/radio_garden_service.dart';
 import '../../data/providers/ambient_providers.dart';
@@ -144,7 +146,7 @@ class _FavoritesSection extends ConsumerWidget {
           child: Row(
             children: [
               Icon(Icons.star,
-                  size: 14, color: PocketClawTheme.electricTeal),
+                  size: 14, color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
               const SizedBox(width: 6),
               Text(
                 'Favorites',
@@ -161,7 +163,7 @@ class _FavoritesSection extends ConsumerWidget {
           ListTile(
             dense: true,
             leading: Icon(Icons.radio,
-                size: 18, color: PocketClawTheme.electricTeal),
+                size: 18, color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
             title: Text(fav.title,
                 style: const TextStyle(fontSize: 13)),
             subtitle: Text(
@@ -181,7 +183,7 @@ class _FavoritesSection extends ConsumerWidget {
                       .remove(fav.channelId),
                 ),
                 Icon(Icons.play_arrow,
-                    color: PocketClawTheme.electricTeal),
+                    color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
               ],
             ),
             onTap: () async {
@@ -223,7 +225,7 @@ class _NowPlayingCard extends ConsumerWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Icon(Icons.radio, color: PocketClawTheme.electricTeal),
+            Icon(Icons.radio, color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -249,14 +251,14 @@ class _NowPlayingCard extends ConsumerWidget {
                       children: [
                         Icon(Icons.music_note,
                             size: 11,
-                            color: PocketClawTheme.electricTeal),
+                            color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             nowPlaying,
                             style: TextStyle(
                               fontSize: 11,
-                              color: PocketClawTheme.electricTeal,
+                              color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal),
                               fontStyle: FontStyle.italic,
                             ),
                             maxLines: 1,
@@ -366,7 +368,7 @@ class _SearchHitTile extends ConsumerWidget {
         style: const TextStyle(fontSize: 10, color: Colors.white54),
       ),
       trailing: hit.type == 'channel'
-          ? Icon(Icons.play_arrow, color: PocketClawTheme.electricTeal)
+          ? Icon(Icons.play_arrow, color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal))
           : null,
       onTap: () async {
         if (hit.type == 'channel') {
@@ -517,7 +519,7 @@ class _ChannelRow extends ConsumerWidget {
                     ),
           ),
           const SizedBox(width: 4),
-          Icon(Icons.play_arrow, color: PocketClawTheme.electricTeal),
+          Icon(Icons.play_arrow, color: (kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal)),
         ],
       ),
       onTap: () async {
