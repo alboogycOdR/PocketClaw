@@ -295,35 +295,28 @@ class _OpenNotebookScreenState extends ConsumerState<OpenNotebookScreen> {
                                 color: HCTheme.textSecondary,
                               ),
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.content_paste_outlined,
-                                    size: 18,
+                            trailing: const Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: HCTheme.textSecondary,
+                            ),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => _NotebookDetailScreen(
+                                  notebook: notebook,
+                                  baseUrl: state.baseUrl,
+                                  onChatWith: () => _chatWithNotebook(
+                                    context,
+                                    notebook,
+                                    state.baseUrl,
                                   ),
-                                  tooltip: 'Add note from clipboard',
-                                  onPressed: () => _addNoteFromClipboard(
+                                  onAddNote: () => _addNoteFromClipboard(
                                     context,
                                     notebook,
                                     state.baseUrl,
                                   ),
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.chat_outlined,
-                                    size: 18,
-                                    color: HCTheme.gold,
-                                  ),
-                                  tooltip: 'Chat with this notebook',
-                                  onPressed: () => _chatWithNotebook(
-                                    context,
-                                    notebook,
-                                    state.baseUrl,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           );
                         }),
@@ -442,6 +435,286 @@ class _StatBlock extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Notebook detail ──────────────────────────────────────────────────────────
+
+class _NotebookDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> notebook;
+  final String baseUrl;
+  final VoidCallback onChatWith;
+  final VoidCallback onAddNote;
+
+  const _NotebookDetailScreen({
+    required this.notebook,
+    required this.baseUrl,
+    required this.onChatWith,
+    required this.onAddNote,
+  });
+
+  @override
+  State<_NotebookDetailScreen> createState() => _NotebookDetailScreenState();
+}
+
+class _NotebookDetailScreenState extends State<_NotebookDetailScreen> {
+  late Future<_NotebookDetail> _detailFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _detailFuture = _load();
+  }
+
+  Future<_NotebookDetail> _load() async {
+    final id = (widget.notebook['id'] ?? '').toString();
+    if (id.isEmpty) {
+      return const _NotebookDetail(sources: [], notes: []);
+    }
+    final baseUrl = widget.baseUrl;
+
+    Future<List<Map<String, dynamic>>> fetch(String path) async {
+      try {
+        final resp = await http
+            .get(Uri.parse('$baseUrl$path'))
+            .timeout(const Duration(seconds: 8));
+        if (resp.statusCode != 200) return const [];
+        final decoded = jsonDecode(resp.body);
+        if (decoded is List) {
+          return decoded.whereType<Map<String, dynamic>>().toList();
+        }
+        if (decoded is Map<String, dynamic>) {
+          for (final key in ['items', 'results', 'sources', 'notes', 'data']) {
+            final v = decoded[key];
+            if (v is List) return v.whereType<Map<String, dynamic>>().toList();
+          }
+        }
+        return const [];
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    final results = await Future.wait([
+      fetch('/api/notebooks/$id/sources'),
+      fetch('/api/notes?notebook=$id'),
+    ]);
+    return _NotebookDetail(sources: results[0], notes: results[1]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = (widget.notebook['name'] ??
+            widget.notebook['title'] ??
+            'Untitled')
+        .toString();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.content_paste_outlined, size: 20),
+            tooltip: 'Add note from clipboard',
+            onPressed: () {
+              widget.onAddNote();
+              Navigator.of(context).pop();
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.chat_outlined, size: 20, color: HCTheme.gold),
+            tooltip: 'Chat with this notebook',
+            onPressed: () {
+              widget.onChatWith();
+            },
+          ),
+        ],
+      ),
+      body: FutureBuilder<_NotebookDetail>(
+        future: _detailFuture,
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final detail = snap.data!;
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() => _detailFuture = _load());
+            },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+              children: [
+                _DetailSection(
+                  label: 'Sources',
+                  count: detail.sources.length,
+                  icon: Icons.link_outlined,
+                  emptyMessage: 'No sources in this notebook.',
+                  children: detail.sources.map((s) {
+                    final name = (s['title'] ?? s['name'] ?? s['url'] ?? 'Untitled').toString();
+                    final type = (s['type'] ?? s['source_type'] ?? '').toString();
+                    final url = (s['url'] ?? '').toString();
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: Icon(
+                        type.contains('pdf')
+                            ? Icons.picture_as_pdf_outlined
+                            : url.isNotEmpty
+                                ? Icons.language_outlined
+                                : Icons.article_outlined,
+                        size: 16,
+                        color: HCTheme.textSecondary,
+                      ),
+                      title: Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: url.isNotEmpty
+                          ? Text(
+                              url,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: 'GeistMono',
+                                fontSize: 10,
+                                color: HCTheme.textSecondary,
+                              ),
+                            )
+                          : type.isNotEmpty
+                              ? Text(
+                                  type,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: HCTheme.textSecondary,
+                                  ),
+                                )
+                              : null,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                _DetailSection(
+                  label: 'Notes',
+                  count: detail.notes.length,
+                  icon: Icons.notes_outlined,
+                  emptyMessage: 'No notes yet.',
+                  children: detail.notes.map((n) {
+                    final content = (n['content'] ?? n['text'] ?? n['body'] ?? '').toString();
+                    final created = (n['created_at'] ?? n['createdAt'] ?? '').toString();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: HCTheme.bgSurface,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: HCTheme.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            content.isEmpty ? '(empty)' : content,
+                            maxLines: 6,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          if (created.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              created,
+                              style: const TextStyle(
+                                fontFamily: 'GeistMono',
+                                fontSize: 10,
+                                color: HCTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NotebookDetail {
+  final List<Map<String, dynamic>> sources;
+  final List<Map<String, dynamic>> notes;
+  const _NotebookDetail({required this.sources, required this.notes});
+}
+
+class _DetailSection extends StatelessWidget {
+  final String label;
+  final int count;
+  final IconData icon;
+  final String emptyMessage;
+  final List<Widget> children;
+
+  const _DetailSection({
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.emptyMessage,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: HCTheme.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              label.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: HCTheme.textSecondary,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: HCTheme.bgSurface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: HCTheme.border),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: HCTheme.textSecondary,
+                  fontFamily: 'GeistMono',
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (children.isEmpty)
+          Text(
+            emptyMessage,
+            style: const TextStyle(
+              fontSize: 13,
+              color: HCTheme.textSecondary,
+            ),
+          )
+        else
+          ...children,
+      ],
     );
   }
 }
