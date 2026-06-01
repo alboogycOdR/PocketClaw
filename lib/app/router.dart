@@ -1,4 +1,4 @@
-/// ClawCommander GoRouter configuration with bottom navigation shell
+/// App GoRouter configuration with bottom navigation shell
 library;
 
 import 'package:flutter/material.dart';

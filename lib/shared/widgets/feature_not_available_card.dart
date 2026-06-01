@@ -9,6 +9,8 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_flavor.dart';
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import '../../data/providers/capability_providers.dart';
 import '../../data/providers/server_providers.dart';
@@ -71,8 +73,14 @@ class FeatureNotAvailableCard extends ConsumerWidget {
                 icon: const Icon(Icons.arrow_forward, size: 16),
                 label: Text(actionLabel),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: PocketClawTheme.electricTeal,
-                  side: BorderSide(color: PocketClawTheme.electricTeal),
+                  foregroundColor: kHermesOnlyMode
+                      ? HCTheme.gold
+                      : PocketClawTheme.electricTeal,
+                  side: BorderSide(
+                    color: kHermesOnlyMode
+                        ? HCTheme.gold
+                        : PocketClawTheme.electricTeal,
+                  ),
                 ),
               ),
             ],
