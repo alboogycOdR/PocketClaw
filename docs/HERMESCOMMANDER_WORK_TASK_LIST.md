@@ -85,7 +85,8 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Control home summary cards — Home tab added to HermesManagementScreen with 8 live-data summary cards (REST/SSH/ACP status, model, pending approvals, today's tokens+cost, recent sessions, cron health).
 - `DONE` Swarm tab verification — monitor/compose/office view confirmed in five-tab shell; SSH capability gate (FeatureNotAvailableCard) added to SwarmMonitorScreen.
 - `DONE` flutter analyze warnings cleared — 5 warnings resolved (retired model-ID dead block in model_config.dart, unused import in voice_settings_screen.dart). 0 warnings remain.
-- `NEXT PICKUP` Open-Notebook detail flow (source list + note list tap view).
+- `DONE` Open-Notebook detail flow — tapping a notebook pushes _NotebookDetailScreen with parallel-fetched source list (/api/notebooks/{id}/sources) and note list (/api/notes?notebook={id}); PDF/URL/text icons, note content cards, pull-to-refresh; Chat and Add-note actions on AppBar.
+- `NEXT PICKUP` Settings / router dead-code prune — legacy OpenClaw/local wording from remaining shared screens.
 
 ## Spec Authority
 
@@ -302,7 +303,7 @@ Checkpoint:
 - `DONE` dedicated settings screen (`open_notebook_settings.dart`) — URL, test connection, notebook count
 - `DONE` "Chat with this notebook" action — prefills Chat composer with notebook context
 - `DONE` "Add note from clipboard" action — POSTs clipboard text to /api/notes
-- `PENDING` full notebook detail flow (source list + note list tap view)
+- `DONE` full notebook detail flow (source list + note list tap view)
 - `OUTSTANDING` live Open-Notebook endpoint/device verification
 
 Acceptance:
