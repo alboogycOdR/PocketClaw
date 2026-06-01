@@ -397,18 +397,6 @@ class _MultiModelCard extends StatelessWidget {
                   ),
                 ),
 
-                // Edit model ID (cloud models only)
-                if (onEditModelId != null)
-                  IconButton(
-                    onPressed: onEditModelId,
-                    icon: Icon(Icons.tune,
-                        size: 18, color: Colors.white38),
-                    tooltip: 'Custom model ID',
-                    padding: const EdgeInsets.all(4),
-                    constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
-                  ),
-
                 // Action button
                 const SizedBox(width: 4),
                 _buildActionButton(context),
