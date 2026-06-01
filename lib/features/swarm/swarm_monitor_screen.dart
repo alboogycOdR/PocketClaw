@@ -12,8 +12,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
 import '../../core/hermes/models/hermes_session.dart';
 import '../../core/hermes/models/swarm_tree.dart';
+import '../../data/providers/capability_providers.dart';
 import '../../data/providers/hermes_data_providers.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/feature_not_available_card.dart';
 import '../hermes/hermes_session_detail_screen.dart';
 
 class SwarmMonitorScreen extends ConsumerStatefulWidget {
@@ -44,6 +46,18 @@ class _SwarmMonitorScreenState extends ConsumerState<SwarmMonitorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final caps = ref.watch(serverCapabilitiesProvider);
+    if (!caps.hasSwarm) {
+      return const Scaffold(
+        body: Center(
+          child: FeatureNotAvailableCard(
+            feature: 'Swarm',
+            featureKey: 'swarm',
+          ),
+        ),
+      );
+    }
+
     final treeAsync = ref.watch(swarmSessionsProvider);
 
     return Scaffold(
