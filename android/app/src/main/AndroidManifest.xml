@@ -3,17 +3,17 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
-    <!-- Battery optimisation exemption: on-device inference and long-
-         running agent sessions need the OS to leave the app alone. -->
+    <!-- Battery optimisation exemption: long-running Hermes agent sessions
+         and ACP background listeners need the OS to leave the app alone. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
-    <!-- Keep CPU awake during LLM inference -->
+    <!-- Keep CPU awake during active Hermes sessions -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
-    <!-- Foreground service (for future background inference) -->
+    <!-- Foreground service for proactive notifier / background ACP listener -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
-    <!-- Camera + gallery (CameraService: photo capture, OCR, vision) -->
+    <!-- Camera + gallery (chat image attach: ImagePicker in ChatScreen) -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <!-- Legacy storage read for Android <= 12 gallery pick -->
@@ -21,9 +21,8 @@
         android:maxSdkVersion="32"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
-    <!-- Calendar (CalendarService: getEvents, createEvent) -->
-    <uses-permission android:name="android.permission.READ_CALENDAR"/>
-    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+    <!-- Calendar permissions removed: CalendarService exists as a provider
+         but is not wired into any HermesCommander tool or screen. -->
 
     <!-- Notifications / reminders (NotificationService) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
