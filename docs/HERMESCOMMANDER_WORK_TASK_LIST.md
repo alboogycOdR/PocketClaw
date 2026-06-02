@@ -89,6 +89,12 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Settings / router dead-code prune — FeatureNotAvailableCard button now uses HCTheme.gold in HermesCommander; router docstring fixed; all other OpenClaw/local references confirmed gated behind !kHermesOnlyMode.
 - `DONE` Ambient / Audio QA — radio icon + all WorldRadioSection accents use HCTheme.gold in HermesCommander; audio session confirmed correct (gainTransientMayDuck ducks but doesn't stop ambient on TTS); radio_models doc-comment infos cleared.
 - `DONE` Permission review — READ_CALENDAR + WRITE_CALENDAR removed (CalendarService not wired in HermesCommander); all other permissions verified justified. Manifest comments updated to HermesCommander context.
+- `DONE` Sessions source chips — coloured REST/ACP/CLI/Telegram/Discord chip + gold Conductor / purple Worker Swarm badges
+- `DONE` Logs filter chips — All / Errors / Warnings / Info FilterChip row; empty state adapts to filter
+- `DONE` Cron delivery target — DropdownButtonFormField in create form (None / Telegram / Discord)
+- `DONE` About tagline — HermesCommander shows "Native mobile command centre for Hermes Agent."
+- `DONE` scenes.json — 5 procedural scenes added (Deep Focus, Ocean Drift, Thunderstorm, Forest Morning, Fireplace); total now 8 (meets spec ≥8)
+- `DONE` Pre-verified already-done: Memory raw toggle, Skills SKILL.md SFTP, Analytics InsightChips, Cron last/next run display, Mermaid browser tap, sleep timer, radio error handling
 - `NEXT PICKUP` Physical Android smoke test (blocked: adb not on PATH — install platform-tools and run manually).
 
 ## Spec Authority
@@ -252,7 +258,7 @@ Checkpoint:
 - `DONE` Hermes `MEMORY.md` tab now fails gracefully on fresh VPS installs where the file does not exist yet
 - `DONE` AgentMemory and Open-Notebook context handoff flows are implemented
 - `PENDING` Control home summary cards
-- `PENDING` broader Control hub polish for sessions, cron, skills, logs, analytics, approvals
+- `DONE` Control hub polish: sessions chips, logs filter, cron delivery target, analytics InsightChips verified, skills SKILL.md SFTP verified
 
 Acceptance:
 - Control is the single Hermes management hub
