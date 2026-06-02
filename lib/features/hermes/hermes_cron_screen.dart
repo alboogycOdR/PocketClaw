@@ -105,6 +105,7 @@ class _CreateCronFormState extends ConsumerState<_CreateCronForm> {
   final _name = TextEditingController();
   final _prompt = TextEditingController();
   CronSchedule? _schedule;
+  String? _deliver; // null=none, 'telegram', 'discord'
   bool _saving = false;
 
   @override
@@ -138,6 +139,7 @@ class _CreateCronFormState extends ConsumerState<_CreateCronForm> {
         schedule: _schedule!,
         enabled: true,
         state: 'scheduled',
+        deliver: _deliver,
       ));
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -196,6 +198,23 @@ class _CreateCronFormState extends ConsumerState<_CreateCronForm> {
           const SizedBox(height: 12),
           ScheduleBuilder(
             onChanged: (s) => setState(() => _schedule = s),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String?>(
+            value: _deliver,
+            decoration: InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              labelText: 'Delivery target',
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('None (silent run)')),
+              DropdownMenuItem(value: 'telegram', child: Text('Telegram')),
+              DropdownMenuItem(value: 'discord', child: Text('Discord')),
+            ],
+            onChanged: (v) => setState(() => _deliver = v),
           ),
           const SizedBox(height: 16),
           Row(

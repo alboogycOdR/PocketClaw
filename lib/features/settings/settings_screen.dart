@@ -702,9 +702,11 @@ class _AppTab extends ConsumerWidget {
                   style: const TextStyle(fontSize: 12, color: Colors.white38),
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  'Your personal AI agent, always in your pocket.',
-                  style: TextStyle(fontSize: 13, color: Colors.white54),
+                Text(
+                  kHermesOnlyMode
+                      ? 'Native mobile command centre for Hermes Agent.'
+                      : 'Your personal AI agent, always in your pocket.',
+                  style: const TextStyle(fontSize: 13, color: Colors.white54),
                   textAlign: TextAlign.center,
                 ),
               ],

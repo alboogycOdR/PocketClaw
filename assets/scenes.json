@@ -18,6 +18,76 @@
       ]
     },
     {
+      "id": "deep_focus",
+      "displayName": "Deep Focus",
+      "emoji": "Focus",
+      "description": "Warm pink noise blend designed for sustained concentration. All on-device, no assets needed.",
+      "category": "focus",
+      "color": "#7C3AED",
+      "channels": [
+        { "id": "ch0", "label": "Pink",  "procedural": "pink",  "defaultVolume": 0.55 },
+        { "id": "ch1", "label": "Brown", "procedural": "brown", "defaultVolume": 0.45 },
+        { "id": "ch2", "label": "Low",   "procedural": "low",   "defaultVolume": 0.2  },
+        { "id": "ch3", "label": "Mid",   "procedural": "mid",   "defaultVolume": 0.15 }
+      ]
+    },
+    {
+      "id": "ocean_drift",
+      "displayName": "Ocean Drift",
+      "emoji": "Ocean",
+      "description": "Deep bass and rolling mid-tones to simulate ocean swells. Pure procedural synthesis.",
+      "category": "calm",
+      "color": "#0E7490",
+      "channels": [
+        { "id": "ch0", "label": "Deep",  "procedural": "brown", "defaultVolume": 0.6  },
+        { "id": "ch1", "label": "Swells","procedural": "low",   "defaultVolume": 0.5  },
+        { "id": "ch2", "label": "Spray", "procedural": "white", "defaultVolume": 0.15 },
+        { "id": "ch3", "label": "Mid",   "procedural": "mid",   "defaultVolume": 0.25 }
+      ]
+    },
+    {
+      "id": "thunderstorm",
+      "displayName": "Thunderstorm",
+      "emoji": "Storm",
+      "description": "Heavy rain and deep rumble synthesised from noise bands. No download required.",
+      "category": "calm",
+      "color": "#374151",
+      "channels": [
+        { "id": "ch0", "label": "Rain",    "procedural": "white", "defaultVolume": 0.5  },
+        { "id": "ch1", "label": "Rumble",  "procedural": "brown", "defaultVolume": 0.55 },
+        { "id": "ch2", "label": "Low Hum", "procedural": "low",   "defaultVolume": 0.35 },
+        { "id": "ch3", "label": "Crackle", "procedural": "high",  "defaultVolume": 0.1  }
+      ]
+    },
+    {
+      "id": "forest_morning",
+      "displayName": "Forest Morning",
+      "emoji": "Forest",
+      "description": "Layered pink and high-frequency bands evoking birdsong and rustling leaves.",
+      "category": "calm",
+      "color": "#166534",
+      "channels": [
+        { "id": "ch0", "label": "Leaves",  "procedural": "pink",  "defaultVolume": 0.4  },
+        { "id": "ch1", "label": "Birds",   "procedural": "high",  "defaultVolume": 0.3  },
+        { "id": "ch2", "label": "Breeze",  "procedural": "mid",   "defaultVolume": 0.25 },
+        { "id": "ch3", "label": "Depth",   "procedural": "brown", "defaultVolume": 0.2  }
+      ]
+    },
+    {
+      "id": "fireplace",
+      "displayName": "Fireplace",
+      "emoji": "Fire",
+      "description": "Warm crackle and bass rumble to simulate a hearth. Cosy, all procedural.",
+      "category": "work",
+      "color": "#B45309",
+      "channels": [
+        { "id": "ch0", "label": "Crackle", "procedural": "high",  "defaultVolume": 0.4  },
+        { "id": "ch1", "label": "Warmth",  "procedural": "brown", "defaultVolume": 0.5  },
+        { "id": "ch2", "label": "Low",     "procedural": "low",   "defaultVolume": 0.3  },
+        { "id": "ch3", "label": "Hiss",    "procedural": "pink",  "defaultVolume": 0.2  }
+      ]
+    },
+    {
       "id": "rain_on_glass",
       "displayName": "Rain on Glass",
       "emoji": "Rain",

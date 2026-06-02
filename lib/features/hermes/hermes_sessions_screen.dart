@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import '../../core/hermes/models/hermes_session.dart';
 import '../../data/providers/hermes_data_providers.dart';
@@ -101,7 +102,7 @@ class _HermesSessionsTabState extends ConsumerState<HermesSessionsTab> {
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     itemCount: sessions.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, i) =>
                         _SessionTile(session: sessions[i]),
                   ),
@@ -172,7 +173,17 @@ class _SessionTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(session.sourceIcon, style: const TextStyle(fontSize: 14)),
+                  _SourceChip(source: session.source),
+                  if (session.isOrchestrator) ...[
+                    const SizedBox(width: 6),
+                    const _Badge(label: 'Conductor', color: HCTheme.gold),
+                  ] else if (session.isSubagent) ...[
+                    const SizedBox(width: 6),
+                    const _Badge(
+                      label: 'Worker',
+                      color: Colors.deepPurpleAccent,
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -256,6 +267,71 @@ String _fmtTokens(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M tok';
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k tok';
   return '$n tok';
+}
+
+class _SourceChip extends StatelessWidget {
+  final String source;
+  const _SourceChip({required this.source});
+
+  static (String label, Color color) _resolve(String src) => switch (src) {
+        'rest' || 'http' || 'https' => ('REST', Color(0xFF3FB950)),
+        'acp' || 'websocket' || 'ws' => ('ACP', Color(0xFF58A6FF)),
+        'cron' => ('Cron', Color(0xFFF0883E)),
+        'telegram' => ('Telegram', Color(0xFF58A6FF)),
+        'discord' => ('Discord', Color(0xFF7C3AED)),
+        'slack' => ('Slack', Color(0xFF4ECCA3)),
+        'cli' => ('CLI', Color(0xFF8B949E)),
+        _ => ('CLI', Color(0xFF8B949E)),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = _resolve(source);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(100)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _Badge({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(100)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
 }
 
 class _GroupHeader extends StatelessWidget {
