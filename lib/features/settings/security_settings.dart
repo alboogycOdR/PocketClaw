@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../app/theme.dart';
+import '../../core/device/battery_optimization_service.dart';
 import '../../data/providers/core_providers.dart';
 
 class SecuritySettings extends ConsumerStatefulWidget {
@@ -15,22 +16,41 @@ class SecuritySettings extends ConsumerStatefulWidget {
   ConsumerState<SecuritySettings> createState() => _SecuritySettingsState();
 }
 
-class _SecuritySettingsState extends ConsumerState<SecuritySettings> {
+class _SecuritySettingsState extends ConsumerState<SecuritySettings>
+    with WidgetsBindingObserver {
   bool _biometricEnabled = false;
   bool _biometricAvailable = false;
+  bool? _batteryExempt;
+  bool _batteryChecking = true;
   bool _toggling = false;
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadBiometricState();
+    _loadBatteryState();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadBatteryState();
+    }
   }
 
   Future<void> _loadBiometricState() async {
     final prefs = ref.read(sharedPrefsProvider);
     final available =
-        await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
+        await _localAuth.canCheckBiometrics ||
+        await _localAuth.isDeviceSupported();
     if (mounted) {
       setState(() {
         _biometricEnabled = prefs.getBool('biometric_lock_enabled') ?? false;
@@ -82,13 +102,33 @@ class _SecuritySettingsState extends ConsumerState<SecuritySettings> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Biometric error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Biometric error: $e')));
       }
     } finally {
       if (mounted) setState(() => _toggling = false);
     }
+  }
+
+  Future<void> _loadBatteryState() async {
+    setState(() => _batteryChecking = true);
+    final exempt =
+        await BatteryOptimizationService.isIgnoringBatteryOptimizations();
+    if (!mounted) return;
+    setState(() {
+      _batteryExempt = exempt;
+      _batteryChecking = false;
+    });
+  }
+
+  Future<void> _openBatteryOptimisationSettings() async {
+    await BatteryOptimizationService.requestExemption();
+    await BatteryOptimizationService.markAsked();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Battery settings opened')));
   }
 
   void _showClearDataDialog() {
@@ -151,6 +191,36 @@ class _SecuritySettingsState extends ConsumerState<SecuritySettings> {
               onChanged: _biometricAvailable && !_toggling
                   ? _onBiometricToggled
                   : null,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Battery optimisation
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              leading: Icon(
+                _batteryExempt == true
+                    ? Icons.battery_charging_full_outlined
+                    : Icons.battery_saver_outlined,
+                color: _batteryExempt == true
+                    ? PocketClawTheme.electricTeal
+                    : Colors.amber,
+              ),
+              title: const Text('Battery Optimisation'),
+              subtitle: Text(
+                _batteryChecking
+                    ? 'Checking Android battery state...'
+                    : _batteryExempt == true
+                    ? 'Unrestricted battery use is enabled'
+                    : 'Allow unrestricted battery use for TV and long-running sessions',
+                style: const TextStyle(fontSize: 12, color: Colors.white54),
+              ),
+              trailing: _batteryExempt == true
+                  ? const Icon(Icons.check_circle, color: Colors.greenAccent)
+                  : const Icon(Icons.chevron_right),
+              onTap: _openBatteryOptimisationSettings,
             ),
           ),
 

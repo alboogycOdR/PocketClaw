@@ -18,6 +18,7 @@ import '../../data/models/openclaw_models.dart';
 import '../../data/providers/academy_providers.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/hermes_providers.dart';
+import '../../data/providers/iptv_providers.dart';
 import '../../data/providers/integration_providers.dart';
 import '../../data/providers/intelligence_providers.dart';
 import '../../data/providers/life_architect_providers.dart';
@@ -168,8 +169,15 @@ class _HermesSettingsScreen extends ConsumerWidget {
         section: 'ambient',
         icon: Icons.headphones_outlined,
         title: 'Ambient Audio',
-        subtitle: 'Focus sounds and world radio',
+        subtitle: 'Focus sounds, world radio, and free TV',
         onTap: () => context.go('/ambient'),
+      ),
+      _HermesSettingsTile(
+        section: 'tv',
+        icon: Icons.live_tv_outlined,
+        title: 'Free TV',
+        subtitleBuilder: (_) => const _TvStatusLine(),
+        onTap: () => context.push('/settings/tv'),
       ),
       const _HermesSettingsTile(
         section: 'theme',
@@ -181,7 +189,7 @@ class _HermesSettingsScreen extends ConsumerWidget {
         section: 'security',
         icon: Icons.security,
         title: 'Security & Privacy',
-        subtitle: 'Biometric lock, local data controls',
+        subtitle: 'Biometric lock, battery access, local data controls',
         onTap: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const SecuritySettings())),
@@ -615,6 +623,14 @@ class _AppTab extends ConsumerWidget {
               ),
               const _ListDivider(),
               ListTile(
+                leading: const Icon(Icons.live_tv_outlined),
+                title: const Text('Free TV'),
+                subtitle: const _TvStatusLine(),
+                trailing: const _Chevron(),
+                onTap: () => context.push('/settings/tv'),
+              ),
+              const _ListDivider(),
+              ListTile(
                 leading: const Icon(Icons.storage_outlined),
                 title: const Text('Storage'),
                 subtitle: const Text(
@@ -646,7 +662,7 @@ class _AppTab extends ConsumerWidget {
                 leading: const Icon(Icons.security),
                 title: const Text('Security & Privacy'),
                 subtitle: const Text(
-                  'Biometric lock, clear data',
+                  'Biometric lock, battery access, clear data',
                   style: TextStyle(fontSize: 12, color: Colors.white54),
                 ),
                 trailing: const _Chevron(),
@@ -1044,6 +1060,24 @@ class _TtsStatusLine extends ConsumerWidget {
         fontSize: 12,
         color: ready ? PocketClawTheme.electricTeal : Colors.white54,
       ),
+    );
+  }
+}
+
+class _TvStatusLine extends ConsumerWidget {
+  const _TvStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(hiddenChannelsProvider).valueOrNull ?? const [];
+    final custom = ref.watch(customChannelsProvider).valueOrNull ?? const [];
+    final parts = <String>[
+      if (custom.isNotEmpty) '${custom.length} custom',
+      if (hidden.isNotEmpty) '${hidden.length} hidden',
+    ];
+    return Text(
+      parts.isEmpty ? 'Manage custom and hidden channels' : parts.join(' | '),
+      style: const TextStyle(fontSize: 12, color: Colors.white54),
     );
   }
 }

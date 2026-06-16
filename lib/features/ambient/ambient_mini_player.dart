@@ -13,6 +13,7 @@ import '../../app/theme.dart';
 import '../../core/ambient/nature_sound_engine.dart';
 import '../../core/ambient/office_sound_engine.dart';
 import '../../data/providers/ambient_providers.dart';
+import '../../data/providers/iptv_providers.dart';
 
 class AmbientMiniPlayer extends ConsumerWidget {
   const AmbientMiniPlayer({super.key});
@@ -21,14 +22,18 @@ class AmbientMiniPlayer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final officeState = ref.watch(officeSoundStateProvider).valueOrNull;
     final natureState = ref.watch(natureSoundStateProvider).valueOrNull;
+    final tv = ref.watch(activeTvChannelProvider);
     final radio = ref.watch(activeRadioChannelProvider);
     final radioPlayer = ref.watch(radioPlayerProvider);
 
     final officeActive = officeState?.isPlaying ?? false;
     final natureActive = natureState?.isPlaying ?? false;
+    final tvActive = tv != null;
     final radioActive = radio != null;
 
-    if (!officeActive && !natureActive && !radioActive) return const SizedBox.shrink();
+    if (!officeActive && !natureActive && !tvActive && !radioActive) {
+      return const SizedBox.shrink();
+    }
 
     return Material(
       color: PocketClawTheme.surfaceContainer,
@@ -46,8 +51,56 @@ class AmbientMiniPlayer extends ConsumerWidget {
           ),
           child: Row(
             children: [
+              if (tvActive) ...[
+                const Icon(
+                  Icons.live_tv_outlined,
+                  size: 16,
+                  color: HCTheme.gold,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    tv.name,
+                    style: const TextStyle(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  iconSize: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.fullscreen),
+                  color: PocketClawTheme.onSurfaceMuted,
+                  tooltip: 'Open TV player',
+                  onPressed: () => context.push('/ambient/tv', extra: tv),
+                ),
+                IconButton(
+                  iconSize: 18,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  color: PocketClawTheme.onSurfaceMuted,
+                  tooltip: 'Clear TV player',
+                  onPressed: () {
+                    ref.read(activeTvChannelProvider.notifier).state = null;
+                  },
+                ),
+              ],
+              if (tvActive && (officeActive || natureActive || radioActive))
+                Container(
+                  width: 1,
+                  height: 20,
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
+                  color: PocketClawTheme.onSurfaceMuted.withAlpha(80),
+                ),
               if (officeActive) ...[
-                const Icon(Icons.business_center_outlined, size: 16, color: HCTheme.gold),
+                const Icon(
+                  Icons.business_center_outlined,
+                  size: 16,
+                  color: HCTheme.gold,
+                ),
                 const SizedBox(width: 6),
                 const Flexible(
                   child: Text(
@@ -103,7 +156,13 @@ class AmbientMiniPlayer extends ConsumerWidget {
                   color: PocketClawTheme.onSurfaceMuted.withAlpha(80),
                 ),
               if (radioActive) ...[
-                Icon(Icons.radio, size: 16, color: kHermesOnlyMode ? HCTheme.gold : PocketClawTheme.electricTeal),
+                Icon(
+                  Icons.radio,
+                  size: 16,
+                  color: kHermesOnlyMode
+                      ? HCTheme.gold
+                      : PocketClawTheme.electricTeal,
+                ),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
@@ -127,8 +186,11 @@ class AmbientMiniPlayer extends ConsumerWidget {
                 ),
               ],
               const Spacer(),
-              Icon(Icons.keyboard_arrow_up,
-                  size: 16, color: PocketClawTheme.onSurfaceMuted),
+              Icon(
+                Icons.keyboard_arrow_up,
+                size: 16,
+                color: PocketClawTheme.onSurfaceMuted,
+              ),
             ],
           ),
         ),

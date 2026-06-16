@@ -13,6 +13,8 @@ import 'app/app.dart';
 import 'app/app_flavor.dart';
 import 'app/router.dart' as app_router;
 import 'app/theme.dart';
+import 'core/ambient/iptv_service.dart';
+import 'core/ambient/tv_database.dart';
 import 'core/llm/models/local_model_config.dart';
 import 'core/llm/services/model_allowlist_service.dart';
 import 'data/providers/core_providers.dart';
@@ -63,6 +65,18 @@ void main() {
         prefs = await SharedPreferences.getInstance();
       } catch (e) {
         debugPrint('SharedPreferences failed, degraded mode: $e');
+      }
+
+      try {
+        await tvDatabase.ensureReady();
+        if (prefs != null) {
+          final imported = await iptvService.seedBundledImport(prefs);
+          if (imported > 0) {
+            debugPrint('Seeded bundled IPTV channels: $imported');
+          }
+        }
+      } catch (e) {
+        debugPrint('Free TV database init failed, degraded mode: $e');
       }
 
       // Seed the router's first-run flag before it builds any routes.

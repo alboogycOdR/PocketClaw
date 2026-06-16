@@ -1,15 +1,32 @@
 /// Requests battery optimisation exemption on Android so the OS
-/// doesn't kill long-running inference sessions or agent heartbeats.
+/// doesn't kill long-running agent, audio, radio, or TV sessions.
 library;
 
 import 'dart:io';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class BatteryOptimizationService {
   static const _kAskedPrefsKey = 'battery_optimization_asked';
+  static const _packageName = 'com.nuburo.hermescommander';
+  static const _channel = MethodChannel('com.nuburo.hermescommander/device');
+
+  /// Returns true when Android has already exempted this app from Doze /
+  /// battery optimisation. Returns null if the native check is unavailable.
+  static Future<bool?> isIgnoringBatteryOptimizations() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _channel.invokeMethod<bool>(
+        'isIgnoringBatteryOptimizations',
+      );
+    } catch (e) {
+      debugPrint('BatteryOptimizationService: status check failed: $e');
+      return null;
+    }
+  }
 
   /// Opens the Android system settings page for battery optimisation
   /// exemption, pre-filtered to this app. User must manually approve.
@@ -18,7 +35,7 @@ class BatteryOptimizationService {
     try {
       const intent = AndroidIntent(
         action: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS',
-        data: 'package:com.nuburo.hermescommander',
+        data: 'package:$_packageName',
       );
       await intent.launch();
     } catch (e) {

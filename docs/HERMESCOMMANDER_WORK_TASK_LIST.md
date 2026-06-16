@@ -1,6 +1,6 @@
 # HermesCommander Work Task List
 
-Last updated: 2026-06-01
+Last updated: 2026-06-16
 Branch: `hermes-commander`
 Primary product spec: `docs/HermesCommander-FullDeveloperSpec-v2.0.md`
 Design spec: `docs/SPEC-HermesCommanderDesign-v1.0.md`
@@ -33,19 +33,20 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - World Intelligence has first-pass domain workspaces for Aviation, Maritime & Space, Surveillance, Natural Hazards, Conflict, and Radio.
 - Targeted Intel analysis is clean: `flutter analyze lib\features\intel lib\core\intelligence lib\data\providers\intelligence_providers.dart`.
 - Release hardening has a clean high-confidence secret scan and a successful release APK build.
+- Free TV integration is implemented in Ambient: Free-TV/IPTV playlist fetch/cache, favourites, hidden/custom channels, full-screen playback, TV settings, and mini-player handoff.
+- Android battery survival for TV playback is implemented: app exemption status check, manual exemption entry points, TV-player prompt/action, and screen-awake wakelock during active TV playback.
 
 ### Outstanding
 
-- Full repo `flutter analyze` now reports 0 warnings; pre-existing lint infos remain (~85 info-level items, no warnings).
-- Physical Android smoke test is blocked from this shell because `adb` is not on PATH.
+- Full repo `flutter analyze` remains warning-free but still exits non-zero on pre-existing info-level lint items; focused battery/TV analyzer pass is clean.
+- Physical Android smoke test is blocked from this shell because `adb` is not on PATH; Free TV live playback and phone-sleep behaviour still need device verification.
 - Hermes-only cleanup still needs legacy OpenClaw/local wording and unreachable shared routes pruned from remaining shared code.
 - Control home summary cards are `DONE`; broader Control hub polish (Sessions, Cron, Skills, Logs, Analytics, Approvals screen polish) remains.
-- AgentMemory and Open-Notebook still need live endpoint/device verification; Open-Notebook also needs the full notebook detail flow.
+- AgentMemory and Open-Notebook still need live endpoint/device verification.
 - Intel still needs endpoint/schema validation for every world layer.
 - Swarm tab is now `DONE`: monitor/compose/office view verified in five-tab shell; SSH capability gate added.
-- Ambient/audio QA is still pending: Focus Sounds, Radio Garden, mini-player, and TTS/audio-session interaction.
+- Free TV needs physical playback QA across a few live channels, geoblocked streams, and device sleep/battery states.
 - Settings cleanup still needs a final release-surface review for legacy non-Hermes screens.
-- Permission review remains pending before release hardening can be marked complete.
 
 ## Current Checkpoint
 
@@ -61,7 +62,7 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
   - `flutter pub run flutter_launcher_icons`
   - `flutter build apk --debug --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander`
   - `flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander`
-- `KNOWN GAP` `flutter analyze` is not clean yet. Current state is pre-existing repo lint debt plus Hermes branch migration work still to do.
+- `KNOWN GAP` Full-repo `flutter analyze` has no warnings but still reports pre-existing info-level lints; focused analyzer passes are clean for changed surfaces.
 - `UPDATE` Targeted Hermes chat / Intel / tool-loop analyze is now clean after the latest pass.
 - `UPDATE` `flutter build apk --debug --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander` passes after the latest chat drawer / Intel map / RECON tool changes.
 - `UPDATE` Hermes chat parity pass is now complete enough for feature acceptance: slash overlay, Mermaid fallback, edit/resend/regenerate/continue, context ring details, and drawer metadata are in place.
@@ -75,7 +76,7 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `UPDATE` Open-Notebook "Chat with this notebook" and "Add note from clipboard" actions implemented.
 - `UPDATE` ChatScreen now reads `pendingChatContextProvider` on initState and prefills the composer.
 - `UPDATE` Secret scan clean: one real hit fixed (hardcoded VPS IP in `paperclip_company_settings.dart` → `<your-vps-ip>`).
-- `UPDATE` Release APK builds: `flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander` → `app-release.apk` 190.4 MB.
+- `UPDATE` Release APK builds: `flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander` → `app-release.apk` 206.0 MB after Free TV + battery-survival work.
 - `UPDATE` Intel RECON-to-map handoff implemented: IP lookups now surface a "Focus on map" button that flies the World Intelligence map to the IP geolocation and drops a gold RECON pin. Pin persists across mode switches and can be cleared from the AppBar.
 - `UPDATE` RECON results are now structured (DNS record groups, IP geo card, SSL validity card, WHOIS dates card, CVE severity badges with expand/collapse). Raw JSON is still available behind a toggle.
 - `UPDATE` RECON panel is now collapsible in IntelScreen via the radar AppBar button. Map takes full remaining height by default. Active RECON pin shows a compact banner when RECON is collapsed.
@@ -89,13 +90,15 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Settings / router dead-code prune — FeatureNotAvailableCard button now uses HCTheme.gold in HermesCommander; router docstring fixed; all other OpenClaw/local references confirmed gated behind !kHermesOnlyMode.
 - `DONE` Ambient / Audio QA — radio icon + all WorldRadioSection accents use HCTheme.gold in HermesCommander; audio session confirmed correct (gainTransientMayDuck ducks but doesn't stop ambient on TTS); radio_models doc-comment infos cleared.
 - `DONE` Permission review — READ_CALENDAR + WRITE_CALENDAR removed (CalendarService not wired in HermesCommander); all other permissions verified justified. Manifest comments updated to HermesCommander context.
+- `DONE` Free TV integration — Ambient now includes Free-TV/IPTV playlist fetch/cache, grouped channel browser, favourites, hidden/custom channels, TV settings, full-screen HLS playback, and mini-player state.
+- `DONE` TV battery survival — Android battery-optimisation status check added via native channel; TV player keeps the screen awake, disables Chewie screen sleep, and exposes battery exemption shortcuts in TV player, TV Settings, and Security.
 - `DONE` Sessions source chips — coloured REST/ACP/CLI/Telegram/Discord chip + gold Conductor / purple Worker Swarm badges
 - `DONE` Logs filter chips — All / Errors / Warnings / Info FilterChip row; empty state adapts to filter
 - `DONE` Cron delivery target — DropdownButtonFormField in create form (None / Telegram / Discord)
 - `DONE` About tagline — HermesCommander shows "Native mobile command centre for Hermes Agent."
 - `DONE` scenes.json — 5 procedural scenes added (Deep Focus, Ocean Drift, Thunderstorm, Forest Morning, Fireplace); total now 8 (meets spec ≥8)
 - `DONE` Pre-verified already-done: Memory raw toggle, Skills SKILL.md SFTP, Analytics InsightChips, Cron last/next run display, Mermaid browser tap, sleep timer, radio error handling
-- `NEXT PICKUP` Physical Android smoke test (blocked: adb not on PATH — install platform-tools and run manually).
+- `NEXT PICKUP` Physical Android smoke test, including Free TV playback and phone-sleep/battery-optimisation behaviour (blocked here: adb not on PATH — install platform-tools and run manually).
 
 ## Spec Authority
 
@@ -385,21 +388,25 @@ Acceptance:
 
 ### 10. Ambient and Audio QA
 
-Status: `PENDING`
+Status: `IN PROGRESS`
 Spec refs:
 - v2.0 §16
 - v2.0 §22 Phase 7
 - v2.0 §23 Task 7
 
 Tasks:
-- Verify Focus Sounds
-- Verify Radio Garden search/playback/favorites
-- Verify global mini-player
-- Fix audio session conflicts with TTS
+- `DONE` Verify Focus Sounds visual/accent alignment for HermesCommander
+- `DONE` Verify Radio Garden search/playback/favorites surface and Hermes gold accents
+- `DONE` Verify global mini-player for ambient/radio surfaces
+- `DONE` Fix/confirm audio session conflicts with TTS
+- `DONE` Add Free TV: playlist fetch/cache, channel browser, favourites, hidden/custom channels, settings, full-screen player, and mini-player state
+- `DONE` Add battery survival controls for TV: Android exemption status, settings shortcuts, player prompt/action, and wakelock/screen-awake playback
+- `OUTSTANDING` Physical Android QA for live TV channels, geoblocked failures, and phone-sleep/battery-optimisation behaviour
 
 Acceptance:
 - Ambient remains stable across navigation
 - TTS and ambient audio behave predictably
+- TV playback remains usable during normal screen-timeout scenarios after unrestricted battery access is granted
 
 ### 11. Settings Cleanup
 
@@ -431,6 +438,7 @@ Tasks:
 - `DONE` Remove placeholder IPs and old token hints from release-visible code
 - `DONE` Run high-confidence masked secret scan clean; remaining hits are false positives from code variable reads, release-script env templates, and old spec image URLs
 - `DONE` Review permissions
+- `DONE` Add Android battery optimisation exemption status and settings entry points for long-running TV/agent/audio sessions
 - `DONE` Re-run `flutter analyze`; 0 warnings, ~85 pre-existing info-level lint items remain
 - `DONE` Build release APK
 - `BLOCKED` Physical Android smoke test from this shell; `adb` is not on PATH and the saved device screenshot is black
@@ -441,12 +449,21 @@ Acceptance:
 - `BLOCKED` Physical smoke test passed
 
 Known current failures:
-- Full repo flutter analyze: 0 warnings; ~85 pre-existing lint infos remain (info level only)
+- Full repo flutter analyze: 0 warnings; pre-existing info-level lints remain (focused battery/TV analyzer pass is clean)
 - Physical Android smoke test still needs Android platform tools or a device test path outside this shell
 
 ## Immediate Next Tasks
 
 1. Physical Android smoke test — install `adb` / platform-tools, connect device, run `adb install build/app/outputs/flutter-apk/app-release.apk`
+2. Free TV device QA — test several channels, geoblocked/unavailable channels, favourites, custom channel add/delete, and phone-sleep behaviour after allowing unrestricted battery use
+
+## Completed This Session (2026-06-16)
+
+- `DONE` Free TV integration from `SPEC-FreeTVIntegration-v1.0.md`
+- `DONE` TV player battery survival: wakelock, disabled Chewie screen sleep, Android exemption status, TV prompt/action, TV Settings tile, and Security tile
+- `DONE` Focused analyzer pass clean for battery/TV changes
+- `DONE` Release APK build passed: `build\app\outputs\flutter-apk\app-release.apk` 206.0 MB
+- `DONE` Updated APK delivered via Telegram/Gofile: `https://gofile.io/d/dEnGoF`
 
 ## Completed This Session (2026-06-02)
 

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'free_tv_section.dart';
 import 'nature_sounds_section.dart';
 import 'office_sounds_section.dart';
 import 'world_radio_section.dart';
@@ -38,6 +39,8 @@ class AmbientScreen extends ConsumerWidget {
             NatureSoundsSection(),
             Divider(height: 1, indent: 16, endIndent: 16),
             WorldRadioSection(),
+            Divider(height: 1, indent: 16, endIndent: 16),
+            FreeTvSection(),
           ],
         ),
       ),

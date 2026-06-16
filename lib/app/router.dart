@@ -10,6 +10,8 @@ import '../data/providers/approvals_providers.dart';
 import '../features/academy/academy_screen.dart';
 import '../features/ambient/ambient_mini_player.dart';
 import '../features/ambient/ambient_screen.dart';
+import '../features/ambient/models/tv_channel.dart';
+import '../features/ambient/tv_player_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/hermes/hermes_analytics_screen.dart';
 import '../features/hermes/agent_memory_screen.dart';
@@ -43,6 +45,7 @@ import '../features/onboarding/welcome_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/osiris_settings.dart';
 import '../features/settings/tts_settings_screen.dart';
+import '../features/settings/tv_settings_screen.dart';
 import '../features/skills/clawhub_browser.dart';
 import '../features/skills/skill_detail.dart';
 import '../features/skills/skills_screen.dart';
@@ -101,6 +104,20 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/tts',
       builder: (context, state) => const TtsSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/tv',
+      builder: (context, state) => const TvSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/ambient/tv',
+      builder: (context, state) {
+        final channel = state.extra;
+        if (channel is TvChannel) {
+          return TvPlayerScreen(channel: channel);
+        }
+        return const AmbientScreen();
+      },
     ),
     GoRoute(
       path: '/settings/hermes',
