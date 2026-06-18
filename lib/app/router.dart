@@ -11,6 +11,7 @@ import '../features/academy/academy_screen.dart';
 import '../features/ambient/ambient_mini_player.dart';
 import '../features/ambient/ambient_screen.dart';
 import '../features/ambient/models/tv_channel.dart';
+import '../features/ambient/tv_guide_screen.dart';
 import '../features/ambient/tv_player_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/hermes/hermes_analytics_screen.dart';
@@ -118,6 +119,10 @@ final GoRouter appRouter = GoRouter(
         }
         return const AmbientScreen();
       },
+    ),
+    GoRoute(
+      path: '/ambient/tv/guide',
+      builder: (context, state) => const TvGuideScreen(),
     ),
     GoRoute(
       path: '/settings/hermes',

@@ -1,6 +1,6 @@
 # HermesCommander Work Task List
 
-Last updated: 2026-06-16
+Last updated: 2026-06-18
 Branch: `hermes-commander`
 Primary product spec: `docs/HermesCommander-FullDeveloperSpec-v2.0.md`
 Design spec: `docs/SPEC-HermesCommanderDesign-v1.0.md`
@@ -35,6 +35,7 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - Release hardening has a clean high-confidence secret scan and a successful release APK build.
 - Free TV integration is implemented in Ambient: Free-TV/IPTV playlist fetch/cache, favourites, hidden/custom channels, full-screen playback, TV settings, and mini-player handoff.
 - Android battery survival for TV playback is implemented: app exemption status check, manual exemption entry points, TV-player prompt/action, and screen-awake wakelock during active TV playback.
+- clubTivi-inspired IPTV upgrades are implemented selectively: richer M3U metadata capture, XMLTV EPG storage/import, auto-mapping, a mobile guide view, stream-health scoring, ranked fallback alternatives, and PiP controls.
 
 ### Outstanding
 
@@ -46,6 +47,7 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - Intel still needs endpoint/schema validation for every world layer.
 - Swarm tab is now `DONE`: monitor/compose/office view verified in five-tab shell; SSH capability gate added.
 - Free TV needs physical playback QA across a few live channels, geoblocked streams, and device sleep/battery states.
+- Free TV guide/EPG needs live-device QA with real XMLTV sources and a few mapped channels.
 - Settings cleanup still needs a final release-surface review for legacy non-Hermes screens.
 
 ## Current Checkpoint
@@ -77,6 +79,9 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `UPDATE` ChatScreen now reads `pendingChatContextProvider` on initState and prefills the composer.
 - `UPDATE` Secret scan clean: one real hit fixed (hardcoded VPS IP in `paperclip_company_settings.dart` → `<your-vps-ip>`).
 - `UPDATE` Release APK builds: `flutter build apk --release --target-platform android-arm64 --dart-define=APP_FLAVOR=hermesCommander` → `app-release.apk` 206.0 MB after Free TV + battery-survival work.
+- `UPDATE` clubTivi reference pass completed: selectively borrowed IPTV parser/EPG/failover ideas and kept HermesCommander on the current `video_player`/Chewie backend for now.
+- `UPDATE` Free TV now supports XMLTV source import, EPG auto-mapping, a mobile guide route, current/next programme snippets, stream-health scoring, and ranked backup-stream failover.
+- `UPDATE` PiP is now native on Android via method channel, with a player toolbar action and auto-enter-on-leave hint.
 - `UPDATE` Intel RECON-to-map handoff implemented: IP lookups now surface a "Focus on map" button that flies the World Intelligence map to the IP geolocation and drops a gold RECON pin. Pin persists across mode switches and can be cleared from the AppBar.
 - `UPDATE` RECON results are now structured (DNS record groups, IP geo card, SSL validity card, WHOIS dates card, CVE severity badges with expand/collapse). Raw JSON is still available behind a toggle.
 - `UPDATE` RECON panel is now collapsible in IntelScreen via the radar AppBar button. Map takes full remaining height by default. Active RECON pin shows a compact banner when RECON is collapsed.
@@ -92,6 +97,7 @@ This file is the working tracker for the HermesCommander branch. It exists to ma
 - `DONE` Permission review — READ_CALENDAR + WRITE_CALENDAR removed (CalendarService not wired in HermesCommander); all other permissions verified justified. Manifest comments updated to HermesCommander context.
 - `DONE` Free TV integration — Ambient now includes Free-TV/IPTV playlist fetch/cache, grouped channel browser, favourites, hidden/custom channels, TV settings, full-screen HLS playback, and mini-player state.
 - `DONE` TV battery survival — Android battery-optimisation status check added via native channel; TV player keeps the screen awake, disables Chewie screen sleep, and exposes battery exemption shortcuts in TV player, TV Settings, and Security.
+- `DONE` IPTV depth pass — rich M3U metadata, XMLTV EPG tables/import, auto-mapping, guide route, current/next snippets, stream-health scoring, ranked backup streams, and Android PiP controls are all in place.
 - `DONE` Sessions source chips — coloured REST/ACP/CLI/Telegram/Discord chip + gold Conductor / purple Worker Swarm badges
 - `DONE` Logs filter chips — All / Errors / Warnings / Info FilterChip row; empty state adapts to filter
 - `DONE` Cron delivery target — DropdownButtonFormField in create form (None / Telegram / Discord)

@@ -105,6 +105,10 @@ class IptvService {
     String? currentGroup;
     String? currentName;
     String? currentLogo;
+    String? currentTvgId;
+    String? currentTvgName;
+    int? currentChannelNumber;
+    var currentStreamType = TvStreamType.live;
     var isHD = true;
     var isGeo = false;
     var isYouTube = false;
@@ -112,21 +116,26 @@ class IptvService {
     for (final rawLine in lines) {
       final line = rawLine.trim();
       if (line.startsWith('#EXTINF:')) {
-        currentGroup = _attr(line, 'group-title');
-        currentLogo = _attr(line, 'tvg-logo');
+        final attrs = _attrs(line);
+        currentGroup = attrs['group-title'];
+        currentLogo = attrs['tvg-logo'];
+        currentTvgId = attrs['tvg-id'];
+        currentTvgName = attrs['tvg-name'];
+        currentChannelNumber = int.tryParse(attrs['tvg-chno'] ?? '');
         final comma = line.lastIndexOf(',');
         final rawName = comma >= 0 ? line.substring(comma + 1).trim() : '';
         final lowerName = rawName.toLowerCase();
         isHD = !rawName.contains('Ⓢ') && !lowerName.contains('480p');
         isGeo = rawName.contains('Ⓖ') || lowerName.contains('geo-blocked');
         isYouTube = rawName.contains('Ⓨ') || lowerName.contains('youtube');
-        currentName = rawName
+        currentName = (rawName.isEmpty ? currentTvgName ?? '' : rawName)
             .replaceAll('Ⓢ', '')
             .replaceAll('Ⓖ', '')
             .replaceAll('Ⓨ', '')
             .replaceAll(RegExp(r'\s*\[Geo-blocked\]\s*'), ' ')
             .replaceAll(RegExp(r'\s*\[Not 24/7\]\s*'), ' ')
             .trim();
+        currentStreamType = _streamType(currentGroup, '');
       } else if (line.isNotEmpty &&
           !line.startsWith('#') &&
           currentName != null) {
@@ -138,6 +147,10 @@ class IptvService {
             groupTitle: currentGroup ?? 'International',
             streamUrl: line,
             logoUrl: currentLogo,
+            tvgId: currentTvgId,
+            tvgName: currentTvgName,
+            channelNumber: currentChannelNumber,
+            streamType: _streamType(currentGroup, line, currentStreamType),
             isHD: isHD,
             isGeoBlocked: isGeo,
             isYouTube: isYouTube,
@@ -147,6 +160,10 @@ class IptvService {
         currentGroup = null;
         currentName = null;
         currentLogo = null;
+        currentTvgId = null;
+        currentTvgName = null;
+        currentChannelNumber = null;
+        currentStreamType = TvStreamType.live;
         isHD = true;
         isGeo = false;
         isYouTube = false;
@@ -156,9 +173,31 @@ class IptvService {
     return channels;
   }
 
-  String? _attr(String line, String key) {
-    final match = RegExp('$key="([^"]*)"').firstMatch(line);
-    return match?.group(1);
+  Map<String, String> _attrs(String line) {
+    final attrs = <String, String>{};
+    final regex = RegExp(r'([\w-]+)="([^"]*)"');
+    for (final match in regex.allMatches(line)) {
+      attrs[match.group(1)!.toLowerCase()] = match.group(2)!;
+    }
+    return attrs;
+  }
+
+  TvStreamType _streamType(
+    String? group,
+    String url, [
+    TvStreamType fallback = TvStreamType.live,
+  ]) {
+    final groupLower = (group ?? '').toLowerCase();
+    final urlLower = url.toLowerCase();
+    if (groupLower.contains('series') || urlLower.contains('/series/')) {
+      return TvStreamType.series;
+    }
+    if (groupLower.contains('movie') ||
+        groupLower.contains('vod') ||
+        urlLower.contains('/movie/')) {
+      return TvStreamType.vod;
+    }
+    return fallback;
   }
 }
 

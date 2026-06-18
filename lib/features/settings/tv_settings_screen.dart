@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/hermes_commander_theme.dart';
 import '../../core/ambient/iptv_service.dart';
+import '../../core/ambient/tv_epg_service.dart';
 import '../../core/ambient/tv_database.dart';
 import '../../core/device/battery_optimization_service.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/iptv_providers.dart';
+import '../ambient/models/tv_epg.dart';
 
 class TvSettingsScreen extends ConsumerWidget {
   const TvSettingsScreen({super.key});
@@ -17,6 +19,9 @@ class TvSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hiddenAsync = ref.watch(hiddenChannelsProvider);
     final customAsync = ref.watch(customChannelsProvider);
+    final epgSourcesAsync = ref.watch(epgSourcesProvider);
+    final programmeCount = ref.watch(epgProgrammeCountProvider).valueOrNull;
+    final mappingCount = ref.watch(epgMappingCountProvider).valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Free TV Settings')),
@@ -86,6 +91,85 @@ class TvSettingsScreen extends ConsumerWidget {
                         ref.invalidate(iptvChannelsProvider);
                       },
                     ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          const _SectionLabel('Programme Guide'),
+          Card(
+            margin: EdgeInsets.zero,
+            child: epgSourcesAsync.when(
+              loading: () => const _LoadingTile(),
+              error: (error, _) => _ErrorTile(error: error),
+              data: (sources) {
+                return Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.calendar_view_week_outlined),
+                      title: const Text('EPG sources'),
+                      subtitle: Text(
+                        '${sources.length} sources | ${programmeCount ?? 0} programmes | ${mappingCount ?? 0} mapped channels',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: HCTheme.textSecondary,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Add XMLTV source',
+                        onPressed: () => _showAddEpgSourceSheet(context, ref),
+                      ),
+                    ),
+                    for (final source in sources)
+                      ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.event_note_outlined,
+                          size: 18,
+                        ),
+                        title: Text(source.name),
+                        subtitle: Text(
+                          source.lastRefresh == null
+                              ? source.url
+                              : 'Updated ${_formatDateTime(source.lastRefresh!)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: Wrap(
+                          spacing: 2,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 18),
+                              tooltip: 'Refresh EPG',
+                              onPressed: () =>
+                                  _refreshEpgSource(context, ref, source),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              tooltip: 'Delete EPG source',
+                              onPressed: () async {
+                                final confirm = await _confirm(
+                                  context,
+                                  title: 'Delete EPG source?',
+                                  body:
+                                      '"${source.name}" and its programme data will be removed.',
+                                  action: 'Delete',
+                                  destructive: true,
+                                );
+                                if (confirm != true) return;
+                                await tvDatabase.deleteEpgSource(source.id);
+                                ref.invalidate(epgSourcesProvider);
+                                ref.invalidate(epgProgrammeCountProvider);
+                                ref.invalidate(epgMappingCountProvider);
+                                ref.invalidate(tvNowNextProvider);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 );
               },
@@ -168,6 +252,72 @@ class TvSettingsScreen extends ConsumerWidget {
     );
   }
 
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showAddEpgSourceSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _AddEpgSourceSheet(
+        onSave: (name, url) async {
+          final channels = await ref.read(iptvChannelsProvider.future);
+          final result = await tvEpgService.addOrRefreshSource(
+            name: name,
+            url: url,
+            channels: channels,
+          );
+          ref.invalidate(epgSourcesProvider);
+          ref.invalidate(epgProgrammeCountProvider);
+          ref.invalidate(epgMappingCountProvider);
+          ref.invalidate(tvNowNextProvider);
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'EPG loaded: ${result.programmes} programmes, ${result.mappedChannels} mapped channels.',
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _refreshEpgSource(
+    BuildContext context,
+    WidgetRef ref,
+    TvEpgSource source,
+  ) async {
+    try {
+      final channels = await ref.read(iptvChannelsProvider.future);
+      final result = await tvEpgService.refreshSource(
+        source: source,
+        channels: channels,
+      );
+      ref.invalidate(epgSourcesProvider);
+      ref.invalidate(epgProgrammeCountProvider);
+      ref.invalidate(epgMappingCountProvider);
+      ref.invalidate(tvNowNextProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'EPG refreshed: ${result.programmes} programmes, ${result.mappedChannels} mapped channels.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('EPG refresh failed: $error')));
+    }
+  }
+
   Future<bool?> _confirm(
     BuildContext context, {
     required String title,
@@ -204,6 +354,108 @@ class _BatteryOptimisationTile extends StatefulWidget {
   @override
   State<_BatteryOptimisationTile> createState() =>
       _BatteryOptimisationTileState();
+}
+
+class _AddEpgSourceSheet extends StatefulWidget {
+  final Future<void> Function(String name, String url) onSave;
+
+  const _AddEpgSourceSheet({required this.onSave});
+
+  @override
+  State<_AddEpgSourceSheet> createState() => _AddEpgSourceSheetState();
+}
+
+class _AddEpgSourceSheetState extends State<_AddEpgSourceSheet> {
+  final _name = TextEditingController(text: 'XMLTV Guide');
+  final _url = TextEditingController();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _url.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        top: 8,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Add XMLTV EPG source',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'Source name'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _url,
+            decoration: const InputDecoration(
+              labelText: 'XMLTV URL',
+              hintText: 'https://example.com/guide.xml.gz',
+            ),
+            keyboardType: TextInputType.url,
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _error!,
+              style: const TextStyle(color: HCTheme.statusRed, fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: _saving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined),
+            label: const Text('Load EPG'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    final name = _name.text.trim();
+    final url = _url.text.trim();
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      setState(() => _error = 'Enter a valid XMLTV URL.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(name, url);
+      if (mounted) Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'Could not load EPG: $error';
+      });
+    }
+  }
 }
 
 class _BatteryOptimisationTileState extends State<_BatteryOptimisationTile>

@@ -12,6 +12,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../app/hermes_commander_theme.dart';
 import '../../core/ambient/tv_database.dart';
+import '../../core/ambient/tv_stream_service.dart';
 import '../../core/device/battery_optimization_service.dart';
 import '../../data/providers/iptv_providers.dart';
 import 'models/tv_channel.dart';
@@ -30,15 +31,21 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
 
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
+  late TvChannel _playbackChannel;
+  List<TvChannel> _alternatives = [];
+  int _alternativeIndex = -1;
   bool _loading = true;
   bool _pipSupported = false;
+  bool _failoverInProgress = false;
+  DateTime? _bufferStartedAt;
   String? _error;
   String _status = 'Opening stream...';
 
   @override
   void initState() {
     super.initState();
-    ref.read(activeTvChannelProvider.notifier).state = widget.channel;
+    _playbackChannel = widget.channel;
+    ref.read(activeTvChannelProvider.notifier).state = _playbackChannel;
     unawaited(_enableScreenAwake());
     unawaited(_enableAutoPip());
     _start();
@@ -131,7 +138,11 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
     await BatteryOptimizationService.markAsked();
   }
 
-  Future<void> _start() async {
+  Future<void> _start({TvChannel? channel, bool allowFailover = true}) async {
+    if (channel != null) {
+      _playbackChannel = channel;
+      ref.read(activeTvChannelProvider.notifier).state = channel;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -139,11 +150,13 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
     });
 
     try {
-      await _probeStream(Uri.parse(widget.channel.streamUrl));
+      final uri = Uri.parse(_playbackChannel.streamUrl);
+      await _probeStream(uri);
       if (!mounted) return;
       setState(() => _status = 'Starting player...');
       final controller = await _createControllerWithRetry(
-        Uri.parse(widget.channel.streamUrl),
+        uri,
+        _playbackChannel,
       );
       if (!mounted) {
         await controller.dispose();
@@ -151,9 +164,19 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
       }
       _videoController = controller;
       _chewieController = _buildChewieController(controller);
+      _attachBufferMonitor(controller);
       setState(() => _loading = false);
     } catch (error) {
       if (!mounted) return;
+      await tvDatabase.recordStreamFailure(_playbackChannel.streamUrl);
+      if (allowFailover) {
+        final alternative = await _nextAlternative();
+        if (alternative != null) {
+          await _disposeControllers();
+          await _start(channel: alternative, allowFailover: true);
+          return;
+        }
+      }
       setState(() {
         _loading = false;
         _error = error.toString();
@@ -182,7 +205,10 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
     }
   }
 
-  Future<VideoPlayerController> _createControllerWithRetry(Uri uri) async {
+  Future<VideoPlayerController> _createControllerWithRetry(
+    Uri uri,
+    TvChannel channel,
+  ) async {
     Object? lastError;
     for (var attempt = 1; attempt <= 2; attempt++) {
       final controller = VideoPlayerController.networkUrl(
@@ -193,6 +219,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
         },
       );
       try {
+        final stopwatch = Stopwatch()..start();
         if (mounted) {
           setState(() {
             _status = attempt == 1
@@ -201,6 +228,13 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
           });
         }
         await controller.initialize().timeout(const Duration(seconds: 18));
+        stopwatch.stop();
+        unawaited(
+          tvDatabase.recordStreamSuccess(
+            channel.streamUrl,
+            stopwatch.elapsedMilliseconds,
+          ),
+        );
         return controller;
       } catch (error) {
         lastError = error;
@@ -212,6 +246,25 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
     }
 
     throw StateError('Playback failed: $lastError');
+  }
+
+  void _attachBufferMonitor(VideoPlayerController controller) {
+    controller.addListener(() {
+      if (!mounted || _videoController != controller) return;
+      final value = controller.value;
+      if (!value.isInitialized) return;
+      if (value.isBuffering) {
+        _bufferStartedAt ??= DateTime.now();
+        final stalled =
+            DateTime.now().difference(_bufferStartedAt!) >
+            const Duration(seconds: 5);
+        if (stalled && !_failoverInProgress) {
+          unawaited(_switchToAlternative('Stream stalled'));
+        }
+      } else {
+        _bufferStartedAt = null;
+      }
+    });
   }
 
   ChewieController _buildChewieController(VideoPlayerController controller) {
@@ -233,17 +286,56 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
   }
 
   Future<void> _restart() async {
+    await _disposeControllers();
+    await _start();
+  }
+
+  Future<void> _disposeControllers() async {
     _chewieController?.dispose();
-    _videoController?.dispose();
+    final controller = _videoController;
     _chewieController = null;
     _videoController = null;
-    await _start();
+    _bufferStartedAt = null;
+    await controller?.dispose();
+  }
+
+  Future<void> _switchToAlternative(String reason) async {
+    _failoverInProgress = true;
+    try {
+      await tvDatabase.recordStreamStall(_playbackChannel.streamUrl);
+      final alternative = await _nextAlternative();
+      if (alternative == null || !mounted) return;
+      setState(() {
+        _loading = true;
+        _error = null;
+        _status = '$reason. Switching backup...';
+      });
+      await _disposeControllers();
+      await _start(channel: alternative, allowFailover: true);
+    } finally {
+      _failoverInProgress = false;
+    }
+  }
+
+  Future<TvChannel?> _nextAlternative() async {
+    if (_alternatives.isEmpty) {
+      final allChannels = await ref.read(iptvChannelsProvider.future);
+      _alternatives = await tvStreamService.findAlternatives(
+        channel: _playbackChannel,
+        allChannels: allChannels,
+      );
+      _alternativeIndex = -1;
+    }
+    if (_alternatives.isEmpty) return null;
+    _alternativeIndex++;
+    if (_alternativeIndex >= _alternatives.length) return null;
+    return _alternatives[_alternativeIndex];
   }
 
   @override
   Widget build(BuildContext context) {
     final favouriteIds = ref.watch(iptvFavouriteIdsProvider).valueOrNull ?? {};
-    final isFavourite = favouriteIds.contains(widget.channel.id);
+    final isFavourite = favouriteIds.contains(_playbackChannel.id);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -254,7 +346,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.channel.name,
+              _playbackChannel.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -264,7 +356,7 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
               ),
             ),
             Text(
-              widget.channel.groupTitle,
+              _playbackChannel.groupTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: Colors.white54),
@@ -291,9 +383,9 @@ class _TvPlayerScreenState extends ConsumerState<TvPlayerScreen> {
             tooltip: isFavourite ? 'Remove favourite' : 'Add favourite',
             onPressed: () async {
               if (isFavourite) {
-                await tvDatabase.removeFavourite(widget.channel.id);
+                await tvDatabase.removeFavourite(_playbackChannel.id);
               } else {
-                await tvDatabase.addFavourite(widget.channel);
+                await tvDatabase.addFavourite(_playbackChannel);
               }
               ref.invalidate(iptvFavouriteIdsProvider);
               ref.invalidate(iptvFavouriteChannelsProvider);

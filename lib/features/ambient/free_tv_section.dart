@@ -16,10 +16,12 @@ import '../../app/app_flavor.dart';
 import '../../app/hermes_commander_theme.dart';
 import '../../app/theme.dart';
 import '../../core/ambient/iptv_service.dart';
+import '../../core/ambient/tv_epg_service.dart';
 import '../../core/ambient/tv_database.dart';
 import '../../data/providers/core_providers.dart';
 import '../../data/providers/iptv_providers.dart';
 import 'models/tv_channel.dart';
+import 'models/tv_epg.dart';
 
 class FreeTvSection extends ConsumerWidget {
   const FreeTvSection({super.key});
@@ -63,6 +65,11 @@ class FreeTvSection extends ConsumerWidget {
                 icon: const Icon(Icons.upload_file_outlined, size: 20),
                 tooltip: 'Import M3U playlist',
                 onPressed: () => _importPlaylist(context, ref),
+              ),
+              IconButton(
+                icon: const Icon(Icons.calendar_view_week_outlined, size: 20),
+                tooltip: 'TV guide',
+                onPressed: () => context.push('/ambient/tv/guide'),
               ),
               IconButton(
                 icon: const Icon(Icons.settings_outlined, size: 20),
@@ -225,6 +232,13 @@ class FreeTvSection extends ConsumerWidget {
       ref.invalidate(customChannelsProvider);
       ref.invalidate(iptvChannelsProvider);
       ref.invalidate(iptvGroupsProvider);
+      final epgSources = await tvDatabase.getEpgSources();
+      if (epgSources.isNotEmpty) {
+        final updatedChannels = await ref.read(iptvChannelsProvider.future);
+        await tvEpgService.autoMapChannels(updatedChannels);
+        ref.invalidate(epgMappingCountProvider);
+        ref.invalidate(tvNowNextProvider);
+      }
 
       if (!context.mounted) return;
       messenger.showSnackBar(
@@ -328,6 +342,7 @@ class _TvChannelTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final nowNext = ref.watch(tvNowNextProvider(channel)).valueOrNull;
     return ListTile(
       dense: true,
       leading: _ChannelLogo(channel: channel),
@@ -338,7 +353,7 @@ class _TvChannelTile extends ConsumerWidget {
         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
-        _subtitle(channel),
+        _subtitle(channel, nowNext),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 10, color: Colors.white54),
@@ -366,15 +381,33 @@ class _TvChannelTile extends ConsumerWidget {
     );
   }
 
-  String _subtitle(TvChannel channel) {
+  String _subtitle(TvChannel channel, TvNowNext? nowNext) {
+    final current = nowNext?.current;
+    if (current != null) {
+      return 'Now: ${current.title} | ${_meta(channel)}';
+    }
+    final next = nowNext?.next;
+    if (next != null) {
+      return 'Next ${_time(next.start)}: ${next.title} | ${_meta(channel)}';
+    }
+    return _meta(channel);
+  }
+
+  String _meta(TvChannel channel) {
     final parts = <String>[
       channel.groupTitle,
       if (channel.isHD) 'HD' else 'SD',
+      if (channel.channelNumber != null) '#${channel.channelNumber}',
       if (channel.isCustom) 'Custom',
       if (channel.isGeoBlocked) 'Geo-blocked',
       if (channel.isYouTube) 'YouTube',
     ];
     return parts.join(' | ');
+  }
+
+  String _time(DateTime value) {
+    final local = value.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 
   void _showChannelActions(BuildContext context, WidgetRef ref) {
