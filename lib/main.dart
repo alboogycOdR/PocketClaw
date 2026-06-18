@@ -15,6 +15,7 @@ import 'app/router.dart' as app_router;
 import 'app/theme.dart';
 import 'core/ambient/iptv_service.dart';
 import 'core/ambient/tv_database.dart';
+import 'core/briefing/briefing_scheduler.dart';
 import 'core/llm/models/local_model_config.dart';
 import 'core/llm/services/model_allowlist_service.dart';
 import 'data/providers/core_providers.dart';
@@ -81,6 +82,12 @@ void main() {
 
       // Seed the router's first-run flag before it builds any routes.
       app_router.hasOnboarded = prefs?.getBool('onboarded') ?? false;
+
+      // Schedule the daily 07:00 morning briefing notification.
+      // Best-effort — swallows its own errors when notification
+      // permissions are absent. Power User Feature Pack §6.
+      // ignore: unawaited_futures
+      scheduleDailyBriefing();
 
       final overrides = <Override>[
         if (prefs != null) sharedPrefsProvider.overrideWithValue(prefs),

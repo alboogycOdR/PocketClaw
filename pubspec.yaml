@@ -1,7 +1,7 @@
 name: hermescommander
 description: "HermesCommander - Mobile Hermes Agent Command Centre"
 publish_to: 'none'
-version: 2.8.5+24
+version: 2.9.0+25
 
 environment:
   sdk: ^3.11.4
@@ -45,6 +45,8 @@ dependencies:
   camera: ^0.11.1
   device_calendar: ^4.3.3
   flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4  # transitively pulled by flutter_local_notifications;
+                     # imported directly by core/briefing/briefing_scheduler.dart.
   flutter_tts: ^4.2.0
   share_plus: ^10.1.4
   local_auth: ^2.3.0
@@ -90,6 +92,12 @@ dependencies:
   audio_session: ^0.1.25  # pinned by just_audio 0.9.x
   flutter_map: ^8.3.0
   latlong2: ^0.9.1  # pinned by flutter_map 8.3.0
+
+  # SSH terminal (Power User Feature Pack v1.0 — Feature 1).
+  # VT100 emulator + TerminalView widget; bridges to dartssh2 shell
+  # sessions in lib/features/terminal/. 4.x is the only line compatible
+  # with Flutter's hardware-keyboard API (RawKeyEvent → KeyEvent split).
+  xterm: ^4.0.0
 
   http: ^1.2.0
 

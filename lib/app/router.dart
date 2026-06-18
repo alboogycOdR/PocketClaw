@@ -13,7 +13,10 @@ import '../features/ambient/ambient_screen.dart';
 import '../features/ambient/models/tv_channel.dart';
 import '../features/ambient/tv_guide_screen.dart';
 import '../features/ambient/tv_player_screen.dart';
+import '../features/briefing/briefing_screen.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/monitor/vps_monitor_screen.dart';
+import '../features/terminal/terminal_screen.dart';
 import '../features/hermes/hermes_analytics_screen.dart';
 import '../features/hermes/agent_memory_screen.dart';
 import '../features/hermes/hermes_cron_screen.dart';
@@ -159,6 +162,21 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+
+    // Power User Feature Pack v2.9.0 — full-screen surfaces sitting
+    // outside the bottom-nav shell so they own the chrome.
+    GoRoute(
+      path: '/terminal',
+      builder: (context, state) => const TerminalScreen(),
+    ),
+    GoRoute(
+      path: '/vps-monitor',
+      builder: (context, state) => const VpsMonitorScreen(),
+    ),
+    GoRoute(
+      path: '/briefing',
+      builder: (context, state) => const BriefingScreen(),
     ),
     if (!kHermesOnlyMode)
       GoRoute(

@@ -122,6 +122,30 @@ class _HermesSettingsScreen extends ConsumerWidget {
           context,
         ).push(MaterialPageRoute(builder: (_) => const SshSettings())),
       ),
+      // Power User Feature Pack v2.9.0 — VPS tools clustered after the
+      // SSH connection tile so they're discoverable next to the
+      // credentials that power them.
+      _HermesSettingsTile(
+        section: 'terminal',
+        icon: Icons.terminal_outlined,
+        title: 'SSH Terminal',
+        subtitle: 'Interactive shell over your SSH connection',
+        onTap: () => context.push('/terminal'),
+      ),
+      _HermesSettingsTile(
+        section: 'vps-monitor',
+        icon: Icons.monitor_heart_outlined,
+        title: 'VPS Monitor',
+        subtitle: 'CPU, RAM, disk, services, top processes',
+        onTap: () => context.push('/vps-monitor'),
+      ),
+      _HermesSettingsTile(
+        section: 'briefing',
+        icon: Icons.wb_sunny_outlined,
+        title: 'Morning Briefing',
+        subtitle: 'AI-curated Hacker News briefing · daily 07:00',
+        onTap: () => context.push('/briefing'),
+      ),
       _HermesSettingsTile(
         section: 'osiris',
         icon: Icons.public_outlined,
