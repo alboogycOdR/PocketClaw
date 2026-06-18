@@ -7,7 +7,7 @@ class AppConstants {
   AppConstants._();
 
   static String get appName => appFlavorName;
-  static const String appVersion = '2.9.0';
+  static const String appVersion = '2.9.1';
   static const String orgName = 'Nuburo.DIGITAL (PTY) LTD';
 
   // Default Gateway

@@ -1,7 +1,10 @@
-/// Ambient tab — Focus Sounds (multi-channel mixer) + World Radio
-/// (Radio Garden integration). Single scrollable screen hosting both
-/// sections. Settings gear moved to AppBar overflow when Ambient took
-/// the 5th bottom-nav slot.
+/// Ambient tab — three sub-features each in their own tab so only one
+/// feature is in view at a time:
+///   • Focus   — Office + Nature focus-sound mixers
+///   • Radio   — Radio Garden world radio
+///   • TV      — IPTV / Free TV
+/// Each tab body scrolls independently. Settings gear stays in the
+/// AppBar (Ambient took the 5th bottom-nav slot in v2.8.0).
 library;
 
 import 'package:flutter/material.dart';
@@ -18,29 +21,47 @@ class AmbientScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ambient'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 20),
-            tooltip: 'Settings',
-            onPressed: () => context.push('/settings'),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Ambient'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, size: 20),
+              tooltip: 'Settings',
+              onPressed: () => context.push('/settings'),
+            ),
+          ],
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.spa_outlined, size: 18), text: 'Focus'),
+              Tab(icon: Icon(Icons.radio_outlined, size: 18), text: 'Radio'),
+              Tab(icon: Icon(Icons.live_tv_outlined, size: 18), text: 'TV'),
+            ],
           ),
-        ],
-      ),
-      body: const SingleChildScrollView(
-        padding: EdgeInsets.only(bottom: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        body: const TabBarView(
           children: [
-            OfficeSoundsSection(),
-            Divider(height: 1, indent: 16, endIndent: 16),
-            NatureSoundsSection(),
-            Divider(height: 1, indent: 16, endIndent: 16),
-            WorldRadioSection(),
-            Divider(height: 1, indent: 16, endIndent: 16),
-            FreeTvSection(),
+            SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  OfficeSoundsSection(),
+                  Divider(height: 1, indent: 16, endIndent: 16),
+                  NatureSoundsSection(),
+                ],
+              ),
+            ),
+            SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: 32),
+              child: WorldRadioSection(),
+            ),
+            SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: 32),
+              child: FreeTvSection(),
+            ),
           ],
         ),
       ),
