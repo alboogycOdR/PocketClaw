@@ -29,7 +29,9 @@
       "Bash(where gh:*)",
       "Bash(xargs grep:*)",
       "Bash(git checkout:*)",
-      "Bash(flutter devices:*)"
+      "Bash(flutter devices:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(dart scripts/release_remote.dart)"
     ]
   }
 }

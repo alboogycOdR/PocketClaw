@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.carmen.clawcommander"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "29.0.13113456"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -18,6 +18,12 @@ android {
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    externalNativeBuild {
+        cmake {
+            version = "3.31.0"
+        }
     }
 
     defaultConfig {
@@ -32,6 +38,17 @@ android {
         // x86_64 (emulators only).
         ndk {
             abiFilters += listOf("arm64-v8a")
+        }
+    }
+
+    flavorDimensions += "app"
+    productFlavors {
+        create("claw") {
+            dimension = "app"
+        }
+        create("hermes") {
+            dimension = "app"
+            applicationId = "com.carmen.hermescommander"
         }
     }
 
@@ -72,4 +89,15 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+val copyHermesReleaseApkForFlutter by tasks.registering(Copy::class) {
+    val repoDir = rootProject.projectDir.parentFile
+    from(layout.buildDirectory.dir("outputs/flutter-apk"))
+    include("app-hermes-release.apk")
+    into(repoDir.resolve("build/app/outputs/flutter-apk"))
+}
+
+tasks.matching { it.name == "assembleHermesRelease" }.configureEach {
+    finalizedBy(copyHermesReleaseApkForFlutter)
 }

@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code Findings Report - AI_PocketClaw - 2026-05-24</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --paper: #ffffff;
+      --ink: #1c2430;
+      --muted: #667085;
+      --line: #d9dee8;
+      --code-bg: #f0f3f8;
+      --high-bg: #fff1f0;
+      --high: #b42318;
+      --medium-bg: #fff7e6;
+      --medium: #b54708;
+      --low-bg: #ecfdf3;
+      --low: #067647;
+      --accent: #155eef;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    main {
+      width: min(1040px, calc(100% - 32px));
+      margin: 32px auto;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 16px 48px rgba(28, 36, 48, 0.08);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 32px 40px 26px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff 0%, #f9fafc 100%);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(26px, 4vw, 38px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .content {
+      padding: 32px 40px 42px;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h2:first-child {
+      margin-top: 0;
+    }
+
+    h3 {
+      margin: 26px 0 10px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    ul,
+    ol {
+      margin: 10px 0 18px 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    code {
+      padding: 0.12rem 0.32rem;
+      border-radius: 4px;
+      background: var(--code-bg);
+      font: 0.92em "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre {
+      margin: 12px 0 18px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #101828;
+      color: #eef2f6;
+      font: 13px/1.45 "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+    }
+
+    .summary {
+      padding: 18px 20px;
+      border: 1px solid #b2ccff;
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      background: #eff4ff;
+    }
+
+    .finding {
+      margin: 18px 0 22px;
+      padding: 18px 20px 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .finding h3 {
+      margin-top: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge.high {
+      background: var(--high-bg);
+      color: var(--high);
+    }
+
+    .badge.medium {
+      background: var(--medium-bg);
+      color: var(--medium);
+    }
+
+    .badge.low {
+      background: var(--low-bg);
+      color: var(--low);
+    }
+
+    .label {
+      margin-top: 14px;
+      font-weight: 700;
+      color: #344054;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .metric {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafbfc;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: 100%;
+        margin: 0;
+        border-left: 0;
+        border-right: 0;
+        border-radius: 0;
+      }
+
+      header,
+      .content {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .meta {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Code Findings Report</h1>
+      <p class="subtitle">Project: <code>AI_PocketClaw</code> / <code>clawcommander</code> | Date: 2026-05-24</p>
+      <div class="meta" aria-label="Verification summary">
+        <div class="metric"><strong>86</strong><span>Flutter analyzer issues</span></div>
+        <div class="metric"><strong>85</strong><span>Dart analyzer issues</span></div>
+        <div class="metric"><strong>Pass</strong><span>Current test command</span></div>
+        <div class="metric"><strong>Pass</strong><span>Android APK builds</span></div>
+      </div>
+    </header>
+
+    <section class="content">
+      <h2>Commands Run</h2>
+      <ul>
+        <li><code>flutter analyze --no-pub</code>: completed with 86 analyzer issues.</li>
+        <li><code>dart analyze lib test</code>: completed with 85 analyzer issues.</li>
+        <li><code>flutter test --no-pub -r expanded</code>: passed, but only one trivial smoke test exists.</li>
+        <li><code>flutter build apk --debug --no-pub</code>: passed after clearing stale build/test processes.</li>
+        <li><code>flutter build apk --release --no-pub</code>: passed and produced <code>build/app/outputs/flutter-apk/app-release.apk</code>.</li>
+        <li>Hugging Face model API checks against <code>assets/model_allowlist.json</code>: two configured repos returned <code>401</code>; the default repo is one of them.</li>
+      </ul>
+
+      <h2>Executive Summary</h2>
+      <div class="summary">
+        <p>The app currently compiles and Android APKs can be built, so the dominant problems are not Dart syntax errors. The risk is higher-level: several user-facing paths are still wired to stubs or retired APIs, the analyzer is reporting real cleanup items, Android build configuration is inconsistent with plugin NDK requirements, and test coverage does not exercise the app.</p>
+      </div>
+
+      <h2>Findings</h2>
+
+      <article class="finding">
+        <h3><span class="badge high">High</span> Default model allowlist entry likely cannot be downloaded</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>assets/model_allowlist.json</code> sets the default selected model ID to <code>gemma-4-2b</code>.</li>
+          <li><code>lib/data/providers/core_providers.dart:101</code> defaults <code>selectedModelIdProvider</code> to <code>gemma-4-2b</code>.</li>
+          <li>The configured repo is <code>bartowski/gemma-4-2b-it-GGUF</code>.</li>
+          <li>A Hugging Face API check for <code>https://huggingface.co/api/models/bartowski/gemma-4-2b-it-GGUF</code> returned <code>401</code>.</li>
+          <li>The similarly named current repo <code>bartowski/google_gemma-4-E2B-it-GGUF</code> returned <code>200</code>, and Hugging Face search shows <code>bartowski/google_gemma-4-E2B-it-GGUF</code>.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>First-run local model download can fail for the recommended/default model before the user ever reaches a working local chat flow.</p>
+        <p class="label">Recommendation</p>
+        <p>Validate every allowlist repo and filename at release time. Replace <code>bartowski/gemma-4-2b-it-GGUF</code> / <code>gemma-4-2b-it-Q4_K_M.gguf</code> with a real repo+filename pair, or change the default model to a known-good existing allowlist entry. Keep <code>requiresLicense</code> separate from "repo exists" validation so gated models can still be handled cleanly.</p>
+        <p class="label">Why</p>
+        <p>Model download is a core onboarding path. If the default model points to an unavailable repo, the rest of the local inference stack is irrelevant for new users.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge high">High</span> Legacy <code>LlmEngine</code> stub still drives app state and UI</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>lib/core/local_agent/llm_engine.dart:36</code> has <code>loadModel</code>, but line 44 explicitly sets <code>_isLoaded = false</code>.</li>
+          <li><code>lib/core/local_agent/llm_engine.dart:53</code> returns an empty string from <code>generateCompleteText</code>.</li>
+          <li><code>lib/core/local_agent/llm_engine.dart:55</code> returns a zero vector for embeddings.</li>
+          <li><code>lib/data/providers/core_providers.dart:346</code> exposes this stub via <code>llmEngineProvider</code>.</li>
+          <li><code>lib/data/providers/core_providers.dart:358</code> uses the stub in <code>modelInitProvider</code> and returns <code>true</code> after calling <code>loadModel</code>, even though the engine remains unloaded.</li>
+          <li><code>lib/features/chat/chat_screen.dart:355</code> and <code>lib/features/chat/chat_screen.dart:573</code> still read this stub for voice/model UI state.</li>
+          <li><code>lib/core/memory/memory_service.dart:45</code> uses <code>_llm.isLoaded</code>, so LLM-based memory consolidation never runs through this path.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>The app has two local model systems: the old <code>LlmEngine</code> stub and the newer <code>AbstractLLMEngine</code> / <code>LlamaCppEngine</code>. Local chat mostly uses the newer engine, but voice indicators, memory consolidation, local agent surfaces, and camera/vision checks still use the stub. This creates false UI states and silent feature degradation.</p>
+        <p class="label">Recommendation</p>
+        <p>Remove the legacy <code>LlmEngine</code> provider or replace it with an adapter over <code>AbstractLLMEngine</code>. Make <code>modelInitProvider</code>, chat UI indicators, <code>MemoryService</code>, <code>CameraService</code>, and <code>LocalAgent</code> consume the same source of truth. If a feature is not supported by GGUF/llamadart, expose that explicitly instead of routing through a fake loaded state.</p>
+        <p class="label">Why</p>
+        <p>Two incompatible engine abstractions make it hard to know whether a model is actually available. A single engine contract will prevent "downloaded but unavailable" states and make tests meaningful.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge high">High</span> Registered or advertised features are still hard stubs</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>lib/core/tools/tool_executor.dart:41</code> registers <code>web_search</code> but always returns "not yet wired".</li>
+          <li><code>lib/core/tools/tool_executor.dart:119</code> reports battery data as "not yet wired".</li>
+          <li><code>lib/core/device/camera_service.dart:89</code> documents flutter_gemma vision support, but lines 102-112 say on-device vision is unavailable and instruct users to use cloud mode.</li>
+          <li><code>lib/data/providers/chat_mode_providers.dart:5</code> says cloud mode was removed.</li>
+          <li><code>lib/features/chat/chat_screen.dart:366</code> tells users voice input requires Gemma 4 E2B, but <code>lib/core/local_agent/model_selector.dart</code> references legacy E2B <code>.task</code>-style capabilities that are no longer in the active GGUF allowlist.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>The model/tool layer can advertise tools that fail deterministically. The UI also points users to modes that no longer exist. This will look like runtime breakage even though the app compiles.</p>
+        <p class="label">Recommendation</p>
+        <p>Hide unavailable tools from registries and prompts until implemented. Remove stale cloud/flutter_gemma/E2B copy, or implement the missing flow behind a feature flag. If web search, OCR, battery info, and voice capture are roadmap items, keep them out of the active tool list and render a disabled UI state with accurate copy.</p>
+        <p class="label">Why</p>
+        <p>LLMs will call tools they are told exist. A registered stub is worse than no tool because it creates a predictable failed turn.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge medium">Medium</span> Android NDK version is inconsistent with plugin requirements</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>android/app/build.gradle.kts:10</code> uses <code>ndkVersion = flutter.ndkVersion</code>.</li>
+          <li>Both debug and release Android builds warn that the project is configured with NDK <code>28.2.13676358</code>.</li>
+          <li><code>whisper_ggml</code> requires NDK <code>29.0.13113456</code>; many other plugins require NDK <code>27.0.12077973</code>.</li>
+          <li>Flutter recommends using the highest required NDK version: <code>29.0.13113456</code>.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>Current builds pass, but the build is relying on a mismatch that can become a CI, release, or plugin-update failure.</p>
+        <p class="label">Recommendation</p>
+        <p>Pin the Android app to:</p>
+        <pre><code>android {
+    ndkVersion = "29.0.13113456"
+}</code></pre>
+        <p class="label">Why</p>
+        <p>NDK versions are backward-compatible for these plugins, and pinning removes nondeterminism from native builds.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge medium">Medium</span> Async <code>BuildContext</code> usage can crash after navigation/disposal</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>lib/app/app.dart:48</code> uses <code>rootNavigatorKey.currentContext</code> in a dialog flow after an async gap.</li>
+          <li><code>lib/features/settings/gateway_config.dart:357</code> awaits a confirmation dialog and then uses <code>context</code> again at line 383 without a mounted guard between those steps.</li>
+          <li>Analyzer reports <code>use_build_context_synchronously</code> in both files.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>If the user navigates away or the widget is disposed while an async operation is pending, these paths can try to use a dead context.</p>
+        <p class="label">Recommendation</p>
+        <p>Add <code>if (!mounted) return;</code> immediately after awaited dialogs and long operations before using <code>context</code>. For contexts obtained from keys or builders, check <code>ctx.mounted</code> where available, or capture <code>NavigatorState</code> / <code>ScaffoldMessengerState</code> before awaiting.</p>
+        <p class="label">Why</p>
+        <p>These are intermittent runtime bugs that appear under normal mobile behavior: backgrounding, route changes, and slow network/SSH operations.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge medium">Medium</span> Analyzer warnings show dead code and retired UI paths</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>lib/features/settings/model_config.dart:257</code> and <code>:258</code> define optional parameters that are never passed.</li>
+          <li><code>lib/features/settings/model_config.dart:312</code> has a literal <code>if (false &amp;&amp; ...)</code> block.</li>
+          <li><code>lib/features/settings/model_config.dart:431</code> still labels model ID editing as "cloud models only".</li>
+          <li>Analyzer reports 7 warnings, including unused imports, dead code, and unused optional parameters.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>This is not a compile failure, but it is a sign that removed cloud/model code was not fully cleaned up. It increases maintenance risk and makes it harder to tell which model features are real.</p>
+        <p class="label">Recommendation</p>
+        <p>Delete retired cloud-only UI branches and unused constructor parameters, or reintroduce the feature intentionally with tests. Remove unused imports in <code>chat_providers.dart</code>, <code>device_info_screen.dart</code>, and <code>voice_settings_screen.dart</code>.</p>
+        <p class="label">Why</p>
+        <p>Dead branches are where future changes accidentally get wired into unsupported code.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge low">Low</span> Test coverage is effectively absent</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>test/widget_test.dart</code> only asserts <code>1 + 1 == 2</code>.</li>
+          <li><code>flutter test --no-pub -r expanded</code> passes, but it does not instantiate the app, providers, router, model catalogue, chat modes, or native-service fallback paths.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>The project can report green tests while core user flows are broken.</p>
+        <p class="label">Recommendation</p>
+        <p>Add focused tests for:</p>
+        <ul>
+          <li>app startup with <code>sharedPrefsProvider</code> and <code>modelCatalogueProvider</code> overrides;</li>
+          <li>selected model fallback behavior;</li>
+          <li>local mode when a model is not downloaded;</li>
+          <li>chat mode availability for local/OpenClaw/Hermes;</li>
+          <li>model download URL construction;</li>
+          <li>unavailable feature handling for OCR, voice, and web search.</li>
+        </ul>
+        <p class="label">Why</p>
+        <p>These tests would catch most of the issues above without needing a physical device.</p>
+      </article>
+
+      <article class="finding">
+        <h3><span class="badge low">Low</span> Lints and deprecated Flutter APIs should be cleaned up</h3>
+        <p class="label">Evidence</p>
+        <ul>
+          <li><code>flutter analyze --no-pub</code> reports 86 issues.</li>
+          <li>Deprecations include <code>Switch.activeColor</code> and <code>Radio.groupValue</code> / <code>Radio.onChanged</code>.</li>
+          <li>There are many <code>unnecessary_underscores</code>, doc comment angle-bracket warnings, and style-only issues.</li>
+        </ul>
+        <p class="label">Impact</p>
+        <p>These are mostly not user-visible today, but they create noise that hides real warnings.</p>
+        <p class="label">Recommendation</p>
+        <p>After fixing the functional issues, clean analyzer output to zero or near-zero. Consider treating analyzer warnings as CI failures while leaving style infos as non-blocking until the backlog is cleaned.</p>
+        <p class="label">Why</p>
+        <p>A noisy analyzer makes future regressions easy to miss.</p>
+      </article>
+
+      <h2>Verification Notes</h2>
+      <ul>
+        <li>Android debug APK builds successfully.</li>
+        <li>Android release APK builds successfully.</li>
+        <li>Tests pass, but coverage is not meaningful.</li>
+        <li>iOS build was not verified because this was run on Windows.</li>
+        <li>Running <code>flutter test</code> and <code>flutter build</code> in parallel can contend on <code>.dart_tool/hooks_runner/shared/llamadart/.lock</code>; serialize those jobs in CI.</li>
+      </ul>
+
+      <h2>Recommended Fix Order</h2>
+      <ol>
+        <li>Fix/validate the default model allowlist entry.</li>
+        <li>Collapse the old <code>LlmEngine</code> stub and new <code>AbstractLLMEngine</code> stack into one runtime model state.</li>
+        <li>Hide or implement stubbed tools/features.</li>
+        <li>Pin Android NDK to <code>29.0.13113456</code>.</li>
+        <li>Fix async context warnings.</li>
+        <li>Remove dead/retired cloud UI code and unused imports.</li>
+        <li>Add real tests around startup, model selection, chat mode availability, and unavailable feature behavior.</li>
+        <li>Clean remaining analyzer lints and deprecated APIs.</li>
+      </ol>
+    </section>
+  </main>
+</body>
+</html>
